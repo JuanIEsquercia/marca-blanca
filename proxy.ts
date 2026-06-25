@@ -30,20 +30,25 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
 
-  const pathname = request.nextUrl.pathname
+    const pathname = request.nextUrl.pathname
 
-  if (pathname.startsWith('/admin')) {
-    if (!user) {
-      const loginUrl = new URL('/auth/login', request.url)
-      loginUrl.searchParams.set('redirectTo', pathname)
-      return NextResponse.redirect(loginUrl)
+    if (pathname.startsWith('/admin')) {
+      if (!user) {
+        const loginUrl = new URL('/auth/login', request.url)
+        loginUrl.searchParams.set('redirectTo', pathname)
+        return NextResponse.redirect(loginUrl)
+      }
     }
-  }
 
-  if (pathname === '/auth/login' && user) {
-    return NextResponse.redirect(new URL('/admin/dashboard', request.url))
+    if (pathname === '/auth/login' && user) {
+      return NextResponse.redirect(new URL('/admin/dashboard', request.url))
+    }
+  } catch {
+    // Si Supabase falla en el edge runtime, dejamos pasar la request
+    return NextResponse.next({ request })
   }
 
   return supabaseResponse

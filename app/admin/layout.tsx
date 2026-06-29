@@ -13,15 +13,23 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect('/auth/login')
 
-  const perfilRes = await supabase
+  // Fetch base: nombre y rol siempre existen
+  const { data: perfil } = await supabase
     .from('perfiles')
-    .select('nombre, rol, permisos')
+    .select('nombre, rol')
     .eq('id', user.id)
     .single()
 
-  const perfil = perfilRes.data
   const rol = perfil?.rol ?? 'operador'
-  const permisos: string[] | null = perfil?.permisos ?? null
+
+  // Fetch permisos por separado — puede fallar si migration_005 no fue aplicada aún
+  const { data: perfilPermisos } = await supabase
+    .from('perfiles')
+    .select('permisos')
+    .eq('id', user.id)
+    .single()
+
+  const permisos: string[] | null = (perfilPermisos as { permisos?: string[] | null } | null)?.permisos ?? null
 
   // Route guard: si es operador con permisos explícitos, bloquear rutas no permitidas
   if (rol !== 'admin' && permisos !== null) {

@@ -160,6 +160,7 @@ export interface Perfil {
   nombre: string
   rol: RolUsuario
   activo: boolean
+  permisos: string[] | null
   created_at: string
 }
 

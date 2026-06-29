@@ -27,7 +27,7 @@ export default async function UsuariosPage() {
 
   const { data: perfiles } = await supabase
     .from('perfiles')
-    .select('*')
+    .select('id, nombre, rol, activo, permisos, created_at')
     .order('created_at', { ascending: true })
 
   const perfilesConEmail = (perfiles ?? []).map(p => ({
@@ -38,9 +38,9 @@ export default async function UsuariosPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Gestión de Usuarios</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Usuarios</h1>
         <p className="text-slate-500 text-sm mt-1">
-          Creá y administrá los usuarios que pueden acceder al panel
+          Creá operadores y controlá a qué módulos puede acceder cada uno
         </p>
       </div>
 

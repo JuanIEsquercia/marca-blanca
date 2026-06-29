@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { MAX_OPERADORES } from '@/lib/permisos'
 
 async function verificarAdmin() {
   const supabase = await createClient()
@@ -22,15 +23,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
   }
 
-  const { nombre, email, password, rol } = await request.json()
+  const { nombre, email, password, permisos } = await request.json()
 
   if (!nombre || !email || !password) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
   }
 
+  const supabase = await createClient()
+
+  // Verificar límite de operadores
+  const { count } = await supabase
+    .from('perfiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('rol', 'operador')
+
+  if ((count ?? 0) >= MAX_OPERADORES) {
+    return NextResponse.json(
+      { error: `Límite de ${MAX_OPERADORES} operadores alcanzado` },
+      { status: 400 }
+    )
+  }
+
   const adminClient = createAdminClient()
 
-  // Crear usuario en Supabase Auth
   const { data: newUser, error: authError } = await adminClient.auth.admin.createUser({
     email,
     password,
@@ -41,10 +56,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: authError?.message ?? 'Error al crear usuario' }, { status: 500 })
   }
 
-  // Crear perfil asociado
   const { error: perfilError } = await adminClient
     .from('perfiles')
-    .insert({ id: newUser.user.id, nombre, rol: rol ?? 'operador' })
+    .insert({
+      id: newUser.user.id,
+      nombre,
+      rol: 'operador',
+      permisos: Array.isArray(permisos) ? permisos : null,
+    })
 
   if (perfilError) {
     await adminClient.auth.admin.deleteUser(newUser.user.id)
@@ -52,6 +71,32 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ ok: true, userId: newUser.user.id })
+}
+
+export async function PATCH(request: Request) {
+  const adminUser = await verificarAdmin()
+  if (!adminUser) {
+    return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+  }
+
+  const { userId, permisos } = await request.json()
+
+  if (!userId || !Array.isArray(permisos)) {
+    return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
+  }
+
+  const adminClient = createAdminClient()
+  const { error } = await adminClient
+    .from('perfiles')
+    .update({ permisos })
+    .eq('id', userId)
+    .eq('rol', 'operador') // solo se pueden editar operadores
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true })
 }
 
 export async function DELETE(request: Request) {

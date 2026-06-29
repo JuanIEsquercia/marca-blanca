@@ -3,27 +3,119 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Perfil } from '@/types/database'
+import { MODULOS, MAX_OPERADORES } from '@/lib/permisos'
 import ConfirmModal from './ConfirmModal'
 
-type ConfirmModalState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
+type PerfilConEmail = Perfil & { email: string }
+
+type ConfirmState = { title: string; message: string; confirmLabel?: string; onConfirm: () => Promise<void> }
 
 interface Props {
-  perfiles: (Perfil & { email: string })[]
+  perfiles: PerfilConEmail[]
   currentUserId: string
+}
+
+const SECCIONES = [...new Set(MODULOS.map(m => m.seccion))]
+
+function PermisosCheckboxes({
+  value,
+  onChange,
+}: {
+  value: string[]
+  onChange: (v: string[]) => void
+}) {
+  function toggle(key: string) {
+    onChange(value.includes(key) ? value.filter(k => k !== key) : [...value, key])
+  }
+  function toggleSeccion(seccion: string, modulos: typeof MODULOS) {
+    const keys = modulos.filter(m => m.seccion === seccion).map(m => m.key)
+    const allChecked = keys.every(k => value.includes(k))
+    if (allChecked) {
+      onChange(value.filter(k => !keys.includes(k as never)))
+    } else {
+      onChange([...new Set([...value, ...keys])])
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {SECCIONES.map(sec => {
+        const mods = MODULOS.filter(m => m.seccion === sec)
+        const allChecked = mods.every(m => value.includes(m.key))
+        const someChecked = mods.some(m => value.includes(m.key))
+        return (
+          <div key={sec}>
+            <button
+              type="button"
+              onClick={() => toggleSeccion(sec, MODULOS)}
+              className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 hover:text-slate-700"
+            >
+              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
+                ${allChecked ? 'bg-indigo-600 border-indigo-600' : someChecked ? 'bg-indigo-200 border-indigo-400' : 'border-slate-300'}`}>
+                {(allChecked || someChecked) && (
+                  <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d={allChecked ? 'M5 13l4 4L19 7' : 'M5 12h14'} />
+                  </svg>
+                )}
+              </span>
+              {sec}
+            </button>
+            <div className="ml-2 space-y-1">
+              {mods.map(m => (
+                <label key={m.key} className="flex items-center gap-2 cursor-pointer group">
+                  <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
+                    ${value.includes(m.key) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 group-hover:border-indigo-400'}`}
+                    onClick={() => toggle(m.key)}>
+                    {value.includes(m.key) && (
+                      <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="text-sm text-slate-700 select-none" onClick={() => toggle(m.key)}>
+                    {m.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 export default function UsuariosManager({ perfiles, currentUserId }: Props) {
   const router = useRouter()
-  const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
+  const [, startTransition] = useTransition()
+  const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
+
+  // Creación
   const [showForm, setShowForm] = useState(false)
   const [nombre, setNombre] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [rol, setRol] = useState<'admin' | 'operador'>('operador')
+  const [permisos, setPermisos] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [, startTransition] = useTransition()
+
+  // Edición de permisos
+  const [editPermisosPerfil, setEditPermisosPerfil] = useState<PerfilConEmail | null>(null)
+  const [editPermisos, setEditPermisos] = useState<string[]>([])
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+
+  const operadores = perfiles.filter(p => p.rol !== 'admin')
+  const cupoLleno = operadores.length >= MAX_OPERADORES
+
+  function refresh() { startTransition(() => router.refresh()) }
+
+  function openCreate() {
+    setNombre(''); setEmail(''); setPassword('')
+    setPermisos([]); setError(null); setSuccess(false)
+    setShowForm(true)
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -33,118 +125,95 @@ export default function UsuariosManager({ perfiles, currentUserId }: Props) {
     const res = await fetch('/api/admin/usuarios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre, email, password, rol }),
+      body: JSON.stringify({ nombre, email, password, rol: 'operador', permisos }),
     })
 
     const data = await res.json()
     setLoading(false)
 
-    if (!res.ok) {
-      setError(data.error)
-      return
-    }
+    if (!res.ok) { setError(data.error); return }
 
     setSuccess(true)
-    setNombre('')
-    setEmail('')
-    setPassword('')
-    setRol('operador')
-    setTimeout(() => {
-      setSuccess(false)
-      setShowForm(false)
-    }, 2000)
-    startTransition(() => router.refresh())
+    setTimeout(() => { setSuccess(false); setShowForm(false) }, 1800)
+    refresh()
   }
 
-  function handleDelete(userId: string) {
+  function openEditPermisos(p: PerfilConEmail) {
+    setEditPermisosPerfil(p)
+    setEditPermisos(p.permisos ?? [])
+    setEditError(null)
+  }
+
+  async function handleSavePermisos() {
+    if (!editPermisosPerfil) return
+    setEditLoading(true)
+    setEditError(null)
+
+    const res = await fetch('/api/admin/usuarios', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: editPermisosPerfil.id, permisos: editPermisos }),
+    })
+
+    const data = await res.json()
+    setEditLoading(false)
+
+    if (!res.ok) { setEditError(data.error); return }
+
+    setEditPermisosPerfil(null)
+    refresh()
+  }
+
+  function handleDelete(userId: string, nombre: string) {
     setConfirmModal({
       title: 'Eliminar usuario',
-      message: '¿Eliminar este usuario? Esta acción no se puede deshacer.',
+      message: `¿Eliminar a "${nombre}"? Esta acción no se puede deshacer.`,
       confirmLabel: 'Eliminar usuario',
       onConfirm: async () => {
-        const res = await fetch('/api/admin/usuarios', {
+        await fetch('/api/admin/usuarios', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId }),
         })
         setConfirmModal(null)
-        if (res.ok) startTransition(() => router.refresh())
+        refresh()
       },
     })
   }
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-5">
-        <p className="text-slate-500 text-sm">{perfiles.length} usuario(s) en el sistema</p>
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <p className="text-slate-500 text-sm">
+            Operadores: <span className={`font-semibold ${cupoLleno ? 'text-red-600' : 'text-slate-700'}`}>
+              {operadores.length} / {MAX_OPERADORES}
+            </span>
+          </p>
+        </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={openCreate}
+          disabled={cupoLleno}
+          title={cupoLleno ? `Límite de ${MAX_OPERADORES} operadores alcanzado` : undefined}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
+                     disabled:opacity-40 disabled:cursor-not-allowed
                      text-white rounded-lg text-sm font-medium transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Nuevo usuario
+          Nuevo operador
         </button>
       </div>
 
-      {/* Formulario de creación */}
-      {showForm && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 mb-5">
-          <h3 className="font-semibold text-slate-800 mb-4">Crear nuevo usuario</h3>
-          <form onSubmit={handleCreate} className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Nombre *</label>
-              <input required value={nombre} onChange={e => setNombre(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Email *</label>
-              <input required type="email" value={email} onChange={e => setEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Contraseña *</label>
-              <input required type="password" minLength={8} value={password} onChange={e => setPassword(e.target.value)}
-                placeholder="Mínimo 8 caracteres"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Rol</label>
-              <select value={rol} onChange={e => setRol(e.target.value as 'admin' | 'operador')}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="operador">Operador</option>
-                <option value="admin">Administrador</option>
-              </select>
-            </div>
-
-            {error && (
-              <div className="col-span-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                {error}
-              </div>
-            )}
-            {success && (
-              <div className="col-span-2 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
-                Usuario creado exitosamente.
-              </div>
-            )}
-
-            <div className="col-span-2 flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowForm(false)}
-                className="px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
-                Cancelar
-              </button>
-              <button type="submit" disabled={loading}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-medium">
-                {loading ? 'Creando...' : 'Crear usuario'}
-              </button>
-            </div>
-          </form>
+      {cupoLleno && (
+        <div className="mb-5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
+          Cupo máximo de {MAX_OPERADORES} operadores alcanzado. Eliminá uno para crear otro.
         </div>
       )}
 
-      {/* Lista de usuarios */}
+      {/* Tabla */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -152,7 +221,7 @@ export default function UsuariosManager({ perfiles, currentUserId }: Props) {
               <th className="text-left px-4 py-3 font-semibold text-slate-600">Nombre</th>
               <th className="text-left px-4 py-3 font-semibold text-slate-600">Email</th>
               <th className="text-left px-4 py-3 font-semibold text-slate-600">Rol</th>
-              <th className="text-left px-4 py-3 font-semibold text-slate-600">Estado</th>
+              <th className="text-left px-4 py-3 font-semibold text-slate-600">Acceso a módulos</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -168,25 +237,52 @@ export default function UsuariosManager({ perfiles, currentUserId }: Props) {
                 <td className="px-4 py-3 text-slate-600">{p.email}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full border
-                    ${p.rol === 'admin' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                    ${p.rol === 'admin'
+                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                      : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                     {p.rol === 'admin' ? 'Administrador' : 'Operador'}
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full border
-                    ${p.activo ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
-                    {p.activo ? 'Activo' : 'Inactivo'}
-                  </span>
+                  {p.rol === 'admin' ? (
+                    <span className="text-xs text-slate-400 italic">Acceso total</span>
+                  ) : p.permisos === null ? (
+                    <span className="text-xs text-slate-400 italic">Sin restricciones</span>
+                  ) : p.permisos.length === 0 ? (
+                    <span className="text-xs text-red-500">Sin acceso</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {p.permisos.map(key => {
+                        const mod = MODULOS.find(m => m.key === key)
+                        return mod ? (
+                          <span key={key}
+                            className="text-[10px] font-medium px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-md border border-indigo-100">
+                            {mod.label}
+                          </span>
+                        ) : null
+                      })}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {p.id !== currentUserId && (
-                    <button
-                      onClick={() => handleDelete(p.id)}
-                      className="text-xs text-red-500 hover:text-red-700 transition-colors"
-                    >
-                      Eliminar
-                    </button>
-                  )}
+                  <div className="flex items-center justify-end gap-3">
+                    {p.rol !== 'admin' && (
+                      <button
+                        onClick={() => openEditPermisos(p)}
+                        className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                      >
+                        Editar permisos
+                      </button>
+                    )}
+                    {p.id !== currentUserId && (
+                      <button
+                        onClick={() => handleDelete(p.id, p.nombre)}
+                        className="text-xs text-red-400 hover:text-red-600 transition-colors"
+                      >
+                        Eliminar
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -194,12 +290,119 @@ export default function UsuariosManager({ perfiles, currentUserId }: Props) {
         </table>
       </div>
 
+      {/* Modal crear operador */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <h2 className="font-bold text-slate-900">Nuevo operador</h2>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <form id="create-form" onSubmit={handleCreate} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Nombre *</label>
+                    <input required value={nombre} onChange={e => setNombre(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Email *</label>
+                    <input required type="email" value={email} onChange={e => setEmail(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Contraseña *</label>
+                    <input required type="password" minLength={8} value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="Mínimo 8 caracteres"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="text-xs font-semibold text-slate-700 mb-3">
+                    Módulos a los que puede acceder
+                  </p>
+                  <PermisosCheckboxes value={permisos} onChange={setPermisos} />
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
+                )}
+                {success && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                    Operador creado exitosamente.
+                  </div>
+                )}
+              </form>
+            </div>
+            <div className="p-6 border-t border-slate-100 flex gap-3">
+              <button type="button" onClick={() => setShowForm(false)}
+                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
+                Cancelar
+              </button>
+              <button type="submit" form="create-form" disabled={loading}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60
+                           text-white rounded-xl text-sm font-semibold">
+                {loading ? 'Creando...' : 'Crear operador'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal editar permisos */}
+      {editPermisosPerfil && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <div>
+                <h2 className="font-bold text-slate-900">Permisos de acceso</h2>
+                <p className="text-xs text-slate-500 mt-0.5">{editPermisosPerfil.nombre}</p>
+              </div>
+              <button onClick={() => setEditPermisosPerfil(null)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <p className="text-xs text-slate-500 mb-4">
+                Seleccioná los módulos a los que este operador puede acceder. Dashboard siempre está disponible.
+              </p>
+              <PermisosCheckboxes value={editPermisos} onChange={setEditPermisos} />
+              {editError && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{editError}</div>
+              )}
+            </div>
+            <div className="p-6 border-t border-slate-100 flex gap-3">
+              <button onClick={() => setEditPermisosPerfil(null)}
+                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
+                Cancelar
+              </button>
+              <button onClick={handleSavePermisos} disabled={editLoading}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60
+                           text-white rounded-xl text-sm font-semibold">
+                {editLoading ? 'Guardando...' : 'Guardar permisos'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmModal && (
         <ConfirmModal
           title={confirmModal.title}
           message={confirmModal.message}
           confirmLabel={confirmModal.confirmLabel}
-          danger={confirmModal.danger}
           onConfirm={confirmModal.onConfirm}
           onCancel={() => setConfirmModal(null)}
         />

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { RolUsuario } from '@/types/database'
+import type { ModuloKey } from '@/lib/permisos'
 
 const NAV_SECTIONS = [
   {
@@ -13,24 +14,28 @@ const NAV_SECTIONS = [
       {
         href: '/admin/dashboard',
         label: 'Dashboard',
+        permiso: null, // siempre visible para cualquier usuario logueado
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
         roles: ['admin', 'operador'],
       },
       {
         href: '/admin/tipologias',
         label: 'Tipologías',
+        permiso: 'tipologias' as ModuloKey,
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>,
         roles: ['admin', 'operador'],
       },
       {
         href: '/admin/amenities',
         label: 'Amenities',
+        permiso: 'amenities' as ModuloKey,
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>,
         roles: ['admin', 'operador'],
       },
       {
         href: '/admin/unidades',
         label: 'Unidades',
+        permiso: 'unidades' as ModuloKey,
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
         roles: ['admin', 'operador'],
       },
@@ -42,12 +47,14 @@ const NAV_SECTIONS = [
       {
         href: '/admin/reservas',
         label: 'Reservas',
+        permiso: 'reservas' as ModuloKey,
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
         roles: ['admin', 'operador'],
       },
       {
         href: '/admin/contratos',
         label: 'Ventas',
+        permiso: 'contratos' as ModuloKey,
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
         roles: ['admin', 'operador'],
       },
@@ -59,12 +66,14 @@ const NAV_SECTIONS = [
       {
         href: '/admin/gastos',
         label: 'Gastos',
+        permiso: 'gastos' as ModuloKey,
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
         roles: ['admin', 'operador'],
       },
       {
         href: '/admin/proveedores',
         label: 'Proveedores',
+        permiso: 'proveedores' as ModuloKey,
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>,
         roles: ['admin', 'operador'],
       },
@@ -76,12 +85,14 @@ const NAV_SECTIONS = [
       {
         href: '/admin/tesoreria',
         label: 'Caja',
+        permiso: 'tesoreria' as ModuloKey,
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>,
         roles: ['admin', 'operador'],
       },
       {
         href: '/admin/cuentas',
         label: 'Cuentas',
+        permiso: 'cuentas' as ModuloKey,
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>,
         roles: ['admin', 'operador'],
       },
@@ -93,6 +104,7 @@ const NAV_SECTIONS = [
       {
         href: '/admin/usuarios',
         label: 'Usuarios',
+        permiso: null, // solo admin, no entra en el sistema de permisos
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
         roles: ['admin'],
       },
@@ -103,11 +115,22 @@ const NAV_SECTIONS = [
 interface Props {
   userName: string
   userRole: RolUsuario
+  userPermisos: string[] | null
 }
 
-export default function AdminSidebar({ userName, userRole }: Props) {
+export default function AdminSidebar({ userName, userRole, userPermisos }: Props) {
   const pathname = usePathname()
   const router = useRouter()
+
+  function puedeVerItem(item: typeof NAV_SECTIONS[0]['items'][0]): boolean {
+    if (!item.roles.includes(userRole)) return false
+    if (userRole === 'admin') return true
+    // Dashboard siempre visible
+    if (item.permiso === null) return true
+    // Operador sin restricciones explícitas (legado)
+    if (userPermisos === null) return true
+    return userPermisos.includes(item.permiso)
+  }
 
   async function handleLogout() {
     const supabase = createClient()
@@ -136,7 +159,7 @@ export default function AdminSidebar({ userName, userRole }: Props) {
       {/* Navegación por secciones */}
       <nav className="flex-1 p-3 space-y-4 overflow-y-auto admin-scroll">
         {NAV_SECTIONS.map(section => {
-          const visibleItems = section.items.filter(item => item.roles.includes(userRole))
+          const visibleItems = section.items.filter(puedeVerItem)
           if (visibleItems.length === 0) return null
           return (
             <div key={section.label}>

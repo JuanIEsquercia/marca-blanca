@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { Proveedor, CuentaProveedor } from '@/types/database'
+import ConfirmModal from './ConfirmModal'
+
+type ConfirmModalState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
 
 interface Props {
   proveedores: Proveedor[]
@@ -17,6 +20,7 @@ const TIPOS_CTA = ['CBU', 'Alias', 'Efectivo', 'Cheque', 'Otro']
 export default function ProveedoresManager({ proveedores }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showProv, setShowProv] = useState(false)
   const [editingProv, setEditingProv] = useState<Proveedor | null>(null)
@@ -83,12 +87,19 @@ export default function ProveedoresManager({ proveedores }: Props) {
     refresh()
   }
 
-  async function handleDeleteProv(p: Proveedor) {
-    if (!confirm(`¿Eliminar "${p.razon_social}"? Se eliminarán también sus cuentas.`)) return
-    const supabase = createClient()
-    await supabase.from('proveedores').delete().eq('id', p.id)
-    if (expanded === p.id) setExpanded(null)
-    refresh()
+  function handleDeleteProv(p: Proveedor) {
+    setConfirmModal({
+      title: 'Eliminar proveedor',
+      message: `¿Eliminar "${p.razon_social}"? Se eliminarán también sus cuentas bancarias.`,
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        const supabase = createClient()
+        await supabase.from('proveedores').delete().eq('id', p.id)
+        if (expanded === p.id) setExpanded(null)
+        setConfirmModal(null)
+        refresh()
+      },
+    })
   }
 
   // ── Cuentas proveedor ─────────────────────────────────────
@@ -131,11 +142,18 @@ export default function ProveedoresManager({ proveedores }: Props) {
     refresh()
   }
 
-  async function handleDeleteCta(id: string) {
-    if (!confirm('¿Eliminar esta cuenta?')) return
-    const supabase = createClient()
-    await supabase.from('cuentas_proveedor').delete().eq('id', id)
-    refresh()
+  function handleDeleteCta(id: string) {
+    setConfirmModal({
+      title: 'Eliminar cuenta',
+      message: '¿Eliminar esta cuenta bancaria del proveedor?',
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        const supabase = createClient()
+        await supabase.from('cuentas_proveedor').delete().eq('id', id)
+        setConfirmModal(null)
+        refresh()
+      },
+    })
   }
 
   return (
@@ -399,6 +417,17 @@ export default function ProveedoresManager({ proveedores }: Props) {
             </form>
           </div>
         </div>
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          danger={confirmModal.danger}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
       )}
     </div>
   )

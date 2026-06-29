@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import TesoreriaView from '@/components/admin/TesoreriaView'
 import type { Metadata } from 'next'
 
-export const metadata: Metadata = { title: 'Tesorería' }
+export const metadata: Metadata = { title: 'Caja' }
 export const dynamic = 'force-dynamic'
 
 function getLast12Months() {
@@ -108,7 +108,7 @@ export default async function TesoreriaPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Tesorería</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Caja</h1>
         <p className="text-slate-500 text-sm mt-1">Saldos por cuenta y flujo de caja mensual</p>
       </div>
       <TesoreriaView

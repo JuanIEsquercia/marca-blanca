@@ -17,12 +17,6 @@ const NAV_SECTIONS = [
         roles: ['admin', 'operador'],
       },
       {
-        href: '/admin/inventario',
-        label: 'Inventario',
-        icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
-        roles: ['admin', 'operador'],
-      },
-      {
         href: '/admin/tipologias',
         label: 'Tipologías',
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>,
@@ -34,17 +28,17 @@ const NAV_SECTIONS = [
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>,
         roles: ['admin', 'operador'],
       },
+      {
+        href: '/admin/unidades',
+        label: 'Unidades',
+        icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
+        roles: ['admin', 'operador'],
+      },
     ],
   },
   {
     label: 'Comercial',
     items: [
-      {
-        href: '/admin/contratos',
-        label: 'Contratos',
-        icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
-        roles: ['admin', 'operador'],
-      },
       {
         href: '/admin/reservas',
         label: 'Reservas',
@@ -52,22 +46,15 @@ const NAV_SECTIONS = [
         roles: ['admin', 'operador'],
       },
       {
-        href: '/admin/compradores',
-        label: 'Compradores',
-        icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" /></svg>,
+        href: '/admin/contratos',
+        label: 'Ventas',
+        icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
         roles: ['admin', 'operador'],
       },
       {
         href: '/admin/cuenta-corriente',
         label: 'Cuenta Corriente',
-        badge: 'vencidas',
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" /></svg>,
-        roles: ['admin', 'operador'],
-      },
-      {
-        href: '/admin/leads',
-        label: 'Leads / CRM',
-        icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
         roles: ['admin', 'operador'],
       },
     ],
@@ -94,7 +81,7 @@ const NAV_SECTIONS = [
     items: [
       {
         href: '/admin/tesoreria',
-        label: 'Tesorería',
+        label: 'Caja',
         icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>,
         roles: ['admin', 'operador'],
       },
@@ -122,10 +109,9 @@ const NAV_SECTIONS = [
 interface Props {
   userName: string
   userRole: RolUsuario
-  cuotasVencidasCount: number
 }
 
-export default function AdminSidebar({ userName, userRole, cuotasVencidasCount }: Props) {
+export default function AdminSidebar({ userName, userRole }: Props) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -166,7 +152,6 @@ export default function AdminSidebar({ userName, userRole, cuotasVencidasCount }
               <div className="space-y-0.5">
                 {visibleItems.map(item => {
                   const isActive = pathname.startsWith(item.href)
-                  const showBadge = item.badge === 'vencidas' && cuotasVencidasCount > 0
                   return (
                     <Link
                       key={item.href}
@@ -180,14 +165,6 @@ export default function AdminSidebar({ userName, userRole, cuotasVencidasCount }
                     >
                       {item.icon}
                       <span className="flex-1">{item.label}</span>
-                      {showBadge && (
-                        <span className={cn(
-                          'text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
-                          isActive ? 'bg-white/20 text-white' : 'bg-red-500 text-white'
-                        )}>
-                          {cuotasVencidasCount > 99 ? '99+' : cuotasVencidasCount}
-                        </span>
-                      )}
                     </Link>
                   )
                 })}

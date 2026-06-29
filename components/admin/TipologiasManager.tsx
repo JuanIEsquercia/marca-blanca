@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { uploadToCloudinary, cloudinaryUrl } from '@/lib/cloudinary'
 import type { Tipologia } from '@/types/database'
+import ConfirmModal from './ConfirmModal'
+
+type ConfirmModalState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
 
 interface Props {
   tipologias: Tipologia[]
@@ -22,6 +25,7 @@ const EMPTY_FORM = {
 export default function TipologiasManager({ tipologias }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Tipologia | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -95,12 +99,18 @@ export default function TipologiasManager({ tipologias }: Props) {
     refresh()
   }
 
-  async function handleDelete(id: string, nombre: string) {
-    if (!confirm(`¿Eliminar la tipología "${nombre}"? Solo se puede eliminar si no tiene unidades asociadas.`)) return
-    const supabase = createClient()
-    const { error: err } = await supabase.from('tipologias').delete().eq('id', id)
-    if (err) alert(err.message)
-    else refresh()
+  function handleDelete(id: string, nombre: string) {
+    setConfirmModal({
+      title: 'Eliminar tipología',
+      message: `¿Eliminar "${nombre}"? Solo es posible si no tiene unidades asociadas.`,
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        const supabase = createClient()
+        await supabase.from('tipologias').delete().eq('id', id)
+        setConfirmModal(null)
+        refresh()
+      },
+    })
   }
 
   return (
@@ -341,6 +351,17 @@ export default function TipologiasManager({ tipologias }: Props) {
             </svg>
           </button>
         </div>
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          danger={confirmModal.danger}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
       )}
     </div>
   )

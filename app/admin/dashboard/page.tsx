@@ -18,7 +18,6 @@ async function getStats() {
     cuotasVencidasRes,
     reservasVigenteRes,
     reservasPorVencerRes,
-    leadsNuevosRes,
     ultimosContratosRes,
   ] = await Promise.all([
     supabase.from('unidades').select('estado_comercial'),
@@ -38,10 +37,6 @@ async function getStats() {
       .select('*', { count: 'exact', head: true })
       .eq('estado', 'Vigente')
       .lte('fecha_vencimiento', en7Dias),
-    supabase
-      .from('leads')
-      .select('*', { count: 'exact', head: true })
-      .eq('estado', 'Nuevo'),
     supabase
       .from('contratos_venta')
       .select('id, precio_final, fecha_firma, compradores(nombre_completo), unidades(piso, numero, letra)')
@@ -63,7 +58,6 @@ async function getStats() {
     cuotas_vencidas: cuotasVencidasRes.count ?? 0,
     reservas_vigentes: reservasVigenteRes.count ?? 0,
     reservas_por_vencer: reservasPorVencerRes.count ?? 0,
-    leads_nuevos: leadsNuevosRes.count ?? 0,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ultimos_contratos: (ultimosContratosRes.data ?? []) as any[],
   }
@@ -87,7 +81,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Alertas */}
-      {(stats.cuotas_vencidas > 0 || stats.reservas_por_vencer > 0 || stats.leads_nuevos > 0) && (
+      {(stats.cuotas_vencidas > 0 || stats.reservas_por_vencer > 0) && (
         <div className="space-y-2">
           {stats.cuotas_vencidas > 0 && (
             <Link href="/admin/cuenta-corriente"
@@ -111,18 +105,6 @@ export default async function DashboardPage() {
                 <strong>{stats.reservas_por_vencer} reserva{stats.reservas_por_vencer > 1 ? 's' : ''}</strong> vence{stats.reservas_por_vencer > 1 ? 'n' : ''} en los próximos 7 días
               </p>
               <span className="text-xs text-amber-600">Ver →</span>
-            </Link>
-          )}
-          {stats.leads_nuevos > 0 && (
-            <Link href="/admin/leads"
-              className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors">
-              <svg className="w-5 h-5 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <p className="text-sm text-blue-800 flex-1">
-                <strong>{stats.leads_nuevos} lead{stats.leads_nuevos > 1 ? 's' : ''} nuevo{stats.leads_nuevos > 1 ? 's' : ''}</strong> sin contactar
-              </p>
-              <span className="text-xs text-blue-500">Ver →</span>
             </Link>
           )}
         </div>
@@ -215,14 +197,14 @@ export default async function DashboardPage() {
         {/* Acciones rápidas */}
         <div className="space-y-3">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-1">Acciones rápidas</p>
-          <Link href="/admin/inventario"
+          <Link href="/admin/unidades"
             className="flex items-center gap-3 p-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl transition-colors">
             <svg className="w-5 h-5 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
             <div>
               <p className="text-white font-medium text-sm">Registrar venta</p>
-              <p className="text-indigo-200 text-xs">Desde Inventario</p>
+              <p className="text-indigo-200 text-xs">Desde Unidades</p>
             </div>
           </Link>
           <Link href="/admin/cuenta-corriente"
@@ -244,18 +226,6 @@ export default async function DashboardPage() {
               <p className="text-slate-800 font-medium text-sm">Ver reservas</p>
               <p className="text-slate-400 text-xs">
                 {stats.reservas_vigentes} vigente{stats.reservas_vigentes !== 1 ? 's' : ''}
-              </p>
-            </div>
-          </Link>
-          <Link href="/admin/leads"
-            className="flex items-center gap-3 p-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl transition-colors">
-            <svg className="w-5 h-5 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            <div>
-              <p className="text-slate-800 font-medium text-sm">Leads / CRM</p>
-              <p className="text-slate-400 text-xs">
-                {stats.leads_nuevos > 0 ? `${stats.leads_nuevos} nuevo${stats.leads_nuevos > 1 ? 's' : ''}` : 'Sin leads nuevos'}
               </p>
             </div>
           </Link>

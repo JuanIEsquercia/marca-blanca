@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { CuentaPropia } from '@/types/database'
+import ConfirmModal from './ConfirmModal'
+
+type ConfirmModalState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
 
 interface Props {
   cuentas: CuentaPropia[]
@@ -15,6 +18,7 @@ const EMPTY_FORM = { nombre: '', tipo: 'banco', moneda: 'USD', saldo_inicial: '0
 export default function CuentasPropiasManager({ cuentas }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<CuentaPropia | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -68,12 +72,18 @@ export default function CuentasPropiasManager({ cuentas }: Props) {
     refresh()
   }
 
-  async function handleDelete(c: CuentaPropia) {
-    if (!confirm(`¿Eliminar "${c.nombre}"? Esta acción no se puede deshacer.`)) return
-    const supabase = createClient()
-    const { error: err } = await supabase.from('cuentas_propias').delete().eq('id', c.id)
-    if (err) { alert(err.message); return }
-    refresh()
+  function handleDelete(c: CuentaPropia) {
+    setConfirmModal({
+      title: 'Eliminar cuenta',
+      message: `¿Eliminar "${c.nombre}"? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        const supabase = createClient()
+        await supabase.from('cuentas_propias').delete().eq('id', c.id)
+        setConfirmModal(null)
+        refresh()
+      },
+    })
   }
 
   const fmt = (c: CuentaPropia) =>
@@ -239,6 +249,17 @@ export default function CuentasPropiasManager({ cuentas }: Props) {
             </form>
           </div>
         </div>
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          danger={confirmModal.danger}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
       )}
     </div>
   )

@@ -8,6 +8,9 @@ import type { Unidad, Tipologia, EstadoComercial, Comprador, Reserva } from '@/t
 import SaleForm from './SaleForm'
 import UnidadForm from './UnidadForm'
 import ReservaForm from './ReservaForm'
+import ConfirmModal from './ConfirmModal'
+
+type ConfirmModalState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
 
 type ReservaConComprador = Reserva & { compradores: Comprador }
 type UnidadConRelaciones = Unidad & {
@@ -30,6 +33,7 @@ export default function InventoryGrid({ unidades, tipologias }: Props) {
   const [saleUnit, setSaleUnit] = useState<UnidadConRelaciones | null>(null)
   const [reservaUnit, setReservaUnit] = useState<UnidadConRelaciones | null>(null)
   const [editUnit, setEditUnit] = useState<UnidadConRelaciones | null>(null)
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [showNewUnit, setShowNewUnit] = useState(false)
   const [, startTransition] = useTransition()
 
@@ -68,12 +72,18 @@ export default function InventoryGrid({ unidades, tipologias }: Props) {
     refresh()
   }
 
-  async function handleDelete(id: string, label: string) {
-    if (!confirm(`¿Eliminar la unidad "${label}"? Solo es posible si no tiene contrato de venta.`)) return
-    const supabase = createClient()
-    const { error } = await supabase.from('unidades').delete().eq('id', id)
-    if (error) alert(error.message)
-    else refresh()
+  function handleDelete(id: string, label: string) {
+    setConfirmModal({
+      title: 'Eliminar unidad',
+      message: `¿Eliminar la unidad "${label}"? Solo es posible si no tiene contrato de venta.`,
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        const supabase = createClient()
+        await supabase.from('unidades').delete().eq('id', id)
+        setConfirmModal(null)
+        refresh()
+      },
+    })
   }
 
   return (
@@ -284,6 +294,17 @@ export default function InventoryGrid({ unidades, tipologias }: Props) {
           })()}
           onClose={() => setSaleUnit(null)}
           onSuccess={() => { setSaleUnit(null); refresh() }}
+        />
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          danger={confirmModal.danger}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
         />
       )}
     </>

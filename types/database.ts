@@ -2,7 +2,6 @@ export type EstadoComercial = 'Disponible' | 'Reservado' | 'Vendido'
 export type EstadoPago = 'Pendiente' | 'Pagado' | 'Vencido'
 export type RolUsuario = 'admin' | 'operador'
 export type EstadoReserva = 'Vigente' | 'Convertida' | 'Caída'
-export type EstadoLead = 'Nuevo' | 'Contactado' | 'Interesado' | 'Reservado' | 'Vendido' | 'Descartado'
 
 export interface Tipologia {
   id: string
@@ -182,21 +181,6 @@ export interface Reserva {
   cuentas_propias?: CuentaPropia
 }
 
-// ── Leads / CRM ───────────────────────────────────────────────
-
-export interface Lead {
-  id: string
-  nombre: string
-  email: string | null
-  telefono: string | null
-  tipologia_interes: string | null
-  mensaje: string | null
-  origen: string
-  estado: EstadoLead
-  notas_seguimiento: string | null
-  created_at: string
-}
-
 // Vista pública para landing
 export interface StockPublico {
   id: string
@@ -232,15 +216,3 @@ export const ORIENTACIONES = [
   'Frente', 'Contrafrente', 'Lateral', 'Interno',
 ]
 
-export const LEAD_ESTADOS: EstadoLead[] = [
-  'Nuevo', 'Contactado', 'Interesado', 'Reservado', 'Vendido', 'Descartado',
-]
-
-export const LEAD_ESTADO_COLORS: Record<EstadoLead, string> = {
-  Nuevo:       'bg-blue-50 text-blue-700 border-blue-200',
-  Contactado:  'bg-indigo-50 text-indigo-700 border-indigo-200',
-  Interesado:  'bg-amber-50 text-amber-700 border-amber-200',
-  Reservado:   'bg-orange-50 text-orange-700 border-orange-200',
-  Vendido:     'bg-emerald-50 text-emerald-700 border-emerald-200',
-  Descartado:  'bg-slate-100 text-slate-500 border-slate-200',
-}

@@ -6,6 +6,9 @@ import { createClient } from '@/lib/supabase/client'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import type { Reserva, Comprador, Unidad, Tipologia, CuentaPropia, EstadoReserva } from '@/types/database'
 import SaleForm from './SaleForm'
+import ConfirmModal from './ConfirmModal'
+
+type ConfirmModalState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
 
 type ReservaConRelaciones = Reserva & {
   compradores: Comprador
@@ -28,6 +31,7 @@ const FILTROS: (EstadoReserva | 'Todas')[] = ['Todas', 'Vigente', 'Convertida', 
 
 export default function ReservasManager({ reservas, cuentasPropias }: Props) {
   const router = useRouter()
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [filtro, setFiltro] = useState<EstadoReserva | 'Todas'>('Todas')
   const [saleReserva, setSaleReserva] = useState<ReservaConRelaciones | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
@@ -41,14 +45,22 @@ export default function ReservasManager({ reservas, cuentasPropias }: Props) {
 
   function refresh() { startTransition(() => router.refresh()) }
 
-  async function marcarCaida(reserva: ReservaConRelaciones) {
-    if (!confirm(`¿Marcar como caída la reserva de ${reserva.compradores.nombre_completo}? La unidad volverá a estar disponible.`)) return
-    setLoadingId(reserva.id)
-    const supabase = createClient()
-    await supabase.from('reservas').update({ estado: 'Caída' }).eq('id', reserva.id)
-    await supabase.from('unidades').update({ estado_comercial: 'Disponible' }).eq('id', reserva.unidad_id)
-    setLoadingId(null)
-    refresh()
+  function marcarCaida(reserva: ReservaConRelaciones) {
+    setConfirmModal({
+      title: 'Marcar reserva como caída',
+      message: `¿Marcar como caída la reserva de ${reserva.compradores.nombre_completo}? La unidad volverá a estar disponible.`,
+      confirmLabel: 'Marcar como caída',
+      danger: false,
+      onConfirm: async () => {
+        setLoadingId(reserva.id)
+        const supabase = createClient()
+        await supabase.from('reservas').update({ estado: 'Caída' }).eq('id', reserva.id)
+        await supabase.from('unidades').update({ estado_comercial: 'Disponible' }).eq('id', reserva.unidad_id)
+        setLoadingId(null)
+        setConfirmModal(null)
+        refresh()
+      },
+    })
   }
 
   const vigentes = reservas.filter(r => r.estado === 'Vigente')
@@ -187,6 +199,17 @@ export default function ReservasManager({ reservas, cuentasPropias }: Props) {
           }}
           onClose={() => setSaleReserva(null)}
           onSuccess={() => { setSaleReserva(null); refresh() }}
+        />
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          danger={confirmModal.danger}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
         />
       )}
     </>

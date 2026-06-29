@@ -3,6 +3,9 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Perfil } from '@/types/database'
+import ConfirmModal from './ConfirmModal'
+
+type ConfirmModalState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
 
 interface Props {
   perfiles: (Perfil & { email: string })[]
@@ -11,6 +14,7 @@ interface Props {
 
 export default function UsuariosManager({ perfiles, currentUserId }: Props) {
   const router = useRouter()
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [nombre, setNombre] = useState('')
   const [email, setEmail] = useState('')
@@ -52,16 +56,21 @@ export default function UsuariosManager({ perfiles, currentUserId }: Props) {
     startTransition(() => router.refresh())
   }
 
-  async function handleDelete(userId: string) {
-    if (!confirm('¿Eliminar este usuario? Esta acción no se puede deshacer.')) return
-
-    const res = await fetch('/api/admin/usuarios', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
+  function handleDelete(userId: string) {
+    setConfirmModal({
+      title: 'Eliminar usuario',
+      message: '¿Eliminar este usuario? Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar usuario',
+      onConfirm: async () => {
+        const res = await fetch('/api/admin/usuarios', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        })
+        setConfirmModal(null)
+        if (res.ok) startTransition(() => router.refresh())
+      },
     })
-
-    if (res.ok) startTransition(() => router.refresh())
   }
 
   return (
@@ -184,6 +193,17 @@ export default function UsuariosManager({ perfiles, currentUserId }: Props) {
           </tbody>
         </table>
       </div>
+
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          danger={confirmModal.danger}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </div>
   )
 }

@@ -46,6 +46,7 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL('/admin/dashboard', request.url))
     }
 
+    supabaseResponse.headers.set('x-pathname', pathname)
     return supabaseResponse
   } catch {
     return NextResponse.next({ request })

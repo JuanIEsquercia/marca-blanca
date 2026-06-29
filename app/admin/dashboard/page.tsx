@@ -84,7 +84,7 @@ export default async function DashboardPage() {
       {(stats.cuotas_vencidas > 0 || stats.reservas_por_vencer > 0) && (
         <div className="space-y-2">
           {stats.cuotas_vencidas > 0 && (
-            <Link href="/admin/cuenta-corriente"
+            <Link href="/admin/contratos"
               className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors">
               <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -207,14 +207,14 @@ export default async function DashboardPage() {
               <p className="text-indigo-200 text-xs">Desde Unidades</p>
             </div>
           </Link>
-          <Link href="/admin/cuenta-corriente"
+          <Link href="/admin/contratos"
             className="flex items-center gap-3 p-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl transition-colors">
             <svg className="w-5 h-5 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
             </svg>
             <div>
               <p className="text-slate-800 font-medium text-sm">Registrar cobro</p>
-              <p className="text-slate-400 text-xs">Cuenta corriente</p>
+              <p className="text-slate-400 text-xs">Ver cuotas en Ventas</p>
             </div>
           </Link>
           <Link href="/admin/reservas"

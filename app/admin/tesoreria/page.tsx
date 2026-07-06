@@ -32,22 +32,25 @@ export default async function TesoreriaPage() {
     { data: cuotas },
     { data: contratos },
     { data: gastos },
+    { data: cobrosProyecto },
   ] = await Promise.all([
     supabase.from('cuentas_propias').select('*').eq('constructora_id', ctx.constructoraId).eq('activa', true).is('obra_id', null).order('nombre'),
     supabase.from('cuotas').select('monto_base, fecha_pago, estado_pago, cuenta_propia_id').eq('constructora_id', ctx.constructoraId).eq('estado_pago', 'Pagado'),
     supabase.from('contratos_venta').select('entrega_efectiva, fecha_firma, cuenta_propia_id').eq('constructora_id', ctx.constructoraId),
     supabase.from('gastos').select('*, proveedores(razon_social), categorias_costo(nombre, color)').eq('constructora_id', ctx.constructoraId),
+    supabase.from('cobros_proyecto').select('monto, cuenta_propia_id').eq('constructora_id', ctx.constructoraId).eq('estado', 'cobrado'),
   ])
 
   const cuentasConSaldo = (cuentas ?? []).map(cuenta => {
     const ingresosCuotas = (cuotas ?? []).filter(c => c.cuenta_propia_id === cuenta.id).reduce((s, c) => s + (c.monto_base ?? 0), 0)
     const ingresosEntregas = (contratos ?? []).filter(c => c.cuenta_propia_id === cuenta.id).reduce((s, c) => s + (c.entrega_efectiva ?? 0), 0)
+    const ingresosCobros = (cobrosProyecto ?? []).filter(c => c.cuenta_propia_id === cuenta.id).reduce((s, c) => s + (c.monto ?? 0), 0)
     const egresos = (gastos ?? []).filter(g => g.cuenta_propia_id === cuenta.id && g.estado === 'Pagado').reduce((s, g) => s + (g.monto ?? 0), 0)
     return {
       ...cuenta,
-      ingresos_ventas: ingresosCuotas + ingresosEntregas,
+      ingresos_ventas: ingresosCuotas + ingresosEntregas + ingresosCobros,
       egresos_gastos: egresos,
-      saldo_actual: cuenta.saldo_inicial + ingresosCuotas + ingresosEntregas - egresos,
+      saldo_actual: cuenta.saldo_inicial + ingresosCuotas + ingresosEntregas + ingresosCobros - egresos,
     }
   })
 

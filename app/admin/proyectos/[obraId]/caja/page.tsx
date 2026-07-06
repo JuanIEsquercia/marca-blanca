@@ -46,18 +46,18 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
     .order('fecha_vencimiento', { ascending: false })
 
   let ingresos: { fecha: string; descripcion: string; monto: number; moneda: string; tipo: string }[] = []
+  let ingresosConCuenta: { monto: number; cuenta_propia_id: string | null }[] = []
 
   if (ctx.obraTipo === 'desarrollo') {
-    // Cuotas cobradas de unidades de este proyecto
     const { data: cuotas } = await supabase
       .from('cuotas')
-      .select('monto_base, fecha_pago, contratos_venta!inner(unidades!inner(obra_id))')
+      .select('monto_base, fecha_pago, cuenta_propia_id, contratos_venta!inner(unidades!inner(obra_id))')
       .eq('estado_pago', 'Pagado')
       .eq('contratos_venta.unidades.obra_id', obraId)
 
     const { data: contratos } = await supabase
       .from('contratos_venta')
-      .select('entrega_efectiva, fecha_firma, unidades!inner(obra_id)')
+      .select('entrega_efectiva, fecha_firma, cuenta_propia_id, unidades!inner(obra_id)')
       .eq('unidades.obra_id', obraId)
       .not('entrega_efectiva', 'is', null)
 
@@ -77,8 +77,12 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
         tipo: 'entrega',
       })),
     ].sort((a, b) => b.fecha.localeCompare(a.fecha))
+
+    ingresosConCuenta = [
+      ...(cuotas ?? []).map(c => ({ monto: c.monto_base ?? 0, cuenta_propia_id: c.cuenta_propia_id ?? null })),
+      ...(contratos ?? []).filter(c => (c.entrega_efectiva ?? 0) > 0).map(c => ({ monto: c.entrega_efectiva ?? 0, cuenta_propia_id: c.cuenta_propia_id ?? null })),
+    ]
   } else {
-    // Cobros del proyecto (tipo obra)
     const { data: cobros } = await supabase
       .from('cobros_proyecto')
       .select('*')
@@ -93,11 +97,23 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
       moneda: 'ARS',
       tipo: 'cobro',
     }))
+
+    ingresosConCuenta = (cobros ?? []).map(c => ({ monto: c.monto, cuenta_propia_id: c.cuenta_propia_id ?? null }))
   }
 
   const totalIngresos = ingresos.reduce((s, i) => s + i.monto, 0)
   const totalEgresosPagados = (gastos ?? []).filter(g => g.estado === 'Pagado').reduce((s, g) => s + (g.monto ?? 0), 0)
   const totalEgresosPendientes = (gastos ?? []).filter(g => g.estado === 'Pendiente').reduce((s, g) => s + (g.monto ?? 0), 0)
+
+  const cuentasConSaldo = (cuentas ?? []).map(cuenta => {
+    const ingresosCuenta = ingresosConCuenta
+      .filter(i => i.cuenta_propia_id === cuenta.id)
+      .reduce((s, i) => s + i.monto, 0)
+    const egresosCuenta = (gastos ?? [])
+      .filter(g => g.cuenta_propia_id === cuenta.id && g.estado === 'Pagado')
+      .reduce((s, g) => s + (g.monto ?? 0), 0)
+    return { ...cuenta, saldo_actual: cuenta.saldo_inicial + ingresosCuenta - egresosCuenta }
+  })
 
   return (
     <div>
@@ -129,19 +145,19 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Cuentas del proyecto */}
-        {(cuentas ?? []).length > 0 && (
+        {cuentasConSaldo.length > 0 && (
           <div className="bg-white border border-slate-200 rounded-2xl">
             <div className="px-5 py-4 border-b border-slate-100">
               <h2 className="font-semibold text-slate-800 text-sm">Cuentas del proyecto</h2>
             </div>
             <div className="divide-y divide-slate-100">
-              {(cuentas ?? []).map(c => (
+              {cuentasConSaldo.map(c => (
                 <div key={c.id} className="px-5 py-3 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-slate-800">{c.nombre}</p>
                     <p className="text-xs text-slate-400">{c.tipo} · {c.moneda}</p>
                   </div>
-                  <p className="text-sm font-semibold text-slate-900">{fmt(c.saldo_inicial ?? 0, c.moneda)}</p>
+                  <p className="text-sm font-semibold text-slate-900">{fmt(c.saldo_actual, c.moneda)}</p>
                 </div>
               ))}
             </div>

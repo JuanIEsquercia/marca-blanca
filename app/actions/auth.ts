@@ -15,6 +15,10 @@ export async function loginAction(
   const password = formData.get('password') as string
   const redirectTo = (formData.get('redirectTo') as string | null) || '/admin'
 
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return { error: 'Error de configuración: variables de entorno de Supabase no están definidas en el servidor.' }
+  }
+
   try {
     const supabase = await createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })

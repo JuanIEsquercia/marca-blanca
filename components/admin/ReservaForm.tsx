@@ -9,9 +9,10 @@ interface Props {
   unidad: Unidad & { tipologias: Tipologia }
   onClose: () => void
   onSuccess: () => void
+  constructoraId?: string
 }
 
-export default function ReservaForm({ unidad, onClose, onSuccess }: Props) {
+export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cuentasPropias, setCuentasPropias] = useState<CuentaPropia[]>([])
@@ -48,21 +49,30 @@ export default function ReservaForm({ unidad, onClose, onSuccess }: Props) {
     const supabase = createClient()
 
     try {
-      // 1. Buscar o crear comprador
+      // 1. Buscar o crear comprador (dentro de la constructora)
       let compradorId: string
 
-      const { data: existente } = await supabase
+      const busqueda = supabase
         .from('compradores')
         .select('id')
         .eq('dni_cuit', dni.trim())
-        .single()
+
+      if (constructoraId) busqueda.eq('constructora_id', constructoraId)
+
+      const { data: existente } = await busqueda.maybeSingle()
 
       if (existente) {
         compradorId = existente.id
       } else {
         const { data: nuevo, error: errComp } = await supabase
           .from('compradores')
-          .insert({ nombre_completo: nombre, dni_cuit: dni.trim(), email, telefono })
+          .insert({
+            nombre_completo: nombre,
+            dni_cuit: dni.trim(),
+            email,
+            telefono,
+            ...(constructoraId ? { constructora_id: constructoraId } : {}),
+          })
           .select('id')
           .single()
 

@@ -1,14 +1,14 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
-  async redirects() {
-    return [
-      {
-        source: '/admin',
-        destination: '/admin/dashboard',
-        permanent: false,
-      },
-    ]
+  // Exponer SUPERADMIN_EMAIL al Edge Runtime (proxy/middleware).
+  // Las vars sin NEXT_PUBLIC_ no están disponibles en Edge por defecto.
+  env: {
+    SUPERADMIN_EMAIL: process.env.SUPERADMIN_EMAIL ?? '',
+  },
+  turbopack: {
+    root: path.resolve(__dirname),
   },
 };
 

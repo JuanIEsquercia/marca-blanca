@@ -29,6 +29,7 @@ interface Props {
   contratos: ContratoRow[]
   unidadesDisponibles: UnidadConTipologia[]
   cuentasPropias: CuentaPropia[]
+  constructoraId: string
 }
 
 interface DeleteTarget {
@@ -45,7 +46,7 @@ interface EditState {
   notas: string
 }
 
-export default function ContratosManager({ contratos, unidadesDisponibles, cuentasPropias }: Props) {
+export default function ContratosManager({ contratos, unidadesDisponibles, cuentasPropias, constructoraId }: Props) {
   const router = useRouter()
   const today = new Date().toISOString().split('T')[0]
   const [, startTransition] = useTransition()
@@ -934,6 +935,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
           unidad={unidadSeleccionada}
           onClose={() => setUnidadSeleccionada(null)}
           onSuccess={handleVentaSuccess}
+          constructoraId={constructoraId}
         />
       )}
 

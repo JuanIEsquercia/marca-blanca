@@ -15,6 +15,9 @@ interface Props {
   proveedores: Proveedor[]
   categorias: CategoriaCosto[]
   cuentasPropias: CuentaPropia[]
+  constructoraId: string
+  obraId?: string
+  readOnly?: boolean
 }
 
 const EMPTY_FORM = {
@@ -29,7 +32,7 @@ const EMPTY_FORM = {
   notas: '',
 }
 
-export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias }: Props) {
+export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias, constructoraId, obraId, readOnly }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
@@ -106,7 +109,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
     }
     const { error: err } = editingId
       ? await supabase.from('gastos').update(payload).eq('id', editingId)
-      : await supabase.from('gastos').insert(payload)
+      : await supabase.from('gastos').insert({ ...payload, constructora_id: constructoraId, ...(obraId ? { obra_id: obraId } : {}) })
     setLoading(false)
     if (err) { setError(err.message); return }
     setShowForm(false)
@@ -159,6 +162,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
     const { error } = await supabase.from('categorias_costo').insert({
       nombre: catForm.nombre.trim(),
       color: catForm.color,
+      constructora_id: constructoraId,
     })
     setCatLoading(false)
     if (error) { setCatError(error.message); return }
@@ -244,14 +248,16 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
           </svg>
           Categorías
         </button>
-        <button onClick={openNew}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                     text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Nuevo gasto
-        </button>
+        {!readOnly && (
+          <button onClick={openNew}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
+                       text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nuevo gasto
+          </button>
+        )}
       </div>
 
       {/* Tabla */}
@@ -302,7 +308,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    {g.estado === 'Pendiente' && (
+                    {!readOnly && g.estado === 'Pendiente' && (
                       <button
                         onClick={() => {
                           setPagandoGasto(g)
@@ -315,10 +321,14 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                     {g.estado === 'Pagado' && g.fecha_pago && (
                       <span className="text-xs text-slate-400">{formatDate(g.fecha_pago)}</span>
                     )}
-                    <button onClick={() => openEdit(g)}
-                      className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Editar</button>
-                    <button onClick={() => handleDelete(g)}
-                      className="text-xs text-red-400 hover:text-red-600 transition-colors">✕</button>
+                    {!readOnly && (
+                      <button onClick={() => openEdit(g)}
+                        className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Editar</button>
+                    )}
+                    {!readOnly && (
+                      <button onClick={() => handleDelete(g)}
+                        className="text-xs text-red-400 hover:text-red-600 transition-colors">✕</button>
+                    )}
                   </div>
                 </td>
               </tr>

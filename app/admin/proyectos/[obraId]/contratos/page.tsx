@@ -1,0 +1,46 @@
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { getProyectoContext } from '@/lib/tenant'
+import ContratosManager from '@/components/admin/ContratosManager'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = { title: 'Ventas' }
+export const dynamic = 'force-dynamic'
+
+export default async function ContratosPage({ params }: { params: Promise<{ obraId: string }> }) {
+  const { obraId } = await params
+  const ctx = await getProyectoContext(obraId)
+  if (!ctx) redirect('/admin')
+
+  const supabase = await createClient()
+
+  const [{ data: contratos }, { data: unidadesDisponibles }, { data: cuentasPropias }] = await Promise.all([
+    supabase
+      .from('contratos_venta')
+      .select(`
+        *,
+        compradores(*),
+        unidades(piso, numero, letra, tipologias(nombre)),
+        cuotas(id, numero_cuota, monto_base, monto_cobrado, fecha_vencimiento, estado_pago, fecha_pago, cuenta_propia_id)
+      `)
+      .eq('obra_id', obraId)
+      .order('fecha_firma', { ascending: false }),
+    supabase
+      .from('unidades')
+      .select('*, tipologias(*)')
+      .eq('obra_id', obraId)
+      .eq('estado_comercial', 'Disponible')
+      .order('piso')
+      .order('numero'),
+    supabase.from('cuentas_propias').select('*').eq('constructora_id', ctx.constructoraId).eq('activa', true).order('nombre'),
+  ])
+
+  return (
+    <ContratosManager
+      contratos={contratos ?? []}
+      unidadesDisponibles={unidadesDisponibles ?? []}
+      cuentasPropias={cuentasPropias ?? []}
+      constructoraId={ctx.constructoraId}
+    />
+  )
+}

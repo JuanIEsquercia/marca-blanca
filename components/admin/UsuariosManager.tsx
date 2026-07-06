@@ -13,6 +13,7 @@ type ConfirmState = { title: string; message: string; confirmLabel?: string; onC
 interface Props {
   perfiles: PerfilConEmail[]
   currentUserId: string
+  constructoraId: string
 }
 
 const SECCIONES = [...new Set(MODULOS.map(m => m.seccion))]
@@ -85,7 +86,7 @@ function PermisosCheckboxes({
   )
 }
 
-export default function UsuariosManager({ perfiles, currentUserId }: Props) {
+export default function UsuariosManager({ perfiles, currentUserId, constructoraId: _constructoraId }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)

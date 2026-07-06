@@ -19,6 +19,7 @@ type ReservaConRelaciones = Reserva & {
 interface Props {
   reservas: ReservaConRelaciones[]
   cuentasPropias: CuentaPropia[]
+  constructoraId: string
 }
 
 const ESTADO_COLORS: Record<EstadoReserva, string> = {
@@ -29,7 +30,7 @@ const ESTADO_COLORS: Record<EstadoReserva, string> = {
 
 const FILTROS: (EstadoReserva | 'Todas')[] = ['Todas', 'Vigente', 'Convertida', 'Caída']
 
-export default function ReservasManager({ reservas, cuentasPropias }: Props) {
+export default function ReservasManager({ reservas, cuentasPropias, constructoraId }: Props) {
   const router = useRouter()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [filtro, setFiltro] = useState<EstadoReserva | 'Todas'>('Todas')
@@ -199,6 +200,7 @@ export default function ReservasManager({ reservas, cuentasPropias }: Props) {
           }}
           onClose={() => setSaleReserva(null)}
           onSuccess={() => { setSaleReserva(null); refresh() }}
+          constructoraId={constructoraId}
         />
       )}
 

@@ -2,7 +2,6 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
-  // Si las variables de entorno no están configuradas, dejar pasar sin autenticar
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return NextResponse.next({ request })
   }
@@ -15,13 +14,9 @@ export async function proxy(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
         cookies: {
-          getAll() {
-            return request.cookies.getAll()
-          },
+          getAll() { return request.cookies.getAll() },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) =>
-              request.cookies.set(name, value)
-            )
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
             supabaseResponse = NextResponse.next({ request })
             cookiesToSet.forEach(({ name, value, options }) =>
               supabaseResponse.cookies.set(name, value, options)
@@ -33,17 +28,34 @@ export async function proxy(request: NextRequest) {
 
     const { data: { user } } = await supabase.auth.getUser()
     const pathname = request.nextUrl.pathname
+    const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL
+    const isSuperAdmin = !!SUPERADMIN_EMAIL && user?.email === SUPERADMIN_EMAIL
 
-    if (pathname.startsWith('/admin')) {
+    // Rutas del super admin
+    if (pathname.startsWith('/superadmin')) {
       if (!user) {
-        const loginUrl = new URL('/auth/login', request.url)
-        loginUrl.searchParams.set('redirectTo', pathname)
-        return NextResponse.redirect(loginUrl)
+        const url = new URL('/auth/login', request.url)
+        url.searchParams.set('redirectTo', pathname)
+        return NextResponse.redirect(url)
+      }
+      if (!isSuperAdmin) {
+        return NextResponse.redirect(new URL('/admin', request.url))
       }
     }
 
+    // Rutas del ERP (constructora)
+    if (pathname.startsWith('/admin')) {
+      if (!user) {
+        const url = new URL('/auth/login', request.url)
+        url.searchParams.set('redirectTo', pathname)
+        return NextResponse.redirect(url)
+      }
+    }
+
+    // Después de login: redirigir según rol
     if (pathname === '/auth/login' && user) {
-      return NextResponse.redirect(new URL('/admin/dashboard', request.url))
+      const dest = isSuperAdmin ? '/superadmin' : '/admin'
+      return NextResponse.redirect(new URL(dest, request.url))
     }
 
     supabaseResponse.headers.set('x-pathname', pathname)

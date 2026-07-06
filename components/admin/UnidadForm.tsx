@@ -10,9 +10,11 @@ interface Props {
   unidad?: Unidad & { tipologias: Tipologia }
   onClose: () => void
   onSuccess: () => void
+  obraId?: string
+  constructoraId?: string
 }
 
-export default function UnidadForm({ tipologias, unidad, onClose, onSuccess }: Props) {
+export default function UnidadForm({ tipologias, unidad, onClose, onSuccess, obraId, constructoraId }: Props) {
   const isEditing = !!unidad
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -57,7 +59,7 @@ export default function UnidadForm({ tipologias, unidad, onClose, onSuccess }: P
 
     const { error: err } = isEditing
       ? await supabase.from('unidades').update(payload).eq('id', unidad!.id)
-      : await supabase.from('unidades').insert(payload)
+      : await supabase.from('unidades').insert({ ...payload, obra_id: obraId, constructora_id: constructoraId })
 
     setLoading(false)
     if (err) { setError(err.message); return }
@@ -114,7 +116,7 @@ export default function UnidadForm({ tipologias, unidad, onClose, onSuccess }: P
             {tipologias.length === 0 ? (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm">
                 No hay tipologías creadas. Creá al menos una en{' '}
-                <a href="/admin/tipologias" className="underline">Tipologías</a> antes de agregar unidades.
+                <a href={`/admin/proyectos/${obraId}/tipologias`} className="underline">Tipologías</a> antes de agregar unidades.
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-2">

@@ -11,11 +11,13 @@ type ConfirmModalState = { title: string; message: string; confirmLabel?: string
 
 interface Props {
   cuentas: CuentaPropia[]
+  constructoraId: string
+  obraId?: string
 }
 
 const EMPTY_FORM = { nombre: '', tipo: 'banco', moneda: 'USD', saldo_inicial: '0' }
 
-export default function CuentasPropiasManager({ cuentas }: Props) {
+export default function CuentasPropiasManager({ cuentas, constructoraId, obraId }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
@@ -59,7 +61,7 @@ export default function CuentasPropiasManager({ cuentas }: Props) {
     }
     const { error: err } = editing
       ? await supabase.from('cuentas_propias').update(payload).eq('id', editing.id)
-      : await supabase.from('cuentas_propias').insert(payload)
+      : await supabase.from('cuentas_propias').insert({ ...payload, constructora_id: constructoraId, obra_id: obraId ?? null })
     setLoading(false)
     if (err) { setError(err.message); return }
     setShowForm(false)

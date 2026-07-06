@@ -12,12 +12,14 @@ type ConfirmModalState = { title: string; message: string; confirmLabel?: string
 
 interface Props {
   amenities: Amenity[]
+  obraId: string
+  constructoraId: string
 }
 
 const MAX_IMAGENES = 5
 const EMPTY_FORM = { nombre: '', descripcion: '', orden: '0' }
 
-export default function AmenitiesManager({ amenities }: Props) {
+export default function AmenitiesManager({ amenities, obraId, constructoraId }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
@@ -59,7 +61,7 @@ export default function AmenitiesManager({ amenities }: Props) {
     }
     const { error: err } = editing
       ? await supabase.from('amenities').update(payload).eq('id', editing.id)
-      : await supabase.from('amenities').insert(payload)
+      : await supabase.from('amenities').insert({ ...payload, obra_id: obraId, constructora_id: constructoraId })
     setLoading(false)
     if (err) { setError(err.message); return }
     setShowForm(false)

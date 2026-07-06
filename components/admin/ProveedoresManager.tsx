@@ -11,13 +11,14 @@ type ConfirmModalState = { title: string; message: string; confirmLabel?: string
 
 interface Props {
   proveedores: Proveedor[]
+  constructoraId: string
 }
 
 const EMPTY_PROV = { razon_social: '', cuit: '', email: '', telefono: '', direccion: '', notas: '' }
 const EMPTY_CTA = { tipo: 'CBU', denominacion: '', numero: '', moneda: 'ARS' }
 const TIPOS_CTA = ['CBU', 'Alias', 'Efectivo', 'Cheque', 'Otro']
 
-export default function ProveedoresManager({ proveedores }: Props) {
+export default function ProveedoresManager({ proveedores, constructoraId }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
@@ -74,7 +75,7 @@ export default function ProveedoresManager({ proveedores }: Props) {
     }
     const { error } = editingProv
       ? await supabase.from('proveedores').update(payload).eq('id', editingProv.id)
-      : await supabase.from('proveedores').insert(payload)
+      : await supabase.from('proveedores').insert({ ...payload, constructora_id: constructoraId })
     setLoadingProv(false)
     if (error) { setErrorProv(error.message); return }
     setShowProv(false)

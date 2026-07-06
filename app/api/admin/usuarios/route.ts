@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getConstructoraContext } from '@/lib/tenant'
 import { NextResponse } from 'next/server'
 import { MAX_OPERADORES } from '@/lib/permisos'
 
@@ -23,18 +24,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
   }
 
+  const ctx = await getConstructoraContext()
+  if (!ctx) {
+    return NextResponse.json({ error: 'Sin constructora' }, { status: 403 })
+  }
+
   const { nombre, email, password, permisos } = await request.json()
 
   if (!nombre || !email || !password) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
   }
 
-  const supabase = await createClient()
+  const adminClient = createAdminClient()
 
-  // Verificar límite de operadores
-  const { count } = await supabase
+  // Verificar límite de operadores para esta constructora
+  const { count } = await adminClient
     .from('perfiles')
     .select('id', { count: 'exact', head: true })
+    .eq('constructora_id', ctx.constructoraId)
     .eq('rol', 'operador')
 
   if ((count ?? 0) >= MAX_OPERADORES) {
@@ -44,8 +51,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const adminClient = createAdminClient()
-
+  // Crear usuario en auth — el trigger on_auth_user_created crea perfiles y miembros
   const { data: newUser, error: authError } = await adminClient.auth.admin.createUser({
     email,
     password,
@@ -56,14 +62,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: authError?.message ?? 'Error al crear usuario' }, { status: 500 })
   }
 
+  // Upsert del perfil con nombre, permisos y constructora_id correctos
+  // (el trigger puede haberse ejecutado antes con valores de metadata)
   const { error: perfilError } = await adminClient
     .from('perfiles')
-    .insert({
+    .upsert({
       id: newUser.user.id,
       nombre,
       rol: 'operador',
       permisos: Array.isArray(permisos) ? permisos : null,
-    })
+      constructora_id: ctx.constructoraId,
+    }, { onConflict: 'id' })
 
   if (perfilError) {
     await adminClient.auth.admin.deleteUser(newUser.user.id)
@@ -90,7 +99,7 @@ export async function PATCH(request: Request) {
     .from('perfiles')
     .update({ permisos })
     .eq('id', userId)
-    .eq('rol', 'operador') // solo se pueden editar operadores
+    .eq('rol', 'operador')
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

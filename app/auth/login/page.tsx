@@ -1,45 +1,24 @@
 'use client'
 
-import { Suspense, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { Suspense, useActionState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { loginAction } from '@/app/actions/auth'
 
 function LoginForm() {
-  const router = useRouter()
   const params = useSearchParams()
-  const redirectTo = params.get('redirectTo') ?? '/admin/dashboard'
+  const redirectTo = params.get('redirectTo') ?? '/admin'
 
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
-
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-
-    if (error) {
-      setError('Credenciales incorrectas. Verificá tu email y contraseña.')
-      setLoading(false)
-      return
-    }
-
-    router.push(redirectTo)
-    router.refresh()
-  }
+  const [state, formAction, isPending] = useActionState(loginAction, { error: null })
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form action={formAction} className="space-y-5">
+      <input type="hidden" name="redirectTo" value={redirectTo} />
+
       <div>
         <label className="block text-sm font-medium text-slate-300 mb-1.5">Email</label>
         <input
           type="email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
+          name="email"
           required
           autoComplete="email"
           placeholder="usuario@empresa.com"
@@ -53,8 +32,7 @@ function LoginForm() {
         <label className="block text-sm font-medium text-slate-300 mb-1.5">Contraseña</label>
         <input
           type="password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
+          name="password"
           required
           autoComplete="current-password"
           placeholder="••••••••"
@@ -64,23 +42,23 @@ function LoginForm() {
         />
       </div>
 
-      {error && (
+      {state.error && (
         <div className="flex items-center gap-2 p-3 bg-red-950 border border-red-800 rounded-lg">
           <svg className="w-4 h-4 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <p className="text-red-300 text-sm">{error}</p>
+          <p className="text-red-300 text-sm">{state.error}</p>
         </div>
       )}
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={isPending}
         className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60
                    disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
       >
-        {loading ? 'Ingresando...' : 'Ingresar al Panel'}
+        {isPending ? 'Ingresando...' : 'Ingresar al Panel'}
       </button>
     </form>
   )

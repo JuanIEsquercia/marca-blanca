@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getConstructoraContext } from '@/lib/tenant'
 import UsuariosManager from '@/components/admin/UsuariosManager'
 import type { Metadata } from 'next'
 
@@ -10,24 +11,28 @@ export const dynamic = 'force-dynamic'
 export default async function UsuariosPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-
   if (!user) redirect('/auth/login')
 
-  const { data: miPerfil } = await supabase
+  const adminClient = createAdminClient()
+
+  const { data: miPerfil } = await adminClient
     .from('perfiles')
     .select('rol')
     .eq('id', user.id)
     .single()
 
-  if (miPerfil?.rol !== 'admin') redirect('/admin/dashboard')
+  if (miPerfil?.rol !== 'admin') redirect('/admin')
 
-  // Obtener todos los perfiles + emails via admin client
-  const adminClient = createAdminClient()
+  const ctx = await getConstructoraContext()
+  if (!ctx) redirect('/admin')
+
   const { data: authUsers } = await adminClient.auth.admin.listUsers()
 
-  const { data: perfiles } = await supabase
+  // Todos los perfiles que pertenecen a esta constructora
+  const { data: perfiles } = await adminClient
     .from('perfiles')
     .select('id, nombre, rol, activo, permisos, created_at')
+    .eq('constructora_id', ctx.constructoraId)
     .order('created_at', { ascending: true })
 
   const perfilesConEmail = (perfiles ?? []).map(p => ({
@@ -43,8 +48,11 @@ export default async function UsuariosPage() {
           Creá operadores y controlá a qué módulos puede acceder cada uno
         </p>
       </div>
-
-      <UsuariosManager perfiles={perfilesConEmail} currentUserId={user.id} />
+      <UsuariosManager
+        perfiles={perfilesConEmail}
+        currentUserId={user.id}
+        constructoraId={ctx.constructoraId}
+      />
     </div>
   )
 }

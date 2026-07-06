@@ -11,6 +11,8 @@ type ConfirmModalState = { title: string; message: string; confirmLabel?: string
 
 interface Props {
   tipologias: Tipologia[]
+  obraId: string
+  constructoraId: string
 }
 
 const EMPTY_FORM = {
@@ -22,7 +24,7 @@ const EMPTY_FORM = {
   imagen_portada: '',
 }
 
-export default function TipologiasManager({ tipologias }: Props) {
+export default function TipologiasManager({ tipologias, obraId, constructoraId }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
@@ -91,7 +93,7 @@ export default function TipologiasManager({ tipologias }: Props) {
 
     const { error: err } = editing
       ? await supabase.from('tipologias').update(payload).eq('id', editing.id)
-      : await supabase.from('tipologias').insert(payload)
+      : await supabase.from('tipologias').insert({ ...payload, obra_id: obraId, constructora_id: constructoraId })
 
     setLoading(false)
     if (err) { setError(err.message); return }

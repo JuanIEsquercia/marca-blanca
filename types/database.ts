@@ -2,9 +2,45 @@ export type EstadoComercial = 'Disponible' | 'Reservado' | 'Vendido'
 export type EstadoPago = 'Pendiente' | 'Pagado' | 'Vencido'
 export type RolUsuario = 'admin' | 'operador'
 export type EstadoReserva = 'Vigente' | 'Convertida' | 'Caída'
+export type EstadoObra = 'activa' | 'finalizada' | 'pausada'
+export type RolMiembro = 'admin' | 'miembro'
+export type TipoProyecto = 'desarrollo' | 'obra'
+export type ModoCuentas = 'empresa' | 'especificas'
+export type EstadoCertificado = 'borrador' | 'presentado' | 'aprobado'
+export type EstadoCobro = 'pendiente' | 'cobrado'
+
+// ── Multi-tenant ──────────────────────────────────────────────
+
+export interface Constructora {
+  id: string
+  nombre: string
+  owner_id: string | null
+  activa: boolean
+  created_at: string
+}
+
+export interface Obra {
+  id: string
+  constructora_id: string
+  nombre: string
+  direccion: string | null
+  tipo: TipoProyecto
+  modo_cuentas: ModoCuentas
+  estado: EstadoObra
+  created_at: string
+}
+
+export interface Miembro {
+  constructora_id: string
+  user_id: string
+  rol: RolMiembro
+  created_at: string
+}
 
 export interface Tipologia {
   id: string
+  constructora_id: string
+  obra_id: string
   nombre: string
   m2_propios: number
   m2_comunes: number
@@ -17,6 +53,8 @@ export interface Tipologia {
 
 export interface Unidad {
   id: string
+  constructora_id: string
+  obra_id: string
   piso: number
   numero: string
   letra: string | null
@@ -34,6 +72,8 @@ export interface Unidad {
 
 export interface Amenity {
   id: string
+  constructora_id: string
+  obra_id: string
   nombre: string
   descripcion: string | null
   icono: string | null
@@ -54,6 +94,7 @@ export interface AmenityImagen {
 
 export interface Comprador {
   id: string
+  constructora_id: string
   nombre_completo: string
   dni_cuit: string
   email: string | null
@@ -63,6 +104,8 @@ export interface Comprador {
 
 export interface ContratoVenta {
   id: string
+  constructora_id: string
+  obra_id: string
   unidad_id: string
   comprador_id: string
   precio_final: number
@@ -95,6 +138,7 @@ export interface Cuota {
 
 export interface CuentaPropia {
   id: string
+  constructora_id: string
   nombre: string
   tipo: 'banco' | 'caja' | string
   moneda: 'ARS' | 'USD' | string
@@ -105,6 +149,7 @@ export interface CuentaPropia {
 
 export interface Proveedor {
   id: string
+  constructora_id: string
   razon_social: string
   cuit: string | null
   email: string | null
@@ -128,6 +173,7 @@ export interface CuentaProveedor {
 
 export interface CategoriaCosto {
   id: string
+  constructora_id: string
   nombre: string
   color: string
   created_at: string
@@ -135,6 +181,8 @@ export interface CategoriaCosto {
 
 export interface Gasto {
   id: string
+  constructora_id: string
+  obra_id: string | null
   proveedor_id: string | null
   cuenta_proveedor_id: string | null
   categoria_id: string | null
@@ -168,6 +216,8 @@ export interface Perfil {
 
 export interface Reserva {
   id: string
+  constructora_id: string
+  obra_id: string
   unidad_id: string
   comprador_id: string
   fecha_reserva: string
@@ -182,28 +232,6 @@ export interface Reserva {
   cuentas_propias?: CuentaPropia
 }
 
-// Vista pública para landing
-export interface StockPublico {
-  id: string
-  piso: number
-  numero: string
-  letra: string | null
-  orientacion: string | null
-  precio_lista: number
-  entrega_minima_pct: number
-  max_cuotas: number
-  estado_comercial: 'Disponible' | 'Reservado'
-  tipologia_id: string
-  tipologia_nombre: string
-  tipologia_descripcion: string | null
-  url_recorrido_360: string | null
-  m2_propios: number
-  m2_comunes: number
-  m2_totales: number
-  precio_por_m2: number
-  monto_entrega_minima: number
-}
-
 export interface DashboardStats {
   total: number
   disponibles: number
@@ -216,4 +244,61 @@ export interface DashboardStats {
 export const ORIENTACIONES = [
   'Frente', 'Contrafrente', 'Lateral', 'Interno',
 ]
+
+// ── Obra de construcción ─────────────────────────────────────
+
+export interface ContratoObra {
+  id: string
+  obra_id: string
+  constructora_id: string
+  cliente_nombre: string
+  cliente_cuit: string | null
+  cliente_email: string | null
+  cliente_telefono: string | null
+  monto_total: number
+  moneda: string
+  fecha_inicio: string | null
+  fecha_fin_estimada: string | null
+  descripcion: string | null
+  estado: 'vigente' | 'terminado' | 'rescindido'
+  created_at: string
+}
+
+export interface CertificadoAvance {
+  id: string
+  contrato_obra_id: string
+  obra_id: string
+  constructora_id: string
+  numero: number
+  periodo: string
+  porcentaje_avance: number
+  monto_certificado: number
+  descripcion_avances: string | null
+  estado: EstadoCertificado
+  fecha_presentacion: string | null
+  fecha_aprobacion: string | null
+  notas: string | null
+  created_at: string
+  cobros_proyecto?: CobroProyecto[]
+}
+
+export interface CobroProyecto {
+  id: string
+  obra_id: string
+  constructora_id: string
+  certificado_id: string | null
+  /** @deprecated usar fecha_vencimiento + fecha_pago */
+  fecha: string
+  fecha_vencimiento: string | null
+  fecha_pago: string | null
+  numero: number | null
+  monto: number
+  moneda: string
+  estado: EstadoCobro
+  cuenta_propia_id: string | null
+  notas: string | null
+  created_at: string
+  certificados_avance?: Pick<CertificadoAvance, 'id' | 'numero' | 'periodo'>
+  cuentas_propias?: CuentaPropia
+}
 

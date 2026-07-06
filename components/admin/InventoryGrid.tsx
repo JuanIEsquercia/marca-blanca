@@ -21,11 +21,13 @@ type UnidadConRelaciones = Unidad & {
 interface Props {
   unidades: UnidadConRelaciones[]
   tipologias: Tipologia[]
+  obraId: string
+  constructoraId: string
 }
 
 const ESTADOS: EstadoComercial[] = ['Disponible', 'Reservado', 'Vendido']
 
-export default function InventoryGrid({ unidades, tipologias }: Props) {
+export default function InventoryGrid({ unidades, tipologias, obraId, constructoraId }: Props) {
   const router = useRouter()
   const [filtro, setFiltro] = useState<EstadoComercial | 'Todos'>('Todos')
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
@@ -264,18 +266,21 @@ export default function InventoryGrid({ unidades, tipologias }: Props) {
       {/* Modales */}
       {showNewUnit && (
         <UnidadForm tipologias={tipologias} onClose={() => setShowNewUnit(false)}
-          onSuccess={() => { setShowNewUnit(false); refresh() }} />
+          onSuccess={() => { setShowNewUnit(false); refresh() }}
+          obraId={obraId} constructoraId={constructoraId} />
       )}
 
       {editUnit && (
         <UnidadForm tipologias={tipologias} unidad={editUnit}
-          onClose={() => setEditUnit(null)} onSuccess={() => { setEditUnit(null); refresh() }} />
+          onClose={() => setEditUnit(null)} onSuccess={() => { setEditUnit(null); refresh() }}
+          obraId={obraId} constructoraId={constructoraId} />
       )}
 
       {reservaUnit && (
         <ReservaForm unidad={reservaUnit}
           onClose={() => setReservaUnit(null)}
-          onSuccess={() => { setReservaUnit(null); refresh() }} />
+          onSuccess={() => { setReservaUnit(null); refresh() }}
+          constructoraId={constructoraId} />
       )}
 
       {saleUnit && (
@@ -294,6 +299,7 @@ export default function InventoryGrid({ unidades, tipologias }: Props) {
           })()}
           onClose={() => setSaleUnit(null)}
           onSuccess={() => { setSaleUnit(null); refresh() }}
+          constructoraId={constructoraId}
         />
       )}
 

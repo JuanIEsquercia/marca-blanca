@@ -63,7 +63,7 @@ export async function extraerDatosFactura(url: string): Promise<FacturaExtraida>
     : { type: 'image', source: { type: 'base64', media_type: contentType as 'image/jpeg' | 'image/png' | 'image/webp', data } }
 
   const response = await client.messages.create({
-    model: 'claude-opus-4-8',
+    model: 'claude-sonnet-5',
     max_tokens: 1024,
     tools: [EXTRACCION_TOOL],
     tool_choice: { type: 'tool', name: 'extraer_factura' },

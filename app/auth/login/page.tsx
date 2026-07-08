@@ -1,18 +1,30 @@
 'use client'
 
 import { Suspense, useActionState } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { loginAction } from '@/app/actions/auth'
 
 function LoginForm() {
   const params = useSearchParams()
   const redirectTo = params.get('redirectTo') ?? '/admin'
+  const callbackError = params.get('error') === 'auth_callback_failed'
 
   const [state, formAction, isPending] = useActionState(loginAction, { error: null })
 
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="redirectTo" value={redirectTo} />
+
+      {callbackError && (
+        <div className="flex items-center gap-2 p-3 bg-amber-950 border border-amber-800 rounded-lg">
+          <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-amber-300 text-sm">El link dejó de ser válido o ya fue usado. Solicitá uno nuevo.</p>
+        </div>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-slate-300 mb-1.5">Email</label>
@@ -29,7 +41,12 @@ function LoginForm() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-300 mb-1.5">Contraseña</label>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="block text-sm font-medium text-slate-300">Contraseña</label>
+          <Link href="/auth/forgot-password" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
         <input
           type="password"
           name="password"

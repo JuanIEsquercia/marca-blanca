@@ -84,7 +84,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
         const q = busqueda.toLowerCase()
         return (
           c.compradores?.nombre_completo.toLowerCase().includes(q) ||
-          c.compradores?.dni_cuit.toLowerCase().includes(q)
+          c.compradores?.dni_cuit?.toLowerCase().includes(q)
         )
       })
     : rows
@@ -443,13 +443,13 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
   return (
     <div>
       {/* Header */}
-      <div className="flex justify-between items-start mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Ventas</h1>
           <p className="text-slate-500 text-sm mt-1">Todos los contratos de venta del desarrollo</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+          <div className="relative w-full sm:w-64">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -459,16 +459,16 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
               className="pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm
-                         focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64 bg-white"
+                         focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full bg-white"
             />
           </div>
           <button
             onClick={() => setShowUnitPicker(true)}
             disabled={unidadesDisponibles.length === 0}
             title={unidadesDisponibles.length === 0 ? 'No hay unidades disponibles' : undefined}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
                        disabled:opacity-40 disabled:cursor-not-allowed
-                       text-white rounded-xl text-sm font-semibold transition-colors"
+                       text-white rounded-xl text-sm font-semibold transition-colors w-full sm:w-auto"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -479,7 +479,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
       </div>
 
       {/* Resumen */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-white border border-slate-200 rounded-xl p-4">
           <p className="text-xs font-medium text-slate-500 mb-1">Ventas registradas</p>
           <p className="text-2xl font-bold text-slate-900">{rows.length}</p>
@@ -672,74 +672,76 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
             {/* Tabla cuotas */}
             <div className="flex-1 overflow-y-auto p-4">
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="text-center px-3 py-2.5 font-semibold text-slate-600 w-12">Nº</th>
-                      <th className="text-right px-3 py-2.5 font-semibold text-slate-600">Monto</th>
-                      <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Vencimiento</th>
-                      <th className="text-center px-3 py-2.5 font-semibold text-slate-600">Estado</th>
-                      <th className="text-right px-3 py-2.5 font-semibold text-slate-600">Cobrado</th>
-                      <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Pago</th>
-                      <th className="px-3 py-2.5" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {cuotasPanel.map(cuota => {
-                      const esVencida = cuota.estado_pago === 'Pendiente' && cuota.fecha_vencimiento < today
-                      return (
-                        <tr key={cuota.id}
-                          className={cn('hover:bg-slate-50 transition-colors', esVencida && 'bg-red-50/40')}>
-                          <td className="px-3 py-2.5 text-center text-slate-500 text-xs">{cuota.numero_cuota}</td>
-                          <td className="px-3 py-2.5 text-right font-medium text-slate-900">
-                            {formatCurrency(cuota.monto_base)}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <span className={cn('text-xs', esVencida ? 'text-red-600 font-semibold' : 'text-slate-600')}>
-                              {formatDate(cuota.fecha_vencimiento)}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={cn(
-                              'inline-block text-xs font-medium px-2 py-0.5 rounded-full border',
-                              ESTADO_COLORS[cuota.estado_pago]
-                            )}>
-                              {esVencida ? 'Vencida' : cuota.estado_pago}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2.5 text-right text-slate-500 text-xs">
-                            {cuota.monto_cobrado ? formatCurrency(cuota.monto_cobrado) : '—'}
-                          </td>
-                          <td className="px-3 py-2.5 text-slate-500 text-xs">
-                            {cuota.fecha_pago ? formatDate(cuota.fecha_pago) : '—'}
-                          </td>
-                          <td className="px-3 py-2.5 text-right">
-                            {cuota.estado_pago === 'Pagado' ? (
-                              <button
-                                onClick={() => imprimirRecibo(cuota)}
-                                className="text-xs text-slate-400 hover:text-slate-700 transition-colors"
-                              >
-                                Recibo
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => abrirPago(cuota.id, cuota.monto_base)}
-                                className={cn(
-                                  'text-xs font-medium transition-colors',
-                                  esVencida
-                                    ? 'text-red-600 hover:text-red-800'
-                                    : 'text-indigo-600 hover:text-indigo-800'
-                                )}
-                              >
-                                Cobrar
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="text-center px-3 py-2.5 font-semibold text-slate-600 w-12">Nº</th>
+                        <th className="text-right px-3 py-2.5 font-semibold text-slate-600">Monto</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Vencimiento</th>
+                        <th className="text-center px-3 py-2.5 font-semibold text-slate-600">Estado</th>
+                        <th className="text-right px-3 py-2.5 font-semibold text-slate-600">Cobrado</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Pago</th>
+                        <th className="px-3 py-2.5" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {cuotasPanel.map(cuota => {
+                        const esVencida = cuota.estado_pago === 'Pendiente' && cuota.fecha_vencimiento < today
+                        return (
+                          <tr key={cuota.id}
+                            className={cn('hover:bg-slate-50 transition-colors', esVencida && 'bg-red-50/40')}>
+                            <td className="px-3 py-2.5 text-center text-slate-500 text-xs">{cuota.numero_cuota}</td>
+                            <td className="px-3 py-2.5 text-right font-medium text-slate-900">
+                              {formatCurrency(cuota.monto_base)}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <span className={cn('text-xs', esVencida ? 'text-red-600 font-semibold' : 'text-slate-600')}>
+                                {formatDate(cuota.fecha_vencimiento)}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <span className={cn(
+                                'inline-block text-xs font-medium px-2 py-0.5 rounded-full border',
+                                ESTADO_COLORS[cuota.estado_pago]
+                              )}>
+                                {esVencida ? 'Vencida' : cuota.estado_pago}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-slate-500 text-xs">
+                              {cuota.monto_cobrado ? formatCurrency(cuota.monto_cobrado) : '—'}
+                            </td>
+                            <td className="px-3 py-2.5 text-slate-500 text-xs">
+                              {cuota.fecha_pago ? formatDate(cuota.fecha_pago) : '—'}
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              {cuota.estado_pago === 'Pagado' ? (
+                                <button
+                                  onClick={() => imprimirRecibo(cuota)}
+                                  className="text-xs text-slate-400 hover:text-slate-700 transition-colors"
+                                >
+                                  Recibo
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => abrirPago(cuota.id, cuota.monto_base)}
+                                  className={cn(
+                                    'text-xs font-medium transition-colors',
+                                    esVencida
+                                      ? 'text-red-600 hover:text-red-800'
+                                      : 'text-indigo-600 hover:text-indigo-800'
+                                  )}
+                                >
+                                  Cobrar
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -854,7 +856,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
               </button>
             </div>
             <form onSubmit={handleEdit} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Precio final (USD) *</label>
                   <input

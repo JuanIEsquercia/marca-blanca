@@ -21,7 +21,7 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
   ] = await Promise.all([
     supabase
       .from('contratos_obra')
-      .select('*')
+      .select('*, compradores(*)')
       .eq('obra_id', obraId)
       .order('created_at', { ascending: true })
       .limit(1),

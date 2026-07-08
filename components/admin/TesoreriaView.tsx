@@ -112,48 +112,50 @@ export default function TesoreriaView({ cuentas, flujoMensual, gastosPendientes 
 
         {tab === 'flujo' && (
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Mes</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600 text-blue-700">Ingresos USD</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600 text-red-700">Egresos USD</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600 text-red-700">Egresos ARS</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600">Saldo USD</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600 text-orange-600">Comprometido</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {flujoMensual.map(mes => {
-                  const saldo = mes.ingresos_usd - mes.egresos_usd
-                  return (
-                    <tr key={mes.label} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium text-slate-700">{mes.label}</td>
-                      <td className="px-4 py-3 text-right text-blue-700">
-                        {mes.ingresos_usd > 0 ? formatUSD(mes.ingresos_usd) : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right text-red-600">
-                        {mes.egresos_usd > 0 ? formatUSD(mes.egresos_usd) : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right text-red-600">
-                        {mes.egresos_ars > 0 ? formatARS(mes.egresos_ars) : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className={cn(
-                        'px-4 py-3 text-right font-semibold',
-                        saldo > 0 ? 'text-green-600' : saldo < 0 ? 'text-red-600' : 'text-slate-400'
-                      )}>
-                        {saldo !== 0 ? formatUSD(saldo) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right text-orange-600 text-xs">
-                        {mes.comprometido_usd > 0 && <span className="block">{formatUSD(mes.comprometido_usd)}</span>}
-                        {mes.comprometido_ars > 0 && <span className="block">{formatARS(mes.comprometido_ars)}</span>}
-                        {mes.comprometido_usd === 0 && mes.comprometido_ars === 0 && <span className="text-slate-300">—</span>}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Mes</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600 text-blue-700">Ingresos USD</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600 text-red-700">Egresos USD</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600 text-red-700">Egresos ARS</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600">Saldo USD</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600 text-orange-600">Comprometido</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {flujoMensual.map(mes => {
+                    const saldo = mes.ingresos_usd - mes.egresos_usd
+                    return (
+                      <tr key={mes.label} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 font-medium text-slate-700">{mes.label}</td>
+                        <td className="px-4 py-3 text-right text-blue-700">
+                          {mes.ingresos_usd > 0 ? formatUSD(mes.ingresos_usd) : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right text-red-600">
+                          {mes.egresos_usd > 0 ? formatUSD(mes.egresos_usd) : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right text-red-600">
+                          {mes.egresos_ars > 0 ? formatARS(mes.egresos_ars) : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className={cn(
+                          'px-4 py-3 text-right font-semibold',
+                          saldo > 0 ? 'text-green-600' : saldo < 0 ? 'text-red-600' : 'text-slate-400'
+                        )}>
+                          {saldo !== 0 ? formatUSD(saldo) : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right text-orange-600 text-xs">
+                          {mes.comprometido_usd > 0 && <span className="block">{formatUSD(mes.comprometido_usd)}</span>}
+                          {mes.comprometido_ars > 0 && <span className="block">{formatARS(mes.comprometido_ars)}</span>}
+                          {mes.comprometido_usd === 0 && mes.comprometido_ars === 0 && <span className="text-slate-300">—</span>}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
             {flujoMensual.length === 0 && (
               <div className="text-center py-12 text-slate-400 text-sm">
                 No hay movimientos registrados aún.
@@ -177,39 +179,41 @@ export default function TesoreriaView({ cuentas, flujoMensual, gastosPendientes 
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Descripción</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Proveedor</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Categoría</th>
-                    <th className="text-right px-4 py-3 font-semibold text-slate-600">Monto</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Vencimiento</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {gastosPendientes.map(g => (
-                    <tr key={g.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium text-slate-900">{g.descripcion}</td>
-                      <td className="px-4 py-3 text-slate-500">{g.proveedor ?? '—'}</td>
-                      <td className="px-4 py-3">
-                        {g.categoria ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs">
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.categoria_color ?? '#ccc' }} />
-                            {g.categoria}
-                          </span>
-                        ) : <span className="text-slate-300 text-xs">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                        {g.moneda === 'USD' ? formatUSD(g.monto) : formatARS(g.monto)}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {new Date(g.fecha_vencimiento).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Descripción</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Proveedor</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Categoría</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600">Monto</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Vencimiento</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {gastosPendientes.map(g => (
+                      <tr key={g.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 font-medium text-slate-900">{g.descripcion}</td>
+                        <td className="px-4 py-3 text-slate-500">{g.proveedor ?? '—'}</td>
+                        <td className="px-4 py-3">
+                          {g.categoria ? (
+                            <span className="inline-flex items-center gap-1.5 text-xs">
+                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.categoria_color ?? '#ccc' }} />
+                              {g.categoria}
+                            </span>
+                          ) : <span className="text-slate-300 text-xs">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                          {g.moneda === 'USD' ? formatUSD(g.monto) : formatARS(g.monto)}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {new Date(g.fecha_vencimiento).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               {gastosPendientes.length === 0 && (
                 <div className="text-center py-12 text-slate-400 text-sm">No hay gastos pendientes.</div>
               )}

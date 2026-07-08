@@ -29,11 +29,18 @@ export default async function UsuariosPage() {
   const { data: authUsers } = await adminClient.auth.admin.listUsers()
 
   // Todos los perfiles que pertenecen a esta constructora
-  const { data: perfiles } = await adminClient
-    .from('perfiles')
-    .select('id, nombre, rol, activo, permisos, created_at')
-    .eq('constructora_id', ctx.constructoraId)
-    .order('created_at', { ascending: true })
+  const [{ data: perfiles }, { data: obras }] = await Promise.all([
+    adminClient
+      .from('perfiles')
+      .select('id, nombre, rol, activo, permisos, constructora_id, obra_id, created_at')
+      .eq('constructora_id', ctx.constructoraId)
+      .order('created_at', { ascending: true }),
+    adminClient
+      .from('obras')
+      .select('id, nombre, tipo')
+      .eq('constructora_id', ctx.constructoraId)
+      .order('nombre', { ascending: true }),
+  ])
 
   const perfilesConEmail = (perfiles ?? []).map(p => ({
     ...p,
@@ -45,11 +52,12 @@ export default async function UsuariosPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Usuarios</h1>
         <p className="text-slate-500 text-sm mt-1">
-          Creá operadores y controlá a qué módulos puede acceder cada uno
+          Creá operadores, asignalos a un proyecto y controlá a qué módulos puede acceder cada uno
         </p>
       </div>
       <UsuariosManager
         perfiles={perfilesConEmail}
+        obras={obras ?? []}
         currentUserId={user.id}
         constructoraId={ctx.constructoraId}
       />

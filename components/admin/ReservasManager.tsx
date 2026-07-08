@@ -104,81 +104,83 @@ export default function ReservasManager({ reservas, cuentasPropias, constructora
 
       {/* Tabla */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="text-left px-4 py-3 font-semibold text-slate-600">Interesado</th>
-              <th className="text-left px-4 py-3 font-semibold text-slate-600">Unidad</th>
-              <th className="text-right px-4 py-3 font-semibold text-slate-600">Seña</th>
-              <th className="text-left px-4 py-3 font-semibold text-slate-600">Reservado</th>
-              <th className="text-left px-4 py-3 font-semibold text-slate-600">Vencimiento</th>
-              <th className="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filtradas.map(r => {
-              const diasRestantes = Math.round(
-                (new Date(r.fecha_vencimiento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-              )
-              const vencida = r.estado === 'Vigente' && r.fecha_vencimiento < today
-              return (
-                <tr key={r.id} className={cn('hover:bg-slate-50 transition-colors', vencida && 'bg-red-50/50')}>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-slate-900">{r.compradores.nombre_completo}</p>
-                    <p className="text-xs text-slate-400 font-mono">{r.compradores.dni_cuit}</p>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">
-                    P{r.unidades.piso} - {r.unidades.numero}{r.unidades.letra ?? ''}
-                    <p className="text-xs text-slate-400">{r.unidades.tipologias.nombre}</p>
-                  </td>
-                  <td className="px-4 py-3 text-right text-slate-600">
-                    {r.monto_sena ? formatCurrency(r.monto_sena) : <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-slate-500">{formatDate(r.fecha_reserva)}</td>
-                  <td className="px-4 py-3">
-                    <p className={cn('text-sm', vencida ? 'text-red-600 font-semibold' : 'text-slate-600')}>
-                      {formatDate(r.fecha_vencimiento)}
-                    </p>
-                    {r.estado === 'Vigente' && !vencida && (
-                      <p className="text-xs text-slate-400">{diasRestantes} días</p>
-                    )}
-                    {vencida && (
-                      <p className="text-xs text-red-500">Vencida</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className={cn(
-                      'inline-block text-xs font-medium px-2 py-0.5 rounded-full border',
-                      ESTADO_COLORS[r.estado]
-                    )}>
-                      {r.estado}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {r.estado === 'Vigente' && (
-                      <div className="flex items-center justify-end gap-3">
-                        <button
-                          onClick={() => setSaleReserva(r)}
-                          className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
-                        >
-                          Convertir a venta
-                        </button>
-                        <button
-                          onClick={() => marcarCaida(r)}
-                          disabled={loadingId === r.id}
-                          className="text-xs text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                        >
-                          Marcar caída
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Interesado</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Unidad</th>
+                <th className="text-right px-4 py-3 font-semibold text-slate-600">Seña</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Reservado</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Vencimiento</th>
+                <th className="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtradas.map(r => {
+                const diasRestantes = Math.round(
+                  (new Date(r.fecha_vencimiento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+                )
+                const vencida = r.estado === 'Vigente' && r.fecha_vencimiento < today
+                return (
+                  <tr key={r.id} className={cn('hover:bg-slate-50 transition-colors', vencida && 'bg-red-50/50')}>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-slate-900">{r.compradores.nombre_completo}</p>
+                      <p className="text-xs text-slate-400 font-mono">{r.compradores.dni_cuit}</p>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      P{r.unidades.piso} - {r.unidades.numero}{r.unidades.letra ?? ''}
+                      <p className="text-xs text-slate-400">{r.unidades.tipologias.nombre}</p>
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-600">
+                      {r.monto_sena ? formatCurrency(r.monto_sena) : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">{formatDate(r.fecha_reserva)}</td>
+                    <td className="px-4 py-3">
+                      <p className={cn('text-sm', vencida ? 'text-red-600 font-semibold' : 'text-slate-600')}>
+                        {formatDate(r.fecha_vencimiento)}
+                      </p>
+                      {r.estado === 'Vigente' && !vencida && (
+                        <p className="text-xs text-slate-400">{diasRestantes} días</p>
+                      )}
+                      {vencida && (
+                        <p className="text-xs text-red-500">Vencida</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={cn(
+                        'inline-block text-xs font-medium px-2 py-0.5 rounded-full border',
+                        ESTADO_COLORS[r.estado]
+                      )}>
+                        {r.estado}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {r.estado === 'Vigente' && (
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => setSaleReserva(r)}
+                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                          >
+                            Convertir a venta
+                          </button>
+                          <button
+                            onClick={() => marcarCaida(r)}
+                            disabled={loadingId === r.id}
+                            className="text-xs text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                          >
+                            Marcar caída
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
 
         {filtradas.length === 0 && (
           <div className="text-center py-12 text-slate-400 text-sm">
@@ -194,7 +196,7 @@ export default function ReservasManager({ reservas, cuentasPropias, constructora
           reservaId={saleReserva.id}
           compradorPreFill={{
             nombre: saleReserva.compradores.nombre_completo,
-            dni: saleReserva.compradores.dni_cuit,
+            dni: saleReserva.compradores.dni_cuit ?? '',
             email: saleReserva.compradores.email ?? '',
             telefono: saleReserva.compradores.telefono ?? '',
           }}

@@ -8,6 +8,7 @@ export interface ConstructoraContext {
   perfilNombre: string
   perfilRol: 'admin' | 'operador'
   perfilPermisos: string[] | null
+  perfilObraId: string | null
 }
 
 export interface ProyectoContext extends ConstructoraContext {
@@ -31,7 +32,7 @@ const resolveConstructora = cache(async (): Promise<ConstructoraContext | null> 
   // Una sola query a perfiles trae constructora_id + datos del perfil del usuario
   const { data: perfil } = await admin
     .from('perfiles')
-    .select('constructora_id, nombre, rol, permisos')
+    .select('constructora_id, nombre, rol, permisos, obra_id')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -56,12 +57,16 @@ const resolveConstructora = cache(async (): Promise<ConstructoraContext | null> 
     .eq('id', constructoraId)
     .maybeSingle()
 
+  const rol = ((perfil as any)?.rol ?? 'operador') as 'admin' | 'operador'
+
   return {
     constructoraId,
     constructoraNombre: constructora?.nombre ?? 'Constructora',
     perfilNombre: (perfil as any)?.nombre ?? '',
-    perfilRol: ((perfil as any)?.rol ?? 'operador') as 'admin' | 'operador',
+    perfilRol: rol,
     perfilPermisos: (perfil as any)?.permisos ?? null,
+    // Un admin nunca queda acotado a un proyecto, sea cual sea el dato crudo.
+    perfilObraId: rol === 'admin' ? null : ((perfil as any)?.obra_id ?? null),
   }
 })
 
@@ -72,6 +77,12 @@ export const getConstructoraContext = cache(async (): Promise<ConstructoraContex
 export const getProyectoContext = cache(async (obraId: string): Promise<ProyectoContext | null> => {
   const resolved = await resolveConstructora()
   if (!resolved) return null
+
+  // Enforcement central: un operador acotado a un proyecto no puede resolver
+  // el contexto de ningún otro. Todas las páginas de proyecto (dashboard,
+  // certificados, cobros, contratos, caja, etc.) redirigen a /admin cuando
+  // este helper devuelve null, así que este único chequeo las cubre a todas.
+  if (resolved.perfilObraId && resolved.perfilObraId !== obraId) return null
 
   const admin = createAdminClient()
   const { data: obra } = await admin
@@ -89,6 +100,7 @@ export const getProyectoContext = cache(async (obraId: string): Promise<Proyecto
     perfilNombre: resolved.perfilNombre,
     perfilRol: resolved.perfilRol,
     perfilPermisos: resolved.perfilPermisos,
+    perfilObraId: resolved.perfilObraId,
     obraId: obra.id,
     obraNombre: obra.nombre,
     obraTipo: (obra.tipo ?? 'desarrollo') as 'desarrollo' | 'obra',

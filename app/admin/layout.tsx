@@ -28,12 +28,21 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const rol = constructoraCtx?.perfilRol ?? 'operador'
   const permisos: string[] | null = constructoraCtx?.perfilPermisos ?? null
+  const obraAsignada = constructoraCtx?.perfilObraId ?? null
+
+  const pathname = headersList.get('x-pathname') ?? ''
+  const segmentos = pathname.split('/')
+  const esRutaDeProyecto = segmentos[2] === 'proyectos'
+
+  // Operador acotado a un proyecto: bloquear cualquier otra obra (además del
+  // enforcement en getProyectoContext() — esto corta antes de renderizar).
+  if (obraAsignada && esRutaDeProyecto && segmentos[3] && segmentos[3] !== obraAsignada) {
+    redirect('/admin')
+  }
 
   // Guard de rutas para operadores con permisos explícitos
   if (rol !== 'admin' && permisos !== null) {
-    const pathname = headersList.get('x-pathname') ?? ''
-    const segmentos = pathname.split('/')
-    const segmento = segmentos[2] === 'proyectos'
+    const segmento = esRutaDeProyecto
       ? (segmentos[4] as ModuloKey | undefined)
       : (segmentos[2] as ModuloKey | undefined)
 
@@ -43,7 +52,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden admin-typography-system">
+    <div className="flex flex-col lg:flex-row h-screen bg-slate-50 overflow-hidden admin-typography-system">
       <AdminSidebar
         userName={constructoraCtx?.perfilNombre ?? user.email ?? 'Usuario'}
         userRole={rol}

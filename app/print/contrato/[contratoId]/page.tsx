@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getConstructoraContext } from '@/lib/tenant'
 import PrintToolbar from '@/components/admin/PrintToolbar'
 
 export const dynamic = 'force-dynamic'
@@ -25,15 +26,21 @@ export default async function PrintContratoPage({ params }: { params: Promise<{ 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
+  const ctx = await getConstructoraContext()
+  if (!ctx) redirect('/auth/login')
+
   const admin = createAdminClient()
 
   const { data: contrato } = await admin
     .from('contratos_obra')
-    .select('*, obras(nombre, constructoras(nombre))')
+    .select('*, obras(nombre, constructoras(nombre)), compradores(nombre_completo, dni_cuit)')
     .eq('id', contratoId)
     .maybeSingle()
 
-  if (!contrato) redirect('/admin')
+  if (!contrato || contrato.constructora_id !== ctx.constructoraId) redirect('/admin')
+
+  const clienteNombre = (contrato.compradores as any)?.nombre_completo ?? ''
+  const clienteCuit = (contrato.compradores as any)?.dni_cuit ?? null
 
   const obraNombre = (contrato.obras as any)?.nombre ?? ''
   const constructoraNombre = (contrato.obras as any)?.constructoras?.nombre ?? 'Constructora'
@@ -67,7 +74,7 @@ export default async function PrintContratoPage({ params }: { params: Promise<{ 
         {/* Fecha y partes */}
         <div className="mb-6 text-sm space-y-1.5">
           <p><span className="font-semibold">Fecha:</span> {hoy}</p>
-          <p><span className="font-semibold">Cliente:</span> {contrato.cliente_nombre}{contrato.cliente_cuit ? ` — CUIT ${contrato.cliente_cuit}` : ''}</p>
+          <p><span className="font-semibold">Cliente:</span> {clienteNombre}{clienteCuit ? ` — CUIT ${clienteCuit}` : ''}</p>
           <p><span className="font-semibold">Obra:</span> {obraNombre}</p>
         </div>
 
@@ -106,8 +113,8 @@ export default async function PrintContratoPage({ params }: { params: Promise<{ 
           </div>
           <div className="text-center">
             <div className="firma-linea">
-              <p className="font-semibold text-sm">{contrato.cliente_nombre}</p>
-              {contrato.cliente_cuit && <p className="text-xs text-gray-500">CUIT {contrato.cliente_cuit}</p>}
+              <p className="font-semibold text-sm">{clienteNombre}</p>
+              {clienteCuit && <p className="text-xs text-gray-500">CUIT {clienteCuit}</p>}
               <p className="text-xs text-gray-500 mt-0.5">Comitente</p>
             </div>
           </div>

@@ -292,7 +292,7 @@ export default function InventoryGrid({ unidades, tipologias, obraId, constructo
             if (!r) return undefined
             return {
               nombre: r.compradores.nombre_completo,
-              dni: r.compradores.dni_cuit,
+              dni: r.compradores.dni_cuit ?? '',
               email: r.compradores.email ?? '',
               telefono: r.compradores.telefono ?? '',
             }

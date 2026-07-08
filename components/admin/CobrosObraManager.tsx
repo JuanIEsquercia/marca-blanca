@@ -128,7 +128,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
     <div className="space-y-6">
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Cobrado</p>
           <p className="text-2xl font-bold text-emerald-600">{formatCurrency(totalCobrado, moneda)}</p>
@@ -195,44 +195,46 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
             const vencido = esVencido(cobro)
             return (
               <div key={cobro.id}
-                className={cn('px-5 py-4 flex items-center gap-4', vencido && 'bg-red-50/50')}>
-                <div className={cn(
-                  'w-2.5 h-2.5 rounded-full shrink-0',
-                  cobro.estado === 'cobrado' ? 'bg-emerald-500' :
-                  vencido ? 'bg-red-500' : 'bg-amber-400'
-                )} />
+                className={cn('px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4', vencido && 'bg-red-50/50')}>
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className={cn(
+                    'w-2.5 h-2.5 rounded-full shrink-0 mt-1.5',
+                    cobro.estado === 'cobrado' ? 'bg-emerald-500' :
+                    vencido ? 'bg-red-500' : 'bg-amber-400'
+                  )} />
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-slate-900">{formatCurrency(cobro.monto, cobro.moneda)}</p>
-                    {cobro.certificados_avance && (
-                      <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                        Cert. #{cobro.certificados_avance.numero} — {cobro.certificados_avance.periodo}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-slate-900">{formatCurrency(cobro.monto, cobro.moneda)}</p>
+                      {cobro.certificados_avance && (
+                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                          Cert. #{cobro.certificados_avance.numero} — {cobro.certificados_avance.periodo}
+                        </span>
+                      )}
+                      <span className={cn(
+                        'text-xs px-2 py-0.5 rounded font-medium',
+                        cobro.estado === 'cobrado' ? 'bg-emerald-100 text-emerald-700' :
+                        vencido ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                      )}>
+                        {cobro.estado === 'cobrado' ? 'Cobrado' : vencido ? 'Vencido' : 'Pendiente'}
                       </span>
-                    )}
-                    <span className={cn(
-                      'text-xs px-2 py-0.5 rounded font-medium',
-                      cobro.estado === 'cobrado' ? 'bg-emerald-100 text-emerald-700' :
-                      vencido ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                    )}>
-                      {cobro.estado === 'cobrado' ? 'Cobrado' : vencido ? 'Vencido' : 'Pendiente'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-400">
-                    {cobro.estado === 'cobrado' && cobro.fecha_pago && (
-                      <span>Pagado: {formatDate(cobro.fecha_pago)}</span>
-                    )}
-                    {cobro.fecha_vencimiento && (
-                      <span className={vencido ? 'text-red-500' : ''}>
-                        Vence: {formatDate(cobro.fecha_vencimiento)}
-                      </span>
-                    )}
-                    {cobro.cuentas_propias && <span>→ {cobro.cuentas_propias.nombre}</span>}
-                    {cobro.notas && <span>{cobro.notas}</span>}
+                    </div>
+                    <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-400">
+                      {cobro.estado === 'cobrado' && cobro.fecha_pago && (
+                        <span>Pagado: {formatDate(cobro.fecha_pago)}</span>
+                      )}
+                      {cobro.fecha_vencimiento && (
+                        <span className={vencido ? 'text-red-500' : ''}>
+                          Vence: {formatDate(cobro.fecha_vencimiento)}
+                        </span>
+                      )}
+                      {cobro.cuentas_propias && <span>→ {cobro.cuentas_propias.nombre}</span>}
+                      {cobro.notas && <span>{cobro.notas}</span>}
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                   {!readOnly && cobro.estado === 'pendiente' && (
                     <button
                       onClick={() => { setPagoTarget(cobro); setPagoForm(EMPTY_PAGO); setError(null) }}

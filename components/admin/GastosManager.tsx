@@ -271,7 +271,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   return (
     <div>
       {/* Resumen comprometido */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
           <p className="text-xs text-orange-600 font-medium mb-1">Comprometido ARS</p>
           <p className="text-2xl font-bold text-orange-700">
@@ -293,59 +293,61 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       </div>
 
       {/* Filtros + botón */}
-      <div className="flex gap-3 mb-5">
+      <div className="flex flex-col md:flex-row gap-3 mb-5">
         <input
           placeholder="Buscar por descripción o proveedor..."
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
-          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm
+          className="w-full md:flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm
                      focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
-        <div className="flex rounded-lg border border-slate-300 overflow-hidden text-sm">
-          {(['todos', 'Pendiente', 'Pagado'] as const).map(e => (
-            <button key={e}
-              onClick={() => setFiltroEstado(e)}
-              className={cn(
-                'px-3 py-2 transition-colors',
-                filtroEstado === e ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
-              )}>
-              {e === 'todos' ? 'Todos' : e}
+        <div className="flex flex-wrap gap-2 shrink-0">
+          <div className="flex rounded-lg border border-slate-300 overflow-hidden text-sm bg-white">
+            {(['todos', 'Pendiente', 'Pagado'] as const).map(e => (
+              <button key={e}
+                onClick={() => setFiltroEstado(e)}
+                className={cn(
+                  'px-3 py-2 transition-colors',
+                  filtroEstado === e ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                )}>
+                {e === 'todos' ? 'Todos' : e}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setShowCatManager(true)}
+            className="flex items-center gap-2 px-3 py-2 border border-slate-300 bg-white hover:bg-slate-50
+                       text-slate-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+            Categorías
+          </button>
+          {!readOnly && (
+            <button onClick={() => scanFileRef.current?.click()}
+              disabled={escaneando}
+              className="flex items-center gap-2 px-3 py-2 border border-indigo-300 bg-indigo-50 hover:bg-indigo-100
+                         text-indigo-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap disabled:opacity-60">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              {escaneando ? 'Leyendo factura...' : 'Escanear factura'}
             </button>
-          ))}
+          )}
+          {!readOnly && (
+            <button onClick={openNew}
+              className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-500
+                         text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nuevo gasto
+            </button>
+          )}
         </div>
-        <button onClick={() => setShowCatManager(true)}
-          className="flex items-center gap-2 px-4 py-2 border border-slate-300 bg-white hover:bg-slate-50
-                     text-slate-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-          </svg>
-          Categorías
-        </button>
-        {!readOnly && (
-          <button onClick={() => scanFileRef.current?.click()}
-            disabled={escaneando}
-            className="flex items-center gap-2 px-4 py-2 border border-indigo-300 bg-indigo-50 hover:bg-indigo-100
-                       text-indigo-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap disabled:opacity-60">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            {escaneando ? 'Leyendo factura...' : 'Escanear factura'}
-          </button>
-        )}
-        {!readOnly && (
-          <button onClick={openNew}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                       text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Nuevo gasto
-          </button>
-        )}
         <input ref={scanFileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
           capture="environment" className="hidden"
           onChange={e => { const f = e.target.files?.[0]; if (f) handleEscanear(f); e.target.value = '' }} />
@@ -353,79 +355,81 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
 
       {/* Tabla */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="text-left px-4 py-3 font-semibold text-slate-600">Descripción</th>
-              <th className="text-left px-4 py-3 font-semibold text-slate-600">Proveedor</th>
-              <th className="text-left px-4 py-3 font-semibold text-slate-600">Categoría</th>
-              <th className="text-right px-4 py-3 font-semibold text-slate-600">Monto</th>
-              <th className="text-left px-4 py-3 font-semibold text-slate-600">Vencimiento</th>
-              <th className="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {gastosFiltrados.map(g => (
-              <tr key={g.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  <p className="font-medium text-slate-900">{g.descripcion}</p>
-                  {g.notas && <p className="text-xs text-slate-400 truncate max-w-xs">{g.notas}</p>}
-                </td>
-                <td className="px-4 py-3 text-slate-600">
-                  {g.proveedores?.razon_social ?? <span className="text-slate-400">—</span>}
-                </td>
-                <td className="px-4 py-3">
-                  {g.categorias_costo ? (
-                    <span className="inline-flex items-center gap-1.5 text-xs">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.categorias_costo.color }} />
-                      {g.categorias_costo.nombre}
-                    </span>
-                  ) : <span className="text-slate-400 text-xs">—</span>}
-                </td>
-                <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                  {g.moneda === 'USD' ? 'U$D' : '$'} {g.monto.toLocaleString('es-AR')}
-                </td>
-                <td className="px-4 py-3 text-slate-600">{formatDate(g.fecha_vencimiento)}</td>
-                <td className="px-4 py-3 text-center">
-                  <span className={cn(
-                    'inline-block text-xs font-medium px-2.5 py-0.5 rounded-full',
-                    g.estado === 'Pagado'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-orange-100 text-orange-700'
-                  )}>
-                    {g.estado}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    {!readOnly && g.estado === 'Pendiente' && (
-                      <button
-                        onClick={() => {
-                          setPagandoGasto(g)
-                          setPagoForm({ cuenta_propia_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
-                        }}
-                        className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
-                        Registrar pago
-                      </button>
-                    )}
-                    {g.estado === 'Pagado' && g.fecha_pago && (
-                      <span className="text-xs text-slate-400">{formatDate(g.fecha_pago)}</span>
-                    )}
-                    {!readOnly && (
-                      <button onClick={() => openEdit(g)}
-                        className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Editar</button>
-                    )}
-                    {!readOnly && (
-                      <button onClick={() => handleDelete(g)}
-                        className="text-xs text-red-400 hover:text-red-600 transition-colors">✕</button>
-                    )}
-                  </div>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Descripción</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Proveedor</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Categoría</th>
+                <th className="text-right px-4 py-3 font-semibold text-slate-600">Monto</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Vencimiento</th>
+                <th className="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
+                <th className="px-4 py-3" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {gastosFiltrados.map(g => (
+                <tr key={g.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-slate-900">{g.descripcion}</p>
+                    {g.notas && <p className="text-xs text-slate-400 truncate max-w-xs">{g.notas}</p>}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {g.proveedores?.razon_social ?? <span className="text-slate-400">—</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {g.categorias_costo ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.categorias_costo.color }} />
+                        {g.categorias_costo.nombre}
+                      </span>
+                    ) : <span className="text-slate-400 text-xs">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                    {g.moneda === 'USD' ? 'U$D' : '$'} {g.monto.toLocaleString('es-AR')}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">{formatDate(g.fecha_vencimiento)}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={cn(
+                      'inline-block text-xs font-medium px-2.5 py-0.5 rounded-full',
+                      g.estado === 'Pagado'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-orange-100 text-orange-700'
+                    )}>
+                      {g.estado}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {!readOnly && g.estado === 'Pendiente' && (
+                        <button
+                          onClick={() => {
+                            setPagandoGasto(g)
+                            setPagoForm({ cuenta_propia_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
+                          }}
+                          className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
+                          Registrar pago
+                        </button>
+                      )}
+                      {g.estado === 'Pagado' && g.fecha_pago && (
+                        <span className="text-xs text-slate-400">{formatDate(g.fecha_pago)}</span>
+                      )}
+                      {!readOnly && (
+                        <button onClick={() => openEdit(g)}
+                          className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Editar</button>
+                      )}
+                      {!readOnly && (
+                        <button onClick={() => handleDelete(g)}
+                          className="text-xs text-red-400 hover:text-red-600 transition-colors">✕</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {gastosFiltrados.length === 0 && (
           <div className="text-center py-12 text-slate-400">
             <p className="text-sm">No hay gastos{filtroEstado !== 'todos' ? ` ${filtroEstado.toLowerCase()}s` : ''}.</p>
@@ -523,7 +527,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Monto *</label>
                   <input required type="number" min="0" step="0.01" value={form.monto}
@@ -540,7 +544,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Vencimiento *</label>
                   <input required type="date" value={form.fecha_vencimiento}
@@ -596,7 +600,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
 
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Desglose (opcional)</label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <input type="number" min="0" step="0.01" value={form.monto_neto} placeholder="Neto"
                     onChange={e => setForm(f => ({ ...f, monto_neto: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />

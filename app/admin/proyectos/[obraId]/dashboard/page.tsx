@@ -22,7 +22,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
     const [{ data: contrato }, { data: certificados }, { data: cobros }] = await Promise.all([
       supabase
         .from('contratos_obra')
-        .select('*')
+        .select('*, compradores(*)')
         .eq('obra_id', obraId)
         .maybeSingle(),
       supabase
@@ -59,7 +59,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
             <div className="bg-white border border-slate-200 rounded-xl p-5">
               <p className="text-xs font-medium text-slate-500 mb-1">Monto del contrato</p>
               <p className="text-2xl font-bold text-slate-900">{formatCurrency(contrato.monto_total)}</p>
-              <p className="text-xs text-slate-400 mt-1">{contrato.cliente_nombre}</p>
+              <p className="text-xs text-slate-400 mt-1">{contrato.compradores?.nombre_completo}</p>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-5">
               <p className="text-xs font-medium text-slate-500 mb-1">Total certificado</p>

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getConstructoraContext } from '@/lib/tenant'
 import PrintToolbar from '@/components/admin/PrintToolbar'
 
 export const dynamic = 'force-dynamic'
@@ -31,6 +32,9 @@ export default async function PrintCertificadoPage({ params }: { params: Promise
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
+  const ctx = await getConstructoraContext()
+  if (!ctx) redirect('/auth/login')
+
   const admin = createAdminClient()
 
   const { data: cert } = await admin
@@ -38,17 +42,18 @@ export default async function PrintCertificadoPage({ params }: { params: Promise
     .select(`
       *,
       contratos_obra (
-        cliente_nombre, cliente_cuit, cliente_email, cliente_telefono,
-        monto_total, moneda
+        monto_total, moneda,
+        compradores (nombre_completo, dni_cuit, email, telefono)
       ),
       obras (nombre, direccion, constructoras(nombre))
     `)
     .eq('id', certId)
     .maybeSingle()
 
-  if (!cert) redirect('/admin')
+  if (!cert || cert.constructora_id !== ctx.constructoraId) redirect('/admin')
 
   const contrato = (cert.contratos_obra as any) ?? {}
+  const cliente = contrato.compradores ?? {}
   const obraNombre = (cert.obras as any)?.nombre ?? ''
   const obraDireccion = (cert.obras as any)?.direccion ?? ''
   const constructoraNombre = (cert.obras as any)?.constructoras?.nombre ?? 'Constructora'
@@ -90,8 +95,8 @@ export default async function PrintCertificadoPage({ params }: { params: Promise
 
         {/* Datos principales */}
         <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm border border-black p-4 mb-6">
-          <div><span className="font-semibold">Comitente:</span> {contrato.cliente_nombre ?? '—'}</div>
-          <div><span className="font-semibold">CUIT:</span> {contrato.cliente_cuit ?? '—'}</div>
+          <div><span className="font-semibold">Comitente:</span> {cliente.nombre_completo ?? '—'}</div>
+          <div><span className="font-semibold">CUIT:</span> {cliente.dni_cuit ?? '—'}</div>
           <div><span className="font-semibold">Obra:</span> {obraNombre}</div>
           <div><span className="font-semibold">Período:</span> {cert.periodo}</div>
           <div><span className="font-semibold">Fecha presentación:</span> {fmtDate(cert.fecha_presentacion)}</div>
@@ -148,9 +153,9 @@ export default async function PrintCertificadoPage({ params }: { params: Promise
           </div>
           <div className="text-center">
             <div className="border-t border-black pt-3 mt-16">
-              <p className="font-semibold">{contrato.cliente_nombre ?? 'Comitente'}</p>
+              <p className="font-semibold">{cliente.nombre_completo ?? 'Comitente'}</p>
               <p className="text-sm text-gray-600">EL COMITENTE</p>
-              {contrato.cliente_cuit && <p className="text-xs text-gray-500">CUIT {contrato.cliente_cuit}</p>}
+              {cliente.dni_cuit && <p className="text-xs text-gray-500">CUIT {cliente.dni_cuit}</p>}
               <p className="text-xs text-gray-400 mt-2">Fecha: ____/____/________</p>
             </div>
           </div>

@@ -65,22 +65,53 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
     setError(null)
     setLoading(true)
     const supabase = createClient()
+
+    // Buscar o crear cliente (misma entidad `compradores` que usa el flujo
+    // DESARROLLO — mismo patrón de dedupe por CUIT que SaleForm/ReservaForm).
+    const cuit = contratoForm.cliente_cuit.trim() || null
+    let clienteId: string | null = null
+    if (cuit) {
+      const { data: existente } = await supabase
+        .from('compradores')
+        .select('id')
+        .eq('constructora_id', constructoraId)
+        .eq('dni_cuit', cuit)
+        .maybeSingle()
+      clienteId = existente?.id ?? null
+    }
+    if (!clienteId) {
+      const { data: nuevoCliente, error: errCliente } = await supabase
+        .from('compradores')
+        .insert({
+          constructora_id: constructoraId,
+          nombre_completo: contratoForm.cliente_nombre.trim(),
+          dni_cuit: cuit,
+          email: contratoForm.cliente_email.trim() || null,
+          telefono: contratoForm.cliente_telefono.trim() || null,
+        })
+        .select('id')
+        .single()
+      if (errCliente || !nuevoCliente) {
+        setLoading(false)
+        setError(errCliente?.message ?? 'Error al crear el cliente')
+        return
+      }
+      clienteId = nuevoCliente.id
+    }
+
     const { data, error: err } = await supabase
       .from('contratos_obra')
       .insert({
         obra_id: obraId,
         constructora_id: constructoraId,
-        cliente_nombre: contratoForm.cliente_nombre.trim(),
-        cliente_cuit:   contratoForm.cliente_cuit.trim() || null,
-        cliente_email:  contratoForm.cliente_email.trim() || null,
-        cliente_telefono: contratoForm.cliente_telefono.trim() || null,
+        cliente_id:     clienteId,
         monto_total:    parseFloat(contratoForm.monto_total),
         moneda:         contratoForm.moneda,
         fecha_inicio:   contratoForm.fecha_inicio || null,
         fecha_fin_estimada: contratoForm.fecha_fin_estimada || null,
         descripcion:    contratoForm.descripcion.trim() || null,
       })
-      .select()
+      .select('*, compradores(*)')
       .single()
     setLoading(false)
     if (err || !data) { setError(err?.message ?? 'Error al crear el contrato'); return }
@@ -296,6 +327,12 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono</label>
+                <input value={contratoForm.cliente_telefono}
+                  onChange={e => setContratoForm(f => ({ ...f, cliente_telefono: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Monto total *</label>
                 <input required type="number" min="0" step="0.01" value={contratoForm.monto_total}
                   onChange={e => setContratoForm(f => ({ ...f, monto_total: e.target.value }))}
@@ -343,7 +380,7 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Paso 1 — Contrato de obra</p>
-              <p className="text-lg font-bold text-slate-900">{contrato.cliente_nombre}</p>
+              <p className="text-lg font-bold text-slate-900">{contrato.compradores?.nombre_completo}</p>
               <div className="flex items-center gap-3 mt-1 text-sm text-slate-500">
                 <span>{formatCurrency(contrato.monto_total, contrato.moneda)}</span>
                 {contrato.fecha_inicio && <span>Inicio: {formatDate(contrato.fecha_inicio)}</span>}

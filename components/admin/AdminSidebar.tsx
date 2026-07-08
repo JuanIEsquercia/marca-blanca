@@ -248,6 +248,7 @@ export default function AdminSidebar({ userName, userRole, userPermisos, constru
   const storeProyecto = useSyncExternalStore(subscribeProyecto, getCurrentProyecto, () => null)
 
   const [proyecto, setProyecto] = useState<ProyectoData | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
     if (!obraId) {
@@ -308,109 +309,162 @@ export default function AdminSidebar({ userName, userRole, userPermisos, constru
   }
 
   return (
-    <aside className="w-60 bg-slate-900 flex flex-col shrink-0">
-      {/* Header */}
-      <div className="p-4 border-b border-slate-800">
-        {effectiveProyecto ? (
-          <div>
-            <Link
-              href="/admin"
-              className="flex items-center gap-1.5 text-slate-500 hover:text-slate-300 text-xs mb-2 transition-colors"
-            >
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Todos los proyectos
-            </Link>
-            <div className="flex items-start gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
+    <>
+      {/* Header móvil */}
+      <header className="lg:hidden flex items-center justify-between p-4 bg-slate-900 border-b border-slate-800 text-white shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M3 10h18M3 7l9-4 9 4" />
+            </svg>
+          </div>
+          <span className="text-sm font-semibold truncate max-w-[200px]">
+            {effectiveProyecto ? effectiveProyecto.nombre : constructoraNombre}
+          </span>
+        </div>
+        <button
+          onClick={() => setIsOpen(true)}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 focus:outline-none"
+        >
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </header>
+
+      {/* Backdrop móvil */}
+      {isOpen && (
+        <div
+          onClick={() => setIsOpen(false)}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity"
+        />
+      )}
+
+      {/* Menú lateral (Aside) */}
+      <aside
+        className={cn(
+          "bg-slate-900 flex flex-col transition-transform duration-300 ease-in-out",
+          "fixed inset-y-0 left-0 z-50 w-64 shadow-2xl lg:shadow-none",
+          "lg:translate-x-0 lg:static lg:w-60 lg:flex lg:shrink-0",
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        {/* Header */}
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+          {effectiveProyecto ? (
+            <div className="flex-1 min-w-0">
+              <Link
+                href="/admin"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-1.5 text-slate-500 hover:text-slate-300 text-xs mb-2 transition-colors"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Todos los proyectos
+              </Link>
+              <div className="flex items-start gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M3 10h18M3 7l9-4 9 4" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-white text-sm font-semibold leading-tight truncate">{effectiveProyecto.nombre}</p>
+                  <span className={cn(
+                    'inline-block text-[10px] font-medium px-1.5 py-0.5 rounded mt-1',
+                    effectiveProyecto.tipo === 'desarrollo'
+                      ? 'bg-indigo-900 text-indigo-300'
+                      : 'bg-amber-900 text-amber-300'
+                  )}>
+                    {effectiveProyecto.tipo === 'desarrollo' ? 'DESARROLLO' : 'OBRA'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
                 <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M3 10h18M3 7l9-4 9 4" />
                 </svg>
               </div>
               <div className="min-w-0">
-                <p className="text-white text-sm font-semibold leading-tight truncate">{effectiveProyecto.nombre}</p>
-                <span className={cn(
-                  'inline-block text-[10px] font-medium px-1.5 py-0.5 rounded mt-1',
-                  effectiveProyecto.tipo === 'desarrollo'
-                    ? 'bg-indigo-900 text-indigo-300'
-                    : 'bg-amber-900 text-amber-300'
-                )}>
-                  {effectiveProyecto.tipo === 'desarrollo' ? 'DESARROLLO' : 'OBRA'}
-                </span>
+                <p className="text-white text-sm font-semibold leading-none truncate">{constructoraNombre}</p>
+                <p className="text-slate-400 text-xs mt-0.5">Panel ERP</p>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M3 10h18M3 7l9-4 9 4" />
-              </svg>
-            </div>
-            <div className="min-w-0">
-              <p className="text-white text-sm font-semibold leading-none truncate">{constructoraNombre}</p>
-              <p className="text-slate-400 text-xs mt-0.5">Panel ERP</p>
-            </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* Navegación */}
-      <nav className="flex-1 p-3 space-y-4 overflow-y-auto admin-scroll">
-        {sections.map(section => {
-          const visibleItems = section.items.filter(puedeVer)
-          if (visibleItems.length === 0) return null
-          return (
-            <div key={section.label}>
-              <p className="px-3 mb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                {section.label}
-              </p>
-              <div className="space-y-0.5">
-                {visibleItems.map(item => {
-                  const isActive = item.href === '/admin'
-                    ? pathname === '/admin'
-                    : pathname.startsWith(item.href)
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors',
-                        isActive
-                          ? 'bg-indigo-600 text-white'
-                          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                      )}
-                    >
-                      {item.icon}
-                      <span className="flex-1">{item.label}</span>
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })}
-      </nav>
-
-      {/* Usuario + Logout */}
-      <div className="p-3 border-t border-slate-800">
-        <div className="px-3 py-2 mb-1">
-          <p className="text-white text-sm font-medium truncate">{userName}</p>
-          <p className="text-slate-500 text-xs capitalize">{userRole}</p>
+          {/* Botón cerrar móvil */}
+          <button
+            onClick={() => setIsOpen(false)}
+            className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-850 ml-2"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-white
-                     hover:bg-slate-800 rounded-lg text-sm transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          Cerrar sesión
-        </button>
-      </div>
-    </aside>
+
+        {/* Navegación */}
+        <nav className="flex-1 p-3 space-y-4 overflow-y-auto admin-scroll">
+          {sections.map(section => {
+            const visibleItems = section.items.filter(puedeVer)
+            if (visibleItems.length === 0) return null
+            return (
+              <div key={section.label}>
+                <p className="px-3 mb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                  {section.label}
+                </p>
+                <div className="space-y-0.5">
+                  {visibleItems.map(item => {
+                    const isActive = item.href === '/admin'
+                      ? pathname === '/admin'
+                      : pathname.startsWith(item.href)
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setIsOpen(false)}
+                        className={cn(
+                          'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors',
+                          isActive
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        )}
+                      >
+                        {item.icon}
+                        <span className="flex-1">{item.label}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </nav>
+
+        {/* Usuario + Logout */}
+        <div className="p-3 border-t border-slate-800">
+          <div className="px-3 py-2 mb-1">
+            <p className="text-white text-sm font-medium truncate">{userName}</p>
+            <p className="text-slate-500 text-xs capitalize">{userRole}</p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-white
+                       hover:bg-slate-800 rounded-lg text-sm transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Cerrar sesión
+          </button>
+        </div>
+      </aside>
+    </>
   )
+
 }

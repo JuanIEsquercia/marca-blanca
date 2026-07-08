@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getConstructoraContext } from '@/lib/tenant'
 import PrintToolbar from '@/components/admin/PrintToolbar'
 
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,9 @@ export default async function PrintCobroPage({ params }: { params: Promise<{ cob
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
+  const ctx = await getConstructoraContext()
+  if (!ctx) redirect('/auth/login')
+
   const admin = createAdminClient()
 
   const { data: cobro } = await admin
@@ -38,7 +42,7 @@ export default async function PrintCobroPage({ params }: { params: Promise<{ cob
       *,
       certificados_avance (
         numero, periodo, monto_certificado,
-        contratos_obra (cliente_nombre, cliente_cuit, moneda)
+        contratos_obra (moneda, compradores (nombre_completo, dni_cuit))
       ),
       cuentas_propias (nombre, tipo, moneda),
       obras (nombre, direccion, constructoras(nombre))
@@ -46,10 +50,11 @@ export default async function PrintCobroPage({ params }: { params: Promise<{ cob
     .eq('id', cobroId)
     .maybeSingle()
 
-  if (!cobro) redirect('/admin')
+  if (!cobro || cobro.constructora_id !== ctx.constructoraId) redirect('/admin')
 
   const cert = (cobro.certificados_avance as any) ?? null
   const contrato = cert?.contratos_obra ?? null
+  const cliente = contrato?.compradores ?? null
   const obraNombre = (cobro.obras as any)?.nombre ?? ''
   const obraDireccion = (cobro.obras as any)?.direccion ?? ''
   const constructoraNombre = (cobro.obras as any)?.constructoras?.nombre ?? 'Constructora'
@@ -92,8 +97,8 @@ export default async function PrintCobroPage({ params }: { params: Promise<{ cob
         {/* Cuerpo principal del recibo */}
         <div className="mb-8">
           <p className="text-base leading-loose text-justify">
-            Recibí de <strong>{contrato?.cliente_nombre ?? '___________________________'}</strong>
-            {contrato?.cliente_cuit ? `, CUIT N° ${contrato.cliente_cuit},` : ','}{' '}
+            Recibí de <strong>{cliente?.nombre_completo ?? '___________________________'}</strong>
+            {cliente?.dni_cuit ? `, CUIT N° ${cliente.dni_cuit},` : ','}{' '}
             la suma de{' '}
             <strong>{fmt(cobro.monto, moneda)}</strong>{' '}
             <em>({numeroALetras(cobro.monto)} {moneda === 'USD' ? 'dólares estadounidenses' : 'pesos argentinos'})</em>{' '}
@@ -148,9 +153,9 @@ export default async function PrintCobroPage({ params }: { params: Promise<{ cob
           </div>
           <div className="text-center">
             <div className="border-t border-black pt-3 mt-16">
-              <p className="font-semibold">{contrato?.cliente_nombre ?? 'Comitente'}</p>
+              <p className="font-semibold">{cliente?.nombre_completo ?? 'Comitente'}</p>
               <p className="text-sm text-gray-600">Recibí conforme</p>
-              {contrato?.cliente_cuit && <p className="text-xs text-gray-500">CUIT {contrato.cliente_cuit}</p>}
+              {cliente?.dni_cuit && <p className="text-xs text-gray-500">CUIT {cliente.dni_cuit}</p>}
             </div>
           </div>
         </div>

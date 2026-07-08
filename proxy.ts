@@ -1,9 +1,19 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+function bloquear(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+  if (pathname.startsWith('/admin') || pathname.startsWith('/superadmin')) {
+    const url = new URL('/auth/login', request.url)
+    url.searchParams.set('redirectTo', pathname)
+    return NextResponse.redirect(url)
+  }
+  return NextResponse.next({ request })
+}
+
 export async function proxy(request: NextRequest) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return NextResponse.next({ request })
+    return bloquear(request)
   }
 
   try {
@@ -60,8 +70,9 @@ export async function proxy(request: NextRequest) {
 
     supabaseResponse.headers.set('x-pathname', pathname)
     return supabaseResponse
-  } catch {
-    return NextResponse.next({ request })
+  } catch (err) {
+    console.error('proxy: error de autenticación, bloqueando por defecto', err)
+    return bloquear(request)
   }
 }
 

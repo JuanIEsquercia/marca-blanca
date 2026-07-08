@@ -135,32 +135,36 @@ export async function DELETE(request: Request) {
 
   const adminClient = createAdminClient()
 
-  // Obtener todos los usuarios de esta constructora
+  // Obtener todos los usuarios de esta constructora ANTES de borrar nada
+  // (perfiles.constructora_id se pone en NULL en cascada al borrar la constructora)
   const { data: perfilesDeEsta } = await adminClient
     .from('perfiles')
     .select('id')
     .eq('constructora_id', constructoraId)
 
-  // Limpiar perfiles y miembros antes de eliminar auth users
-  await adminClient.from('miembros').delete().eq('constructora_id', constructoraId)
-  await adminClient.from('perfiles').delete().eq('constructora_id', constructoraId)
+  // Purga completa (obras, unidades, contratos, gastos, cuentas, etc.) en
+  // el orden correcto según las FK reales — ver migration_018.sql. Es una
+  // sola transacción en el server: si falla, no queda nada a mitad de borrar.
+  const { error } = await adminClient.rpc('purgar_constructora_completa', {
+    p_constructora_id: constructoraId,
+  })
 
-  // Eliminar usuarios de auth
+  if (error) {
+    // Panel interno de superadmin — exponer el mensaje real de Postgres
+    // ayuda a diagnosticar sin ida y vuelta (ej: un trigger bloqueando la purga).
+    return NextResponse.json(
+      { error: `Error al eliminar la constructora y sus datos: ${error.message}` },
+      { status: 500 }
+    )
+  }
+
+  // miembros se borra en cascada. Perfiles no (ON DELETE SET NULL) — lo limpiamos
+  // explícitamente junto con los usuarios de auth.
+  await adminClient.from('perfiles').delete().in('id', (perfilesDeEsta ?? []).map(p => p.id))
+
   for (const p of perfilesDeEsta ?? []) {
     await adminClient.auth.admin.deleteUser(p.id)
   }
 
-  // Eliminar la constructora — fallará si tiene obras u otros datos relacionados
-  const { error } = await adminClient
-    .from('constructoras')
-    .delete()
-    .eq('id', constructoraId)
-
-  if (error) {
-    return NextResponse.json(
-      { error: 'No se puede eliminar: la constructora tiene proyectos u otros datos asociados. Eliminá primero todos los proyectos.' },
-      { status: 409 }
-    )
-  }
   return NextResponse.json({ ok: true })
 }

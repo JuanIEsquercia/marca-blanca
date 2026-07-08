@@ -85,7 +85,7 @@ export default function UnidadForm({ tipologias, unidad, onClose, onSuccess, obr
           {/* Fila 1: Piso + Unidad + Orientación */}
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Ubicación</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Piso *</label>
                 <input required type="number" min="1" value={form.piso}
@@ -160,7 +160,7 @@ export default function UnidadForm({ tipologias, unidad, onClose, onSuccess, obr
           {/* Precio y condiciones */}
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Precio y condiciones</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="col-span-1">
                 <label className="block text-xs font-medium text-slate-600 mb-1">Precio USD *</label>
                 <input required type="number" step="0.01" min="0" value={form.precio_lista}
@@ -206,7 +206,7 @@ export default function UnidadForm({ tipologias, unidad, onClose, onSuccess, obr
           {/* Estado */}
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-2">Estado comercial</label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               {(['Disponible', 'Reservado', 'Vendido'] as const).map(e => (
                 <label key={e} className={`flex-1 text-center py-2 rounded-lg border-2 cursor-pointer text-sm font-medium transition-colors
                   ${form.estado_comercial === e

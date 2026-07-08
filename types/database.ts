@@ -96,7 +96,7 @@ export interface Comprador {
   id: string
   constructora_id: string
   nombre_completo: string
-  dni_cuit: string
+  dni_cuit: string | null
   email: string | null
   telefono: string | null
   created_at: string
@@ -196,6 +196,9 @@ export interface Gasto {
   numero_comprobante: string | null
   comprobante_url: string | null
   notas: string | null
+  monto_neto: number | null
+  iva: number | null
+  percepciones: number | null
   created_at: string
   proveedores?: Proveedor
   cuentas_proveedor?: CuentaProveedor
@@ -209,6 +212,8 @@ export interface Perfil {
   rol: RolUsuario
   activo: boolean
   permisos: string[] | null
+  constructora_id: string | null
+  obra_id: string | null
   created_at: string
 }
 
@@ -251,10 +256,7 @@ export interface ContratoObra {
   id: string
   obra_id: string
   constructora_id: string
-  cliente_nombre: string
-  cliente_cuit: string | null
-  cliente_email: string | null
-  cliente_telefono: string | null
+  cliente_id: string
   monto_total: number
   moneda: string
   fecha_inicio: string | null
@@ -262,6 +264,7 @@ export interface ContratoObra {
   descripcion: string | null
   estado: 'vigente' | 'terminado' | 'rescindido'
   created_at: string
+  compradores?: Comprador
 }
 
 export interface CertificadoAvance {

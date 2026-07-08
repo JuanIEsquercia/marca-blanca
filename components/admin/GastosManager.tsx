@@ -30,6 +30,9 @@ const EMPTY_FORM = {
   fecha_vencimiento: '',
   numero_comprobante: '',
   notas: '',
+  monto_neto: '',
+  iva: '',
+  percepciones: '',
 }
 
 export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias, constructoraId, obraId, readOnly }: Props) {
@@ -46,6 +49,9 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   const [uploadingComp, setUploadingComp] = useState(false)
   const [comprobanteUrl, setComprobanteUrl] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  const [escaneando, setEscaneando] = useState(false)
+  const [avisoEscaneo, setAvisoEscaneo] = useState<{ tipo: 'ok' | 'error'; mensaje: string } | null>(null)
+  const scanFileRef = useRef<HTMLInputElement>(null)
 
   // Pago modal
   const [pagandoGasto, setPagandoGasto] = useState<Gasto | null>(null)
@@ -69,6 +75,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
     setForm({ ...EMPTY_FORM, fecha_vencimiento: new Date().toISOString().split('T')[0] })
     setComprobanteUrl('')
     setError(null)
+    setAvisoEscaneo(null)
     setShowForm(true)
   }
 
@@ -84,9 +91,13 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       fecha_vencimiento: g.fecha_vencimiento,
       numero_comprobante: g.numero_comprobante ?? '',
       notas: g.notas ?? '',
+      monto_neto: g.monto_neto != null ? String(g.monto_neto) : '',
+      iva: g.iva != null ? String(g.iva) : '',
+      percepciones: g.percepciones != null ? String(g.percepciones) : '',
     })
     setComprobanteUrl(g.comprobante_url ?? '')
     setError(null)
+    setAvisoEscaneo(null)
     setShowForm(true)
   }
 
@@ -106,6 +117,9 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       numero_comprobante: form.numero_comprobante.trim() || null,
       notas: form.notas.trim() || null,
       comprobante_url: comprobanteUrl || null,
+      monto_neto: form.monto_neto ? parseFloat(form.monto_neto) : null,
+      iva: form.iva ? parseFloat(form.iva) : null,
+      percepciones: form.percepciones ? parseFloat(form.percepciones) : null,
     }
     const { error: err } = editingId
       ? await supabase.from('gastos').update(payload).eq('id', editingId)
@@ -139,6 +153,66 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       setError('Error al subir el comprobante')
     } finally {
       setUploadingComp(false)
+    }
+  }
+
+  async function handleEscanear(file: File) {
+    setEscaneando(true)
+    setAvisoEscaneo(null)
+    setEditingId(null)
+    setError(null)
+
+    let secureUrl = ''
+    try {
+      const result = await uploadToCloudinary(file, 'renders')
+      secureUrl = result.secure_url
+      setComprobanteUrl(secureUrl)
+    } catch {
+      setError('Error al subir el comprobante')
+      setEscaneando(false)
+      return
+    }
+
+    try {
+      const res = await fetch('/api/admin/gastos/extraer-factura', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: secureUrl }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) throw new Error(json.error ?? 'Error al leer la factura')
+
+      const d = json.data as {
+        descripcion: string | null; monto: number | null; moneda: string | null
+        fecha: string | null; numero_comprobante: string | null
+        proveedor_razon_social: string | null; proveedor_cuit: string | null
+        monto_neto: number | null; iva: number | null; percepciones: number | null
+      }
+
+      const cuitNormalizado = d.proveedor_cuit?.replace(/\D/g, '')
+      const proveedorMatch = cuitNormalizado
+        ? proveedores.find(p => p.cuit?.replace(/\D/g, '') === cuitNormalizado)
+        : undefined
+
+      setForm({
+        ...EMPTY_FORM,
+        descripcion: d.descripcion ?? '',
+        monto: d.monto != null ? String(d.monto) : '',
+        moneda: d.moneda === 'USD' ? 'USD' : 'ARS',
+        fecha_vencimiento: d.fecha ?? new Date().toISOString().split('T')[0],
+        numero_comprobante: d.numero_comprobante ?? '',
+        proveedor_id: proveedorMatch?.id ?? '',
+        monto_neto: d.monto_neto != null ? String(d.monto_neto) : '',
+        iva: d.iva != null ? String(d.iva) : '',
+        percepciones: d.percepciones != null ? String(d.percepciones) : '',
+      })
+      setAvisoEscaneo({ tipo: 'ok', mensaje: 'Datos completados automáticamente — revisá antes de guardar.' })
+    } catch {
+      setForm({ ...EMPTY_FORM, fecha_vencimiento: new Date().toISOString().split('T')[0] })
+      setAvisoEscaneo({ tipo: 'error', mensaje: 'No pudimos leer los datos de la factura automáticamente — completá el formulario a mano.' })
+    } finally {
+      setShowForm(true)
+      setEscaneando(false)
     }
   }
 
@@ -249,6 +323,20 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
           Categorías
         </button>
         {!readOnly && (
+          <button onClick={() => scanFileRef.current?.click()}
+            disabled={escaneando}
+            className="flex items-center gap-2 px-4 py-2 border border-indigo-300 bg-indigo-50 hover:bg-indigo-100
+                       text-indigo-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap disabled:opacity-60">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            {escaneando ? 'Leyendo factura...' : 'Escanear factura'}
+          </button>
+        )}
+        {!readOnly && (
           <button onClick={openNew}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
                        text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
@@ -258,6 +346,9 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
             Nuevo gasto
           </button>
         )}
+        <input ref={scanFileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
+          capture="environment" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleEscanear(f); e.target.value = '' }} />
       </div>
 
       {/* Tabla */}
@@ -414,6 +505,16 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {avisoEscaneo && (
+                <div className={cn(
+                  'p-3 rounded-lg text-sm border',
+                  avisoEscaneo.tipo === 'ok'
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                    : 'bg-orange-50 border-orange-200 text-orange-700'
+                )}>
+                  {avisoEscaneo.mensaje}
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Descripción *</label>
                 <input required value={form.descripcion}
@@ -491,6 +592,21 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   onChange={e => setForm(f => ({ ...f, numero_comprobante: e.target.value }))}
                   placeholder="Factura A 0001-00012345"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Desglose (opcional)</label>
+                <div className="grid grid-cols-3 gap-3">
+                  <input type="number" min="0" step="0.01" value={form.monto_neto} placeholder="Neto"
+                    onChange={e => setForm(f => ({ ...f, monto_neto: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <input type="number" min="0" step="0.01" value={form.iva} placeholder="IVA"
+                    onChange={e => setForm(f => ({ ...f, iva: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <input type="number" min="0" step="0.01" value={form.percepciones} placeholder="Percepciones"
+                    onChange={e => setForm(f => ({ ...f, percepciones: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
               </div>
 
               {/* Comprobante imagen */}

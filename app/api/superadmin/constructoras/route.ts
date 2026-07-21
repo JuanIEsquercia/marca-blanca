@@ -21,10 +21,12 @@ export async function GET() {
     { data: constructoras },
     { data: perfiles },
     { data: authData },
+    { data: numeros },
   ] = await Promise.all([
     adminClient.from('constructoras').select('id, nombre, owner_id, created_at').order('created_at', { ascending: false }),
     adminClient.from('perfiles').select('id, nombre, rol, constructora_id').not('constructora_id', 'is', null),
     adminClient.auth.admin.listUsers(),
+    adminClient.from('whatsapp_numeros').select('constructora_id, kapso_phone_id, numero').eq('activo', true),
   ])
 
   const result = (constructoras ?? []).map(c => {
@@ -33,11 +35,14 @@ export async function GET() {
       const authUser = authData?.users.find(u => u.id === p.id)
       return { id: p.id, nombre: p.nombre, email: authUser?.email ?? null, rol: p.rol }
     })
+    const numero = (numeros ?? []).find(n => n.constructora_id === c.id)
     return {
       id: c.id,
       nombre: c.nombre,
       createdAt: c.created_at,
       usuarios,
+      kapsoPhoneId: numero?.kapso_phone_id ?? null,
+      numeroWhatsapp: numero?.numero ?? null,
     }
   })
 
@@ -111,18 +116,69 @@ export async function PATCH(request: Request) {
   const caller = await verifySuperAdmin()
   if (!caller) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
 
-  const { constructoraId, nombre } = await request.json()
-  if (!constructoraId || !nombre?.trim()) {
+  const { constructoraId, nombre, kapsoPhoneId, numeroWhatsapp } = await request.json()
+  if (!constructoraId) {
     return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
   }
 
   const adminClient = createAdminClient()
-  const { error } = await adminClient
-    .from('constructoras')
-    .update({ nombre: nombre.trim() })
-    .eq('id', constructoraId)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (nombre?.trim()) {
+    const { error } = await adminClient
+      .from('constructoras')
+      .update({ nombre: nombre.trim() })
+      .eq('id', constructoraId)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // kapsoPhoneId: identificador interno de la API de Kapso/Meta para el
+  // número de WhatsApp Business que la plataforma contrató para esta
+  // constructora — es lo que llega en cada webhook, pero NO es el número
+  // que un humano puede marcar/escribir (ver docs de Kapso: phone_number_id
+  // vs. display_phone_number). numeroWhatsapp es ese número real (con
+  // código de país, ej "+54 9 11 xxxx-xxxx") — se guarda junto para que el
+  // panel del admin le muestre al usuario a qué número escribir "VINCULAR".
+  // Solo el superadmin carga esto acá — es la única forma de crear
+  // whatsapp_numeros, ver app/api/whatsapp/webhook/route.ts (el webhook
+  // nunca la escribe, solo la lee para validar que un código de
+  // vinculación se redima en el número correcto). String vacío desvincula.
+  if (typeof kapsoPhoneId === 'string') {
+    const valor = kapsoPhoneId.trim()
+    const valorNumero = typeof numeroWhatsapp === 'string' ? numeroWhatsapp.trim() : ''
+
+    // Validar todo ANTES de tocar la tabla — un delete+insert no es
+    // atómico, así que si el insert falla después del delete, la
+    // constructora queda sin fila (perdiendo un vínculo que ya andaba).
+    if (valor && !valorNumero) {
+      return NextResponse.json({ error: 'Falta el número de WhatsApp (el que el usuario va a marcar)' }, { status: 400 })
+    }
+    if (valor) {
+      const { data: enUso } = await adminClient
+        .from('whatsapp_numeros')
+        .select('constructora_id')
+        .eq('kapso_phone_id', valor)
+        .neq('constructora_id', constructoraId)
+        .maybeSingle()
+      if (enUso) {
+        return NextResponse.json({ error: 'Ese número ya está configurado para otra constructora' }, { status: 409 })
+      }
+    }
+
+    await adminClient.from('whatsapp_numeros').delete().eq('constructora_id', constructoraId)
+    if (valor) {
+      const { error } = await adminClient.from('whatsapp_numeros').insert({
+        constructora_id: constructoraId,
+        kapso_phone_id: valor,
+        numero: valorNumero,
+        activo: true,
+      })
+      if (error) {
+        return NextResponse.json({ error: 'Ese número ya está configurado para otra constructora' }, { status: 409 })
+      }
+    }
+  }
+
   return NextResponse.json({ ok: true })
 }
 

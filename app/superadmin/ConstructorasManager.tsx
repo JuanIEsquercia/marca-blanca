@@ -15,6 +15,8 @@ interface Constructora {
   nombre: string
   createdAt: string
   usuarios: Usuario[]
+  kapsoPhoneId: string | null
+  numeroWhatsapp: string | null
 }
 
 interface Props {
@@ -38,6 +40,11 @@ export default function ConstructorasManager({ initialData }: Props) {
 
   // Confirmar eliminación de usuario
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<{ userId: string; constructoraId: string } | null>(null)
+
+  // Configurar número de WhatsApp (Kapso)
+  const [editingWhatsappId, setEditingWhatsappId] = useState<string | null>(null)
+  const [kapsoPhoneIdInput, setKapsoPhoneIdInput] = useState('')
+  const [numeroWhatsappInput, setNumeroWhatsappInput] = useState('')
 
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -110,6 +117,37 @@ export default function ConstructorasManager({ initialData }: Props) {
     } else {
       const d = await res.json()
       setError(d.error ?? 'Error al cambiar contraseña')
+    }
+    setLoadingId(null)
+  }
+
+  // ── Configurar número de WhatsApp (Kapso) ───────────────────────
+  function startEditWhatsapp(c: Constructora) {
+    setEditingWhatsappId(c.id)
+    setKapsoPhoneIdInput(c.kapsoPhoneId ?? '')
+    setNumeroWhatsappInput(c.numeroWhatsapp ?? '')
+    setError(null)
+  }
+
+  async function handleGuardarWhatsapp(id: string) {
+    setLoadingId(id)
+    const res = await fetch('/api/superadmin/constructoras', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        constructoraId: id,
+        kapsoPhoneId: kapsoPhoneIdInput.trim(),
+        numeroWhatsapp: numeroWhatsappInput.trim(),
+      }),
+    })
+    if (res.ok) {
+      const kapsoPhoneId = kapsoPhoneIdInput.trim() || null
+      const numeroWhatsapp = numeroWhatsappInput.trim() || null
+      setLista(prev => prev.map(c => c.id === id ? { ...c, kapsoPhoneId, numeroWhatsapp } : c))
+      setEditingWhatsappId(null)
+    } else {
+      const d = await res.json()
+      setError(d.error ?? 'Error al guardar el número')
     }
     setLoadingId(null)
   }
@@ -259,6 +297,73 @@ export default function ConstructorasManager({ initialData }: Props) {
               {/* Sección de usuarios (expandible) */}
               {expandedId === c.id && (
                 <div className="border-t border-slate-800 bg-slate-950">
+                  {/* WhatsApp (Kapso) */}
+                  <div className="px-4 py-3 border-b border-slate-800">
+                    {editingWhatsappId === c.id ? (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-[10px] text-slate-500 block mb-1">
+                            Número de WhatsApp (el que el usuario va a marcar, ej: +54 9 11 xxxx-xxxx)
+                          </label>
+                          <input
+                            autoFocus
+                            value={numeroWhatsappInput}
+                            onChange={e => setNumeroWhatsappInput(e.target.value)}
+                            placeholder="+54 9 11 xxxx-xxxx"
+                            className="w-full bg-slate-800 border border-indigo-500 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-500 block mb-1">
+                            phone_number_id de Kapso (ID interno de la API, no el número)
+                          </label>
+                          <input
+                            value={kapsoPhoneIdInput}
+                            onChange={e => setKapsoPhoneIdInput(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleGuardarWhatsapp(c.id)
+                              if (e.key === 'Escape') setEditingWhatsappId(null)
+                            }}
+                            placeholder="ID de número de Kapso"
+                            className="w-full bg-slate-800 border border-indigo-500 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none font-mono"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleGuardarWhatsapp(c.id)}
+                            disabled={loadingId === c.id}
+                            className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                          >
+                            {loadingId === c.id ? '...' : 'Guardar'}
+                          </button>
+                          <button onClick={() => setEditingWhatsappId(null)} className="px-2 text-xs text-slate-400 hover:text-white">
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-500 shrink-0">WhatsApp</span>
+                        <span className="flex-1 text-xs text-slate-300">
+                          {c.numeroWhatsapp ? (
+                            <>
+                              <span className="font-medium">{c.numeroWhatsapp}</span>
+                              <span className="text-slate-600 font-mono"> ({c.kapsoPhoneId})</span>
+                            </>
+                          ) : (
+                            <span className="text-slate-600 italic">sin configurar</span>
+                          )}
+                        </span>
+                        <button
+                          onClick={() => startEditWhatsapp(c)}
+                          className="text-slate-500 hover:text-slate-200 text-[10px] underline underline-offset-2 shrink-0"
+                        >
+                          {c.kapsoPhoneId ? 'Cambiar' : 'Configurar'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {c.usuarios.length === 0 ? (
                     <p className="px-4 py-3 text-xs text-slate-600">Sin usuarios registrados en esta constructora.</p>
                   ) : (

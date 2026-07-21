@@ -12,10 +12,12 @@ export default async function SuperAdminPage() {
     { data: constructoras },
     { data: perfiles },
     { data: authData },
+    { data: numeros },
   ] = await Promise.all([
     adminClient.from('constructoras').select('id, nombre, owner_id, created_at').order('created_at', { ascending: false }),
     adminClient.from('perfiles').select('id, nombre, rol, constructora_id').not('constructora_id', 'is', null),
     adminClient.auth.admin.listUsers(),
+    adminClient.from('whatsapp_numeros').select('constructora_id, kapso_phone_id, numero').eq('activo', true),
   ])
 
   const data = (constructoras ?? []).map(c => {
@@ -24,7 +26,12 @@ export default async function SuperAdminPage() {
       const authUser = authData?.users?.find(u => u.id === p.id)
       return { id: p.id, nombre: p.nombre, email: authUser?.email ?? null, rol: p.rol }
     })
-    return { id: c.id, nombre: c.nombre, createdAt: c.created_at, usuarios }
+    const numero = (numeros ?? []).find(n => n.constructora_id === c.id)
+    return {
+      id: c.id, nombre: c.nombre, createdAt: c.created_at, usuarios,
+      kapsoPhoneId: numero?.kapso_phone_id ?? null,
+      numeroWhatsapp: numero?.numero ?? null,
+    }
   })
 
   return <ConstructorasManager initialData={data} />

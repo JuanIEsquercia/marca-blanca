@@ -3,23 +3,27 @@
 import { useState, useRef, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { EstadoObra } from '@/types/database'
+import type { EstadoObra, TipoProyecto } from '@/types/database'
 
 interface Props {
   obraId: string
   nombre: string
+  tipo: TipoProyecto
   estadoActual: EstadoObra
+  esAdmin: boolean
 }
 
 const PUEDE_REACTIVAR: EstadoObra[] = ['finalizada', 'pausada']
 
-export default function ProyectoAcciones({ obraId, nombre, estadoActual }: Props) {
+export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, esAdmin }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmCierre, setConfirmCierre] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [accionError, setAccionError] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -34,9 +38,11 @@ export default function ProyectoAcciones({ obraId, nombre, estadoActual }: Props
 
   async function cambiarEstado(nuevoEstado: EstadoObra) {
     setLoading(true)
+    setAccionError(null)
     const supabase = createClient()
-    await supabase.from('obras').update({ estado: nuevoEstado }).eq('id', obraId)
+    const { error } = await supabase.from('obras').update({ estado: nuevoEstado }).eq('id', obraId)
     setLoading(false)
+    if (error) { setAccionError(error.message); return }
     setOpen(false)
     setConfirmCierre(false)
     refresh()
@@ -44,11 +50,150 @@ export default function ProyectoAcciones({ obraId, nombre, estadoActual }: Props
 
   async function eliminar() {
     setLoading(true)
+    setAccionError(null)
     const supabase = createClient()
-    await supabase.from('obras').delete().eq('id', obraId)
+    const { error } = await supabase.from('obras').delete().eq('id', obraId)
     setLoading(false)
+    if (error) {
+      setAccionError(
+        'No se pudo eliminar: el proyecto todavía tiene datos asociados (unidades, ventas, cobros, etc). Borralos primero o contactá a soporte.'
+      )
+      return
+    }
     setConfirmDelete(false)
     refresh()
+  }
+
+  async function exportarDatos(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setOpen(false)
+    setExporting(true)
+
+    const XLSX = await import('xlsx')
+    const supabase = createClient()
+    const wb = XLSX.utils.book_new()
+
+    function addSheet(nombreHoja: string, rows: Record<string, unknown>[]) {
+      if (rows.length === 0) return
+      const ws = XLSX.utils.json_to_sheet(rows)
+      XLSX.utils.book_append_sheet(wb, ws, nombreHoja.slice(0, 31))
+    }
+
+    const labelUnidad = (u: { piso: number; numero: string; letra: string | null } | null) =>
+      u ? `P${u.piso} - ${u.numero}${u.letra ?? ''}` : ''
+
+    if (tipo === 'desarrollo') {
+      const [
+        { data: unidades },
+        { data: tipologias },
+        { data: amenities },
+        { data: reservas },
+        { data: contratos },
+      ] = await Promise.all([
+        supabase.from('unidades').select('*, tipologias(nombre, m2_totales)').eq('obra_id', obraId).order('piso').order('numero'),
+        supabase.from('tipologias').select('*').eq('obra_id', obraId).order('nombre'),
+        supabase.from('amenities').select('*, amenity_imagenes(id)').eq('obra_id', obraId).order('orden'),
+        supabase.from('reservas').select('*, compradores(*), unidades(piso, numero, letra)').eq('obra_id', obraId).order('fecha_reserva', { ascending: false }),
+        supabase.from('contratos_venta').select('*, compradores(*), unidades(piso, numero, letra), cuotas(*)').eq('obra_id', obraId).order('fecha_firma', { ascending: false }),
+      ])
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      addSheet('Unidades', (unidades ?? []).map((u: any) => ({
+        Piso: u.piso, Número: u.numero, Letra: u.letra ?? '', Orientación: u.orientacion ?? '',
+        'm²': u.m2 ?? u.tipologias?.m2_totales ?? '', Tipología: u.tipologias?.nombre ?? '',
+        'Precio lista': u.precio_lista, Estado: u.estado_comercial,
+      })))
+
+      addSheet('Tipologías', (tipologias ?? []).map(t => ({
+        Nombre: t.nombre, 'm² propios': t.m2_propios, 'm² comunes': t.m2_comunes, 'm² totales': t.m2_totales,
+        Descripción: t.descripcion ?? '',
+      })))
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      addSheet('Amenities', (amenities ?? []).map((a: any) => ({
+        Nombre: a.nombre, Descripción: a.descripcion ?? '', Orden: a.orden, Activo: a.activo ? 'Sí' : 'No',
+        Fotos: a.amenity_imagenes?.length ?? 0,
+      })))
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      addSheet('Reservas', (reservas ?? []).map((r: any) => ({
+        Comprador: r.compradores?.nombre_completo ?? '', 'DNI/CUIT': r.compradores?.dni_cuit ?? '',
+        Unidad: labelUnidad(r.unidades), 'Fecha reserva': r.fecha_reserva, 'Fecha vencimiento': r.fecha_vencimiento,
+        'Monto seña': r.monto_sena ?? '', Estado: r.estado,
+      })))
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      addSheet('Contratos de venta', (contratos ?? []).map((c: any) => ({
+        Comprador: c.compradores?.nombre_completo ?? '', 'DNI/CUIT': c.compradores?.dni_cuit ?? '',
+        Unidad: labelUnidad(c.unidades), 'Precio final': c.precio_final, 'Entrega efectiva': c.entrega_efectiva,
+        'Fecha firma': c.fecha_firma, Notas: c.notas ?? '',
+      })))
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cuotas = (contratos ?? []).flatMap((c: any) => (c.cuotas ?? []).map((q: any) => ({
+        Comprador: c.compradores?.nombre_completo ?? '', Unidad: labelUnidad(c.unidades),
+        'N° cuota': q.numero_cuota, 'Monto base': q.monto_base, 'Monto cobrado': q.monto_cobrado ?? '',
+        'Fecha vencimiento': q.fecha_vencimiento, Estado: q.estado_pago, 'Fecha pago': q.fecha_pago ?? '',
+      })))
+      addSheet('Cuotas', cuotas)
+    } else {
+      const [
+        { data: contratoObra },
+        { data: certificados },
+        { data: cobros },
+      ] = await Promise.all([
+        supabase.from('contratos_obra').select('*, compradores(*)').eq('obra_id', obraId),
+        supabase.from('certificados_avance').select('*').eq('obra_id', obraId).order('numero'),
+        supabase.from('cobros_proyecto').select('*, certificados_avance(numero, periodo)').eq('obra_id', obraId).order('numero'),
+      ])
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      addSheet('Contrato de obra', (contratoObra ?? []).map((c: any) => ({
+        Cliente: c.compradores?.nombre_completo ?? '', 'Monto total': c.monto_total, Moneda: c.moneda,
+        'Fecha inicio': c.fecha_inicio ?? '', 'Fecha fin estimada': c.fecha_fin_estimada ?? '',
+        Estado: c.estado, Descripción: c.descripcion ?? '',
+      })))
+
+      addSheet('Certificados', (certificados ?? []).map(c => ({
+        'N°': c.numero, Período: c.periodo, '% avance': c.porcentaje_avance,
+        'Monto certificado': c.monto_certificado, Estado: c.estado,
+        'Fecha presentación': c.fecha_presentacion ?? '', 'Fecha aprobación': c.fecha_aprobacion ?? '',
+        Notas: c.notas ?? '',
+      })))
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      addSheet('Cobros', (cobros ?? []).map((c: any) => ({
+        'N°': c.numero ?? '', Certificado: c.certificados_avance ? `N°${c.certificados_avance.numero} - ${c.certificados_avance.periodo}` : '',
+        Monto: c.monto, Moneda: c.moneda, Estado: c.estado,
+        'Fecha vencimiento': c.fecha_vencimiento ?? '', 'Fecha pago': c.fecha_pago ?? '', Notas: c.notas ?? '',
+      })))
+    }
+
+    const [{ data: gastos }, { data: cuentas }] = await Promise.all([
+      supabase.from('gastos').select('*, proveedores(razon_social), categorias_costo(nombre)').eq('obra_id', obraId).order('fecha_vencimiento', { ascending: false }),
+      supabase.from('cuentas_propias').select('*').eq('obra_id', obraId).order('nombre'),
+    ])
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    addSheet('Gastos', (gastos ?? []).map((g: any) => ({
+      Descripción: g.descripcion, Monto: g.monto, Moneda: g.moneda,
+      Proveedor: g.proveedores?.razon_social ?? '', Categoría: g.categorias_costo?.nombre ?? '',
+      'Fecha vencimiento': g.fecha_vencimiento, 'Fecha pago': g.fecha_pago ?? '', Estado: g.estado,
+    })))
+
+    addSheet('Cuentas', (cuentas ?? []).map(c => ({
+      Nombre: c.nombre, Tipo: c.tipo, Moneda: c.moneda, 'Saldo inicial': c.saldo_inicial,
+      Activa: c.activa ? 'Sí' : 'No',
+    })))
+
+    const fecha = new Date().toISOString().split('T')[0]
+    const slug = nombre.trim().toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    XLSX.writeFile(wb, `${slug || 'proyecto'}_${fecha}.xlsx`)
+
+    setExporting(false)
   }
 
   return (
@@ -66,26 +211,40 @@ export default function ProyectoAcciones({ obraId, nombre, estadoActual }: Props
 
         {open && (
           <div className="absolute right-0 top-8 z-30 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-44 text-sm">
-            {estadoActual === 'activa' && (
-              <button
-                onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(false); setConfirmCierre(true) }}
-                className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700">
-                Cerrar proyecto
-              </button>
-            )}
-            {PUEDE_REACTIVAR.includes(estadoActual) && (
-              <button
-                onClick={e => { e.preventDefault(); e.stopPropagation(); cambiarEstado('activa') }}
-                className="w-full text-left px-4 py-2 hover:bg-emerald-50 text-emerald-700">
-                Reactivar
-              </button>
-            )}
-            <div className="border-t border-slate-100 my-1" />
             <button
-              onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(false); setConfirmDelete(true) }}
-              className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600">
-              Eliminar
+              onClick={exportarDatos}
+              disabled={exporting}
+              className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 disabled:opacity-60">
+              {exporting ? 'Exportando...' : 'Exportar datos (Excel)'}
             </button>
+            {esAdmin && (
+              <>
+                <div className="border-t border-slate-100 my-1" />
+                {estadoActual === 'activa' && (
+                  <button
+                    onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(false); setConfirmCierre(true) }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700">
+                    Cerrar proyecto
+                  </button>
+                )}
+                {PUEDE_REACTIVAR.includes(estadoActual) && (
+                  <button
+                    onClick={e => { e.preventDefault(); e.stopPropagation(); cambiarEstado('activa') }}
+                    className="w-full text-left px-4 py-2 hover:bg-emerald-50 text-emerald-700">
+                    Reactivar
+                  </button>
+                )}
+                <div className="border-t border-slate-100 my-1" />
+                <button
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(false); setConfirmDelete(true) }}
+                  className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600">
+                  Eliminar
+                </button>
+              </>
+            )}
+            {accionError && (
+              <p className="px-4 py-2 text-xs text-red-600 border-t border-slate-100">{accionError}</p>
+            )}
           </div>
         )}
       </div>
@@ -100,6 +259,9 @@ export default function ProyectoAcciones({ obraId, nombre, estadoActual }: Props
               ¿Marcar <strong>{nombre}</strong> como finalizado? El proyecto quedará de solo lectura.
               Podés reactivarlo en cualquier momento.
             </p>
+            {accionError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs">{accionError}</div>
+            )}
             <div className="flex gap-3">
               <button onClick={() => setConfirmCierre(false)}
                 className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
@@ -128,6 +290,9 @@ export default function ProyectoAcciones({ obraId, nombre, estadoActual }: Props
               <li>Unidades, tipologías y ventas</li>
               <li>Gastos y cuentas propias del proyecto</li>
             </ul>
+            {accionError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs">{accionError}</div>
+            )}
             <div className="flex gap-3">
               <button onClick={() => setConfirmDelete(false)}
                 className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">

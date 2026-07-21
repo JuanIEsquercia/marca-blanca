@@ -41,6 +41,7 @@ export default async function ContratosPage({ params }: { params: Promise<{ obra
       unidadesDisponibles={unidadesDisponibles ?? []}
       cuentasPropias={cuentasPropias ?? []}
       constructoraId={ctx.constructoraId}
+      readOnly={ctx.obraEstado === 'finalizada'}
     />
   )
 }

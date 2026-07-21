@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ORIENTACIONES } from '@/types/database'
 import type { Unidad, Tipologia } from '@/types/database'
+import { formatCurrency, redondear2 } from '@/lib/utils'
 
 interface Props {
   tipologias: Tipologia[]
@@ -28,7 +29,6 @@ export default function UnidadForm({ tipologias, unidad, onClose, onSuccess, obr
     precio_lista: unidad ? String(unidad.precio_lista) : '',
     entrega_minima_pct: unidad ? String(unidad.entrega_minima_pct) : '30',
     max_cuotas: unidad ? String(unidad.max_cuotas) : '36',
-    estado_comercial: unidad?.estado_comercial ?? 'Disponible',
   })
 
   function set(field: keyof typeof form, value: string) {
@@ -51,10 +51,13 @@ export default function UnidadForm({ tipologias, unidad, onClose, onSuccess, obr
       orientacion: form.orientacion || null,
       tipologia_id: form.tipologia_id,
       m2: form.m2 ? parseFloat(form.m2) : null,
-      precio_lista: parseFloat(form.precio_lista),
+      precio_lista: redondear2(parseFloat(form.precio_lista)),
       entrega_minima_pct: parseFloat(form.entrega_minima_pct),
       max_cuotas: parseInt(form.max_cuotas),
-      estado_comercial: form.estado_comercial,
+      // estado_comercial NO se edita acá a propósito: solo cambia a través de
+      // Reservas/Contratos (reservar, vender, cancelar) para que nunca quede
+      // desincronizado de una reserva/contrato real. Ver ReservaForm/
+      // ReservasManager/ContratosManager.
     }
 
     const { error: err } = isEditing
@@ -188,14 +191,14 @@ export default function UnidadForm({ tipologias, unidad, onClose, onSuccess, obr
                 <div>
                   <span className="text-slate-500">Anticipo mínimo</span>
                   <p className="font-semibold text-slate-800">
-                    USD {(parseFloat(form.precio_lista) * parseFloat(form.entrega_minima_pct) / 100).toLocaleString('es-AR', { minimumFractionDigits: 0 })}
+                    {formatCurrency(redondear2(parseFloat(form.precio_lista) * parseFloat(form.entrega_minima_pct) / 100))}
                   </p>
                 </div>
                 <div>
                   <span className="text-slate-500">Precio/m²</span>
                   <p className="font-semibold text-slate-800">
                     {form.m2 || tipSelected
-                      ? `USD ${Math.round(parseFloat(form.precio_lista) / (parseFloat(form.m2 || '0') || (tipSelected?.m2_totales ?? 1)))}/m²`
+                      ? `${formatCurrency(redondear2(parseFloat(form.precio_lista) / (parseFloat(form.m2 || '0') || (tipSelected?.m2_totales ?? 1))))}/m²`
                       : '—'}
                   </p>
                 </div>
@@ -203,25 +206,21 @@ export default function UnidadForm({ tipologias, unidad, onClose, onSuccess, obr
             )}
           </div>
 
-          {/* Estado */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-2">Estado comercial</label>
-            <div className="flex flex-col sm:flex-row gap-2">
-              {(['Disponible', 'Reservado', 'Vendido'] as const).map(e => (
-                <label key={e} className={`flex-1 text-center py-2 rounded-lg border-2 cursor-pointer text-sm font-medium transition-colors
-                  ${form.estado_comercial === e
-                    ? e === 'Disponible' ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                    : e === 'Reservado' ? 'border-amber-500 bg-amber-50 text-amber-700'
-                    : 'border-slate-500 bg-slate-100 text-slate-700'
-                    : 'border-slate-200 text-slate-400 hover:border-slate-300'
-                  }`}>
-                  <input type="radio" name="estado" value={e} checked={form.estado_comercial === e}
-                    onChange={() => set('estado_comercial', e)} className="sr-only" />
-                  {e}
-                </label>
-              ))}
+          {/* Estado — solo lectura: cambia únicamente vía Reservas/Contratos */}
+          {isEditing && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-2">Estado comercial</label>
+              <div className={`inline-block px-3 py-1.5 rounded-lg border-2 text-sm font-medium
+                ${unidad!.estado_comercial === 'Disponible' ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                  : unidad!.estado_comercial === 'Reservado' ? 'border-amber-500 bg-amber-50 text-amber-700'
+                  : 'border-slate-500 bg-slate-100 text-slate-700'}`}>
+                {unidad!.estado_comercial}
+              </div>
+              <p className="text-xs text-slate-400 mt-1.5">
+                Se gestiona automáticamente desde Reservas y Contratos — para liberar la unidad, cancelá la reserva o la venta correspondiente.
+              </p>
             </div>
-          </div>
+          )}
 
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>

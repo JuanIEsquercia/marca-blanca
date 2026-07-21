@@ -39,6 +39,7 @@ export default async function UnidadesPage({ params }: { params: Promise<{ obraI
         tipologias={tipologias ?? []}
         obraId={obraId}
         constructoraId={ctx.constructoraId}
+        readOnly={ctx.obraEstado === 'finalizada'}
       />
     </div>
   )

@@ -23,11 +23,12 @@ interface Props {
   tipologias: Tipologia[]
   obraId: string
   constructoraId: string
+  readOnly?: boolean
 }
 
 const ESTADOS: EstadoComercial[] = ['Disponible', 'Reservado', 'Vendido']
 
-export default function InventoryGrid({ unidades, tipologias, obraId, constructoraId }: Props) {
+export default function InventoryGrid({ unidades, tipologias, obraId, constructoraId, readOnly = false }: Props) {
   const router = useRouter()
   const [filtro, setFiltro] = useState<EstadoComercial | 'Todos'>('Todos')
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
@@ -81,7 +82,8 @@ export default function InventoryGrid({ unidades, tipologias, obraId, constructo
       confirmLabel: 'Eliminar',
       onConfirm: async () => {
         const supabase = createClient()
-        await supabase.from('unidades').delete().eq('id', id)
+        const { error } = await supabase.from('unidades').delete().eq('id', id)
+        if (error) throw new Error('No se pudo eliminar: todavía tiene un contrato de venta asociado.')
         setConfirmModal(null)
         refresh()
       },
@@ -117,14 +119,16 @@ export default function InventoryGrid({ unidades, tipologias, obraId, constructo
             </svg>
             Exportar lista
           </button>
-          <button onClick={() => setShowNewUnit(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
-                       bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Nueva unidad
-          </button>
+          {!readOnly && (
+            <button onClick={() => setShowNewUnit(true)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
+                         bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nueva unidad
+            </button>
+          )}
         </div>
       </div>
 
@@ -172,6 +176,8 @@ export default function InventoryGrid({ unidades, tipologias, obraId, constructo
                           <button onClick={() => handlePriceUpdate(u.id)} className="text-indigo-600 hover:text-indigo-800 font-medium text-xs">OK</button>
                           <button onClick={() => setEditingPriceId(null)} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
                         </div>
+                      ) : readOnly ? (
+                        <span className="font-semibold text-slate-900">{formatCurrency(u.precio_lista)}</span>
                       ) : (
                         <button
                           onClick={() => { setEditingPriceId(u.id); setEditPrice(String(u.precio_lista)) }}
@@ -185,7 +191,7 @@ export default function InventoryGrid({ unidades, tipologias, obraId, constructo
                     <td className="px-4 py-3 text-center">
                       <select value={u.estado_comercial}
                         onChange={e => handleEstadoChange(u, e.target.value as EstadoComercial)}
-                        disabled={u.estado_comercial === 'Vendido'}
+                        disabled={u.estado_comercial === 'Vendido' || readOnly}
                         className={cn(
                           'text-xs font-medium px-2 py-1 rounded-full border cursor-pointer focus:outline-none disabled:cursor-not-allowed',
                           ESTADO_COLORS[u.estado_comercial]
@@ -209,41 +215,43 @@ export default function InventoryGrid({ unidades, tipologias, obraId, constructo
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        {u.estado_comercial === 'Disponible' && (
-                          <>
-                            <button onClick={() => setEditUnit(u)}
-                              className="text-xs text-slate-500 hover:text-indigo-600 transition-colors">
-                              Editar
-                            </button>
-                            <button onClick={() => setReservaUnit(u)}
-                              className="text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors">
-                              Reservar
-                            </button>
-                            <button onClick={() => setSaleUnit(u)}
-                              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors">
-                              Cerrar venta
-                            </button>
-                            <button onClick={() => handleDelete(u.id, label)}
-                              className="text-xs text-red-400 hover:text-red-600">
-                              ✕
-                            </button>
-                          </>
-                        )}
-                        {u.estado_comercial === 'Reservado' && (
-                          <>
-                            <button onClick={() => setEditUnit(u)}
-                              className="text-xs text-slate-500 hover:text-indigo-600 transition-colors">
-                              Editar
-                            </button>
-                            <button
-                              onClick={() => setSaleUnit(u)}
-                              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors">
-                              Convertir a venta
-                            </button>
-                          </>
-                        )}
-                      </div>
+                      {!readOnly && (
+                        <div className="flex items-center justify-end gap-3">
+                          {u.estado_comercial === 'Disponible' && (
+                            <>
+                              <button onClick={() => setEditUnit(u)}
+                                className="text-xs text-slate-500 hover:text-indigo-600 transition-colors">
+                                Editar
+                              </button>
+                              <button onClick={() => setReservaUnit(u)}
+                                className="text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors">
+                                Reservar
+                              </button>
+                              <button onClick={() => setSaleUnit(u)}
+                                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors">
+                                Cerrar venta
+                              </button>
+                              <button onClick={() => handleDelete(u.id, label)}
+                                className="text-xs text-red-400 hover:text-red-600">
+                                ✕
+                              </button>
+                            </>
+                          )}
+                          {u.estado_comercial === 'Reservado' && (
+                            <>
+                              <button onClick={() => setEditUnit(u)}
+                                className="text-xs text-slate-500 hover:text-indigo-600 transition-colors">
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => setSaleUnit(u)}
+                                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors">
+                                Convertir a venta
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )
@@ -254,9 +262,11 @@ export default function InventoryGrid({ unidades, tipologias, obraId, constructo
           {filtered.length === 0 && (
             <div className="text-center py-12 text-slate-400">
               {unidades.length === 0
-                ? <button onClick={() => setShowNewUnit(true)} className="text-indigo-500 hover:text-indigo-700">
-                    No hay unidades. Crear la primera →
-                  </button>
+                ? (readOnly
+                    ? 'No hay unidades.'
+                    : <button onClick={() => setShowNewUnit(true)} className="text-indigo-500 hover:text-indigo-700">
+                        No hay unidades. Crear la primera →
+                      </button>)
                 : 'No hay unidades con este filtro.'}
             </div>
           )}

@@ -33,6 +33,7 @@ export default async function ReservasPage({ params }: { params: Promise<{ obraI
         reservas={reservas ?? []}
         cuentasPropias={cuentasPropias ?? []}
         constructoraId={ctx.constructoraId}
+        readOnly={ctx.obraEstado === 'finalizada'}
       />
     </div>
   )

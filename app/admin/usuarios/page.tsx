@@ -32,7 +32,7 @@ export default async function UsuariosPage() {
   const [{ data: perfiles }, { data: obras }] = await Promise.all([
     adminClient
       .from('perfiles')
-      .select('id, nombre, rol, activo, permisos, constructora_id, obra_id, created_at')
+      .select('id, nombre, rol, activo, permisos, constructora_id, created_at')
       .eq('constructora_id', ctx.constructoraId)
       .order('created_at', { ascending: true }),
     adminClient
@@ -42,9 +42,17 @@ export default async function UsuariosPage() {
       .order('nombre', { ascending: true }),
   ])
 
+  const { data: perfilProyectos } = await adminClient
+    .from('perfil_proyectos')
+    .select('perfil_id, obra_id, permisos')
+    .eq('constructora_id', ctx.constructoraId)
+
   const perfilesConEmail = (perfiles ?? []).map(p => ({
     ...p,
     email: authUsers?.users.find(u => u.id === p.id)?.email ?? '',
+    proyectos: (perfilProyectos ?? [])
+      .filter(pp => pp.perfil_id === p.id)
+      .map(pp => ({ obraId: pp.obra_id, permisos: pp.permisos ?? [] })),
   }))
 
   return (

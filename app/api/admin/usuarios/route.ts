@@ -2,7 +2,35 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
 import { NextResponse } from 'next/server'
-import { MAX_OPERADORES, modulosDisponibles, type TipoProyecto } from '@/lib/permisos'
+import { MAX_OPERADORES, MODULOS_EMPRESA, modulosDisponibles, type TipoProyecto } from '@/lib/permisos'
+
+interface ProyectoInput {
+  obraId: string
+  permisos: string[]
+}
+
+// Valida cada proyecto recibido (pertenece a la constructora) y filtra sus
+// permisos server-side según el tipo real del proyecto — no confía en que
+// el checklist del cliente ya lo hizo. Devuelve un NextResponse de error si
+// algún obraId no es válido.
+async function validarYFiltrarProyectos(
+  adminClient: ReturnType<typeof createAdminClient>,
+  constructoraId: string,
+  proyectos: ProyectoInput[]
+): Promise<{ proyectos: ProyectoInput[] } | { error: NextResponse }> {
+  const filtrados: ProyectoInput[] = []
+  for (const p of proyectos) {
+    const validada = await validarObra(adminClient, constructoraId, p.obraId)
+    if ('error' in validada) return validada
+    filtrados.push({
+      obraId: p.obraId,
+      permisos: Array.isArray(p.permisos)
+        ? p.permisos.filter(m => modulosDisponibles(validada.tipo).some(mod => mod.key === m))
+        : [],
+    })
+  }
+  return { proyectos: filtrados }
+}
 
 async function verificarAdmin() {
   const supabase = await createClient()
@@ -55,7 +83,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Sin constructora' }, { status: 403 })
   }
 
-  const { nombre, email, password, permisos, obraId } = await request.json()
+  const { nombre, email, password, proyectos, permisosEmpresa } = await request.json()
 
   if (!nombre || !email || !password) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
@@ -63,14 +91,14 @@ export async function POST(request: Request) {
 
   const adminClient = createAdminClient()
 
-  const obraValidada = await validarObra(adminClient, ctx.constructoraId, obraId ?? null)
-  if ('error' in obraValidada) return obraValidada.error
+  const proyectosValidados = await validarYFiltrarProyectos(
+    adminClient, ctx.constructoraId, Array.isArray(proyectos) ? proyectos : []
+  )
+  if ('error' in proyectosValidados) return proyectosValidados.error
 
-  // Defensa server-side: no confiar en que el checklist del cliente ya
-  // filtró los módulos según el tipo del proyecto asignado.
-  const permisosFiltrados = Array.isArray(permisos)
-    ? permisos.filter((p: string) => modulosDisponibles(obraValidada.tipo).some(m => m.key === p))
-    : null
+  const permisosEmpresaFiltrados = Array.isArray(permisosEmpresa)
+    ? permisosEmpresa.filter((p: string) => MODULOS_EMPRESA.includes(p as never))
+    : []
 
   // Verificar límite de operadores para esta constructora
   const { count } = await adminClient
@@ -98,22 +126,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: authError?.message ?? 'Error al crear usuario' }, { status: 500 })
   }
 
-  // Upsert del perfil con nombre, permisos y constructora_id correctos
-  // (el trigger puede haberse ejecutado antes con valores de metadata)
+  // Upsert del perfil con nombre, permisos (bucket Empresa) y constructora_id
+  // correctos (el trigger puede haberse ejecutado antes con valores de metadata)
   const { error: perfilError } = await adminClient
     .from('perfiles')
     .upsert({
       id: newUser.user.id,
       nombre,
       rol: 'operador',
-      permisos: permisosFiltrados,
+      permisos: permisosEmpresaFiltrados,
       constructora_id: ctx.constructoraId,
-      obra_id: obraId ?? null,
     }, { onConflict: 'id' })
 
   if (perfilError) {
     await adminClient.auth.admin.deleteUser(newUser.user.id)
     return NextResponse.json({ error: 'Error al crear perfil' }, { status: 500 })
+  }
+
+  if (proyectosValidados.proyectos.length > 0) {
+    const { error: proyectosError } = await adminClient.from('perfil_proyectos').insert(
+      proyectosValidados.proyectos.map(p => ({
+        perfil_id: newUser.user.id,
+        obra_id: p.obraId,
+        constructora_id: ctx.constructoraId,
+        permisos: p.permisos,
+      }))
+    )
+    if (proyectosError) {
+      await adminClient.auth.admin.deleteUser(newUser.user.id)
+      return NextResponse.json({ error: 'Error al asignar proyectos' }, { status: 500 })
+    }
   }
 
   // Mantener miembros sincronizado con perfiles (mismo patrón que
@@ -132,9 +174,9 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
   }
 
-  const { userId, permisos, obraId } = await request.json()
+  const { userId, proyectos, permisosEmpresa } = await request.json()
 
-  if (!userId || !Array.isArray(permisos)) {
+  if (!userId || !Array.isArray(proyectos)) {
     return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
   }
 
@@ -150,23 +192,34 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Usuario no pertenece a tu constructora' }, { status: 403 })
   }
 
-  const obraIdRecibida: string | null = obraId ?? null
-  const obraValidada = await validarObra(adminClient, adminUser.constructoraId, obraIdRecibida)
-  if ('error' in obraValidada) return obraValidada.error
+  const proyectosValidados = await validarYFiltrarProyectos(adminClient, adminUser.constructoraId, proyectos)
+  if ('error' in proyectosValidados) return proyectosValidados.error
 
-  const permisosFiltrados = permisos.filter((p: string) =>
-    modulosDisponibles(obraValidada.tipo).some(m => m.key === p)
-  )
+  const permisosEmpresaFiltrados = Array.isArray(permisosEmpresa)
+    ? permisosEmpresa.filter((p: string) => MODULOS_EMPRESA.includes(p as never))
+    : []
 
-  const { error } = await adminClient
+  const { error: perfilError } = await adminClient
     .from('perfiles')
-    .update({ permisos: permisosFiltrados, obra_id: obraIdRecibida })
+    .update({ permisos: permisosEmpresaFiltrados })
     .eq('id', userId)
     .eq('rol', 'operador')
     .eq('constructora_id', adminUser.constructoraId)
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (perfilError) {
+    return NextResponse.json({ error: perfilError.message }, { status: 500 })
+  }
+
+  // RPC transaccional (DELETE + INSERT en una sola sentencia) — evita dejar
+  // al operador sin proyectos si dos llamadas JS separadas fallaran a mitad.
+  const { error: syncError } = await adminClient.rpc('sync_perfil_proyectos', {
+    p_perfil_id: userId,
+    p_constructora_id: adminUser.constructoraId,
+    p_rows: proyectosValidados.proyectos.map(p => ({ obraId: p.obraId, permisos: p.permisos })),
+  })
+
+  if (syncError) {
+    return NextResponse.json({ error: syncError.message }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true })

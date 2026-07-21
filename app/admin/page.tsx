@@ -85,10 +85,12 @@ export default async function AdminHomePage() {
           <h1 className="text-2xl font-bold text-slate-900">Proyectos</h1>
           <p className="text-slate-500 text-sm mt-1">{ctx.constructoraNombre}</p>
         </div>
-        <NuevoProyectoModal
-          constructoraId={ctx.constructoraId}
-          cuentasExistentes={cuentasEmpresa ?? []}
-        />
+        {ctx.perfilRol === 'admin' && (
+          <NuevoProyectoModal
+            constructoraId={ctx.constructoraId}
+            cuentasExistentes={cuentasEmpresa ?? []}
+          />
+        )}
       </div>
 
       {lista.length === 0 ? (
@@ -135,7 +137,7 @@ export default async function AdminHomePage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0 ml-3">
-                    <ProyectoAcciones obraId={p.id} nombre={p.nombre} estadoActual={estado} />
+                    <ProyectoAcciones obraId={p.id} nombre={p.nombre} tipo={tipo} estadoActual={estado} esAdmin={ctx.perfilRol === 'admin'} />
                     <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center group-hover:bg-indigo-50 transition-colors">
                       {tipo === 'desarrollo' ? (
                         <svg className="w-5 h-5 text-slate-400 group-hover:text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

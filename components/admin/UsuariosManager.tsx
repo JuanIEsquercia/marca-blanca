@@ -3,10 +3,10 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Perfil } from '@/types/database'
-import { MODULOS, MAX_OPERADORES, modulosDisponibles, type TipoProyecto } from '@/lib/permisos'
+import { MODULOS, MODULOS_EMPRESA, MAX_OPERADORES, modulosDisponibles, type TipoProyecto, type ProyectoAsignado } from '@/lib/permisos'
 import ConfirmModal from './ConfirmModal'
 
-type PerfilConEmail = Perfil & { email: string }
+type PerfilConEmail = Perfil & { email: string; proyectos: ProyectoAsignado[] }
 type ObraOption = { id: string; nombre: string; tipo: TipoProyecto }
 
 type ConfirmState = { title: string; message: string; confirmLabel?: string; onConfirm: () => Promise<void> }
@@ -17,6 +17,8 @@ interface Props {
   currentUserId: string
   constructoraId: string
 }
+
+const MODULOS_EMPRESA_INFO = MODULOS.filter(m => MODULOS_EMPRESA.includes(m.key))
 
 function PermisosCheckboxes({
   value,
@@ -90,36 +92,66 @@ function PermisosCheckboxes({
   )
 }
 
-function ProyectoSelect({
+// Árbol proyecto → módulos: tildar un proyecto revela su propio checklist,
+// scopeado al tipo de ESE proyecto (mismo PermisosCheckboxes de arriba,
+// uno por proyecto tildado en vez de uno global).
+function ArbolProyectos({
   obras,
   value,
   onChange,
 }: {
   obras: ObraOption[]
-  value: string | null
-  onChange: (obraId: string | null) => void
+  value: ProyectoAsignado[]
+  onChange: (v: ProyectoAsignado[]) => void
 }) {
+  function toggleProyecto(obraId: string) {
+    if (value.some(p => p.obraId === obraId)) {
+      onChange(value.filter(p => p.obraId !== obraId))
+    } else {
+      onChange([...value, { obraId, permisos: [] }])
+    }
+  }
+  function setPermisosProyecto(obraId: string, permisos: string[]) {
+    onChange(value.map(p => (p.obraId === obraId ? { ...p, permisos } : p)))
+  }
+
+  if (obras.length === 0) {
+    return <p className="text-xs text-slate-400 italic">No hay proyectos creados todavía.</p>
+  }
+
   return (
-    <div>
-      <label className="block text-xs font-medium text-slate-600 mb-1">Proyecto asignado</label>
-      <select
-        value={value ?? ''}
-        onChange={e => onChange(e.target.value || null)}
-        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white
-                   focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      >
-        <option value="">Toda la empresa</option>
-        {obras.map(o => (
-          <option key={o.id} value={o.id}>
-            {o.nombre} ({o.tipo === 'obra' ? 'Obra' : 'Desarrollo'})
-          </option>
-        ))}
-      </select>
-      <p className="text-xs text-slate-400 mt-1">
-        {value
-          ? 'Solo va a ver/editar datos de este proyecto — los módulos disponibles se ajustan según su tipo.'
-          : 'Ve/edita datos de todos los proyectos de la constructora.'}
-      </p>
+    <div className="space-y-2">
+      {obras.map(o => {
+        const asignado = value.find(p => p.obraId === o.id)
+        return (
+          <div key={o.id} className={`border rounded-lg transition-colors ${asignado ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-200'}`}>
+            <label className="flex items-center gap-2 p-2.5 cursor-pointer">
+              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
+                ${asignado ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}
+                onClick={() => toggleProyecto(o.id)}>
+                {asignado && (
+                  <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </span>
+              <span className="text-sm font-medium text-slate-800 select-none" onClick={() => toggleProyecto(o.id)}>
+                {o.nombre}
+              </span>
+              <span className="text-xs text-slate-400">({o.tipo === 'obra' ? 'Obra' : 'Desarrollo'})</span>
+            </label>
+            {asignado && (
+              <div className="px-3 pb-3 pt-1 border-t border-slate-100">
+                <PermisosCheckboxes
+                  value={asignado.permisos}
+                  onChange={p => setPermisosProyecto(o.id, p)}
+                  modulos={modulosDisponibles(o.tipo)}
+                />
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -134,43 +166,31 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
   const [nombre, setNombre] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [obraId, setObraId] = useState<string | null>(null)
-  const [permisos, setPermisos] = useState<string[]>([])
+  const [proyectos, setProyectos] = useState<ProyectoAsignado[]>([])
+  const [permisosEmpresa, setPermisosEmpresa] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
   // Edición de permisos
   const [editPermisosPerfil, setEditPermisosPerfil] = useState<PerfilConEmail | null>(null)
-  const [editObraId, setEditObraId] = useState<string | null>(null)
-  const [editPermisos, setEditPermisos] = useState<string[]>([])
+  const [editProyectos, setEditProyectos] = useState<ProyectoAsignado[]>([])
+  const [editPermisosEmpresa, setEditPermisosEmpresa] = useState<string[]>([])
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
   const operadores = perfiles.filter(p => p.rol !== 'admin')
   const cupoLleno = operadores.length >= MAX_OPERADORES
 
-  const tipoDeObra = (id: string | null) => obras.find(o => o.id === id)?.tipo ?? null
-  const nombreDeObra = (id: string | null) => obras.find(o => o.id === id)?.nombre ?? null
+  const nombreDeObra = (id: string) => obras.find(o => o.id === id)?.nombre ?? 'Proyecto eliminado'
+  const moduloLabel = (key: string) => MODULOS.find(m => m.key === key)?.label ?? key
 
   function refresh() { startTransition(() => router.refresh()) }
 
   function openCreate() {
     setNombre(''); setEmail(''); setPassword('')
-    setObraId(null); setPermisos([]); setError(null); setSuccess(false)
+    setProyectos([]); setPermisosEmpresa([]); setError(null); setSuccess(false)
     setShowForm(true)
-  }
-
-  function handleObraChange(nuevaObraId: string | null) {
-    setObraId(nuevaObraId)
-    const disponibles = modulosDisponibles(tipoDeObra(nuevaObraId)).map(m => m.key)
-    setPermisos(prev => prev.filter(p => disponibles.includes(p as never)))
-  }
-
-  function handleEditObraChange(nuevaObraId: string | null) {
-    setEditObraId(nuevaObraId)
-    const disponibles = modulosDisponibles(tipoDeObra(nuevaObraId)).map(m => m.key)
-    setEditPermisos(prev => prev.filter(p => disponibles.includes(p as never)))
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -181,7 +201,7 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
     const res = await fetch('/api/admin/usuarios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre, email, password, rol: 'operador', permisos, obraId }),
+      body: JSON.stringify({ nombre, email, password, rol: 'operador', proyectos, permisosEmpresa }),
     })
 
     const data = await res.json()
@@ -196,8 +216,8 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
 
   function openEditPermisos(p: PerfilConEmail) {
     setEditPermisosPerfil(p)
-    setEditObraId(p.obra_id ?? null)
-    setEditPermisos(p.permisos ?? [])
+    setEditProyectos(p.proyectos)
+    setEditPermisosEmpresa(p.permisos ?? [])
     setEditError(null)
   }
 
@@ -209,7 +229,7 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
     const res = await fetch('/api/admin/usuarios', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: editPermisosPerfil.id, permisos: editPermisos, obraId: editObraId }),
+      body: JSON.stringify({ userId: editPermisosPerfil.id, proyectos: editProyectos, permisosEmpresa: editPermisosEmpresa }),
     })
 
     const data = await res.json()
@@ -279,22 +299,21 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Nombre</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Email</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Rol</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Proyecto</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Acceso a módulos</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Acceso a proyectos y módulos</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {perfiles.map(p => (
                 <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-900">
+                  <td className="px-4 py-3 font-medium text-slate-900 align-top">
                     {p.nombre}
                     {p.id === currentUserId && (
                       <span className="ml-2 text-xs text-indigo-600 font-normal">(vos)</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{p.email}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-slate-600 align-top">{p.email}</td>
+                  <td className="px-4 py-3 align-top">
                     <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full border
                       ${p.rol === 'admin'
                         ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
@@ -304,35 +323,41 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
                   </td>
                   <td className="px-4 py-3">
                     {p.rol === 'admin' ? (
-                      <span className="text-xs text-slate-400 italic">—</span>
-                    ) : p.obra_id ? (
-                      <span className="text-xs text-slate-700">{nombreDeObra(p.obra_id) ?? 'Proyecto eliminado'}</span>
-                    ) : (
-                      <span className="text-xs text-slate-400 italic">Toda la empresa</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {p.rol === 'admin' ? (
                       <span className="text-xs text-slate-400 italic">Acceso total</span>
-                    ) : p.permisos === null ? (
-                      <span className="text-xs text-slate-400 italic">Sin restricciones</span>
-                    ) : p.permisos.length === 0 ? (
+                    ) : p.proyectos.length === 0 && (p.permisos ?? []).length === 0 ? (
                       <span className="text-xs text-red-500">Sin acceso</span>
                     ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {p.permisos.map(key => {
-                          const mod = MODULOS.find(m => m.key === key)
-                          return mod ? (
-                            <span key={key}
-                              className="text-[10px] font-medium px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-md border border-indigo-100">
-                              {mod.label}
+                      <div className="space-y-1.5">
+                        {p.proyectos.map(proy => (
+                          <div key={proy.obraId} className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-slate-800 text-white rounded-md">
+                              {nombreDeObra(proy.obraId)}
                             </span>
-                          ) : null
-                        })}
+                            {proy.permisos.length === 0 ? (
+                              <span className="text-[10px] text-slate-400 italic">sin módulos</span>
+                            ) : proy.permisos.map(key => (
+                              <span key={key} className="text-[10px] font-medium px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-md border border-indigo-100">
+                                {moduloLabel(key)}
+                              </span>
+                            ))}
+                          </div>
+                        ))}
+                        {(p.permisos ?? []).length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-slate-500 text-white rounded-md">
+                              Empresa
+                            </span>
+                            {(p.permisos ?? []).map(key => (
+                              <span key={key} className="text-[10px] font-medium px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-md border border-emerald-100">
+                                {moduloLabel(key)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right align-top">
                     <div className="flex items-center justify-end gap-3">
                       {p.rol !== 'admin' && (
                         <button
@@ -394,16 +419,19 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
                                  focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
-                  <div className="col-span-2">
-                    <ProyectoSelect obras={obras} value={obraId} onChange={handleObraChange} />
-                  </div>
                 </div>
 
                 <div className="border-t border-slate-100 pt-4">
-                  <p className="text-xs font-semibold text-slate-700 mb-3">
-                    Módulos a los que puede acceder
+                  <p className="text-xs font-semibold text-slate-700 mb-1">Proyectos y módulos</p>
+                  <p className="text-xs text-slate-400 mb-3">
+                    Tildá los proyectos a los que va a acceder — cada uno con sus propios módulos.
                   </p>
-                  <PermisosCheckboxes value={permisos} onChange={setPermisos} modulos={modulosDisponibles(tipoDeObra(obraId))} />
+                  <ArbolProyectos obras={obras} value={proyectos} onChange={setProyectos} />
+                </div>
+
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="text-xs font-semibold text-slate-700 mb-3">Empresa (fuera de proyectos)</p>
+                  <PermisosCheckboxes value={permisosEmpresa} onChange={setPermisosEmpresa} modulos={MODULOS_EMPRESA_INFO} />
                 </div>
 
                 {error && (
@@ -447,12 +475,16 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <ProyectoSelect obras={obras} value={editObraId} onChange={handleEditObraChange} />
               <div>
-                <p className="text-xs text-slate-500 mb-3">
-                  Seleccioná los módulos a los que este operador puede acceder. Dashboard siempre está disponible.
+                <p className="text-xs font-semibold text-slate-700 mb-1">Proyectos y módulos</p>
+                <p className="text-xs text-slate-400 mb-3">
+                  Tildá los proyectos a los que puede acceder — cada uno con sus propios módulos.
                 </p>
-                <PermisosCheckboxes value={editPermisos} onChange={setEditPermisos} modulos={modulosDisponibles(tipoDeObra(editObraId))} />
+                <ArbolProyectos obras={obras} value={editProyectos} onChange={setEditProyectos} />
+              </div>
+              <div className="border-t border-slate-100 pt-4">
+                <p className="text-xs font-semibold text-slate-700 mb-3">Empresa (fuera de proyectos)</p>
+                <PermisosCheckboxes value={editPermisosEmpresa} onChange={setEditPermisosEmpresa} modulos={MODULOS_EMPRESA_INFO} />
               </div>
               {editError && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{editError}</div>

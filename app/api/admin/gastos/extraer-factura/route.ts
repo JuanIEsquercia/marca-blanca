@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getConstructoraContext } from '@/lib/tenant'
-import { tienePermiso } from '@/lib/permisos'
+import { puedeAcceder } from '@/lib/permisos'
 import { extraerDatosFactura } from '@/lib/factura-extraccion'
 
 export async function POST(request: Request) {
   const ctx = await getConstructoraContext()
   if (!ctx) return NextResponse.json({ error: 'Sin permisos' }, { status: 401 })
-  if (!tienePermiso(ctx.perfilRol, ctx.perfilPermisos, 'gastos')) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'gastos', null)) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
   }
 

@@ -20,6 +20,7 @@ interface Props {
   reservas: ReservaConRelaciones[]
   cuentasPropias: CuentaPropia[]
   constructoraId: string
+  readOnly?: boolean
 }
 
 const ESTADO_COLORS: Record<EstadoReserva, string> = {
@@ -30,7 +31,7 @@ const ESTADO_COLORS: Record<EstadoReserva, string> = {
 
 const FILTROS: (EstadoReserva | 'Todas')[] = ['Todas', 'Vigente', 'Convertida', 'Caída']
 
-export default function ReservasManager({ reservas, cuentasPropias, constructoraId }: Props) {
+export default function ReservasManager({ reservas, cuentasPropias, constructoraId, readOnly = false }: Props) {
   const router = useRouter()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [filtro, setFiltro] = useState<EstadoReserva | 'Todas'>('Todas')
@@ -157,7 +158,7 @@ export default function ReservasManager({ reservas, cuentasPropias, constructora
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {r.estado === 'Vigente' && (
+                      {r.estado === 'Vigente' && !readOnly && (
                         <div className="flex items-center justify-end gap-3">
                           <button
                             onClick={() => setSaleReserva(r)}

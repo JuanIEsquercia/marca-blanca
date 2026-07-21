@@ -139,6 +139,7 @@ export interface Cuota {
 export interface CuentaPropia {
   id: string
   constructora_id: string
+  obra_id: string | null
   nombre: string
   tipo: 'banco' | 'caja' | string
   moneda: 'ARS' | 'USD' | string
@@ -213,7 +214,15 @@ export interface Perfil {
   activo: boolean
   permisos: string[] | null
   constructora_id: string | null
-  obra_id: string | null
+  created_at: string
+}
+
+export interface PerfilProyecto {
+  id: string
+  perfil_id: string
+  obra_id: string
+  constructora_id: string
+  permisos: string[]
   created_at: string
 }
 

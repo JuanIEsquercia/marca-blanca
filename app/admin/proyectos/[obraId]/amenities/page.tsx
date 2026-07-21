@@ -29,6 +29,7 @@ export default async function AmenitiesPage({ params }: { params: Promise<{ obra
         amenities={amenities ?? []}
         obraId={obraId}
         constructoraId={ctx.constructoraId}
+        readOnly={ctx.obraEstado === 'finalizada'}
       />
     </div>
   )

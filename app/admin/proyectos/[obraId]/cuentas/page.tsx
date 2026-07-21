@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getProyectoContext } from '@/lib/tenant'
+import { calcularSaldosDeCuentas } from '@/lib/tesoreria'
 import CuentasPropiasManager from '@/components/admin/CuentasPropiasManager'
 import type { Metadata } from 'next'
 
@@ -20,6 +21,8 @@ export default async function CuentasProyectoPage({ params }: { params: Promise<
     .eq('obra_id', obraId)
     .order('nombre')
 
+  const saldos = await calcularSaldosDeCuentas(supabase, ctx.constructoraId, cuentas ?? [])
+
   return (
     <div>
       <div className="mb-6">
@@ -30,8 +33,10 @@ export default async function CuentasProyectoPage({ params }: { params: Promise<
       </div>
       <CuentasPropiasManager
         cuentas={cuentas ?? []}
+        saldos={saldos}
         constructoraId={ctx.constructoraId}
         obraId={obraId}
+        readOnly={ctx.obraEstado === 'finalizada'}
       />
     </div>
   )

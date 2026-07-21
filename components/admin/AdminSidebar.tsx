@@ -6,7 +6,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { RolUsuario } from '@/types/database'
-import type { ModuloKey } from '@/lib/permisos'
+import { puedeAcceder, type ModuloKey, type ProyectoAsignado } from '@/lib/permisos'
 import { getCurrentProyecto, subscribeProyecto, type ProyectoData } from '@/lib/proyecto-store'
 
 // Cache de módulo: evita el API call cuando se regresa a un proyecto ya visitado
@@ -81,6 +81,13 @@ function buildConstructoraNav(): NavSection[] {
           permiso: null,
           roles: ['admin'],
           icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
+        },
+        {
+          href: '/admin/whatsapp',
+          label: 'WhatsApp',
+          permiso: null,
+          roles: ['admin'],
+          icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 21l1.65-4.95A7.5 7.5 0 1112 19.5a7.46 7.46 0 01-3.05-.65L3 21z" /></svg>,
         },
       ],
     },
@@ -187,14 +194,14 @@ function buildObraNav(obraId: string, modoCuentas: 'empresa' | 'especificas'): N
         {
           href: `${base}/certificados`,
           label: 'Certificados',
-          permiso: null,
+          permiso: 'certificados' as ModuloKey,
           roles: ['admin', 'operador'],
           icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
         },
         {
           href: `${base}/cobros`,
           label: 'Cobros',
-          permiso: null,
+          permiso: 'cobros' as ModuloKey,
           roles: ['admin', 'operador'],
           icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
         },
@@ -232,11 +239,12 @@ function buildObraNav(obraId: string, modoCuentas: 'empresa' | 'especificas'): N
 interface Props {
   userName: string
   userRole: RolUsuario
-  userPermisos: string[] | null
+  permisosEmpresa: string[]
+  proyectos: ProyectoAsignado[]
   constructoraNombre: string
 }
 
-export default function AdminSidebar({ userName, userRole, userPermisos, constructoraNombre }: Props) {
+export default function AdminSidebar({ userName, userRole, permisosEmpresa, proyectos, constructoraNombre }: Props) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -297,8 +305,7 @@ export default function AdminSidebar({ userName, userRole, userPermisos, constru
     if (!item.roles.includes(userRole)) return false
     if (userRole === 'admin') return true
     if (item.permiso === null) return true
-    if (userPermisos === null) return true
-    return userPermisos.includes(item.permiso)
+    return puedeAcceder(userRole, permisosEmpresa, proyectos, item.permiso, obraId)
   }
 
   async function handleLogout() {

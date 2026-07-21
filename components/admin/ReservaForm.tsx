@@ -33,10 +33,14 @@ export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId
   const [notas, setNotas] = useState('')
 
   useEffect(() => {
+    // La seña de una reserva es siempre USD (venta de unidades — mismo
+    // criterio que precio_lista/cuotas, sin columna moneda propia). Solo se
+    // ofrecen cuentas USD para no poder asignarla a una cuenta ARS.
     createClient()
       .from('cuentas_propias')
       .select('*')
       .eq('activa', true)
+      .eq('moneda', 'USD')
       .order('nombre')
       .then(({ data }) => setCuentasPropias(data ?? []))
   }, [])
@@ -90,7 +94,13 @@ export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId
         notas: notas || null,
       })
 
-      if (errReserva) throw new Error(errReserva.message)
+      if (errReserva) {
+        throw new Error(
+          errReserva.code === '23505'
+            ? 'Esta unidad ya tiene una reserva vigente — probablemente otro operador la reservó recién. Actualizá la página.'
+            : errReserva.message
+        )
+      }
 
       // 3. Actualizar estado de la unidad
       await supabase

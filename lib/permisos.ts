@@ -18,22 +18,45 @@ export type ModuloKey = typeof MODULOS[number]['key']
 
 export const MAX_OPERADORES = 3
 
-export function tienePermiso(
+// Bucket "Empresa": módulos que no cuelgan de ningún proyecto — sus datos
+// no tienen obra_id (proveedores) o son un agregado cruzado (tesoreria).
+// Todo lo demás vive en el árbol por-proyecto (perfil_proyectos).
+export const MODULOS_EMPRESA: ModuloKey[] = ['proveedores', 'tesoreria']
+
+export const MODULOS_PROYECTO = MODULOS.filter(m => !MODULOS_EMPRESA.includes(m.key))
+
+export interface ProyectoAsignado {
+  obraId: string
+  permisos: string[]
+}
+
+// Punto único de decisión de acceso — usado por app/admin/layout.tsx (guard
+// de rutas), AdminSidebar.tsx (qué mostrar en la nav) y cualquier API route
+// que necesite el mismo chequeo (ej. extraer-factura). Antes esta lógica
+// vivía duplicada en al menos 2 lugares con el array plano de permisos.
+export function puedeAcceder(
   rol: string,
-  permisos: string[] | null,
-  modulo: ModuloKey
+  permisosEmpresa: string[],
+  proyectos: ProyectoAsignado[],
+  modulo: ModuloKey,
+  obraIdActual: string | null
 ): boolean {
   if (rol === 'admin') return true
-  if (permisos === null) return true   // legado: sin restricción
-  return permisos.includes(modulo)
+  if (MODULOS_EMPRESA.includes(modulo)) return permisosEmpresa.includes(modulo)
+  if (obraIdActual) {
+    return proyectos.find(p => p.obraId === obraIdActual)?.permisos.includes(modulo) ?? false
+  }
+  // Vista agregada de empresa (ej. /admin/gastos, /admin/cuentas): alcanza
+  // con tener el módulo en cualquiera de los proyectos asignados.
+  return proyectos.some(p => p.permisos.includes(modulo))
 }
 
 // Un operador "de toda la empresa" (tipoObra null) puede recibir cualquier
-// módulo. Un operador acotado a un proyecto solo puede recibir los módulos
+// módulo de proyecto. Un proyecto concreto solo puede recibir los módulos
 // compartidos (sin soloTipo) más los propios del tipo de ESE proyecto —
 // no tiene sentido darle "Amenities" a alguien asignado a una obra de
 // construcción, ni "Certificados de avance" a alguien en un desarrollo.
 export function modulosDisponibles(tipoObra: TipoProyecto | null) {
-  if (!tipoObra) return MODULOS
-  return MODULOS.filter(m => !('soloTipo' in m) || m.soloTipo === tipoObra)
+  if (!tipoObra) return MODULOS_PROYECTO
+  return MODULOS_PROYECTO.filter(m => !('soloTipo' in m) || m.soloTipo === tipoObra)
 }

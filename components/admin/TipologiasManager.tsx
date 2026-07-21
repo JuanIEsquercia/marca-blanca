@@ -13,6 +13,7 @@ interface Props {
   tipologias: Tipologia[]
   obraId: string
   constructoraId: string
+  readOnly?: boolean
 }
 
 const EMPTY_FORM = {
@@ -24,7 +25,7 @@ const EMPTY_FORM = {
   imagen_portada: '',
 }
 
-export default function TipologiasManager({ tipologias, obraId, constructoraId }: Props) {
+export default function TipologiasManager({ tipologias, obraId, constructoraId, readOnly = false }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
@@ -108,7 +109,8 @@ export default function TipologiasManager({ tipologias, obraId, constructoraId }
       confirmLabel: 'Eliminar',
       onConfirm: async () => {
         const supabase = createClient()
-        await supabase.from('tipologias').delete().eq('id', id)
+        const { error } = await supabase.from('tipologias').delete().eq('id', id)
+        if (error) throw new Error('No se pudo eliminar: todavía tiene unidades asociadas.')
         setConfirmModal(null)
         refresh()
       },
@@ -119,14 +121,16 @@ export default function TipologiasManager({ tipologias, obraId, constructoraId }
     <div>
       <div className="flex justify-between items-center mb-5">
         <p className="text-slate-500 text-sm">{tipologias.length} tipología(s) cargadas</p>
-        <button onClick={openNew}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                     text-white rounded-lg text-sm font-medium transition-colors">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Nueva tipología
-        </button>
+        {!readOnly && (
+          <button onClick={openNew}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
+                       text-white rounded-lg text-sm font-medium transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nueva tipología
+          </button>
+        )}
       </div>
 
       {/* Grid de tarjetas */}
@@ -177,17 +181,19 @@ export default function TipologiasManager({ tipologias, obraId, constructoraId }
               {t.descripcion && (
                 <p className="text-xs text-slate-500 mb-3 line-clamp-2">{t.descripcion}</p>
               )}
-              <div className="flex gap-2 pt-3 border-t border-slate-100">
-                <button onClick={() => openEdit(t)}
-                  className="flex-1 text-xs text-slate-600 hover:text-indigo-600 font-medium transition-colors">
-                  Editar
-                </button>
-                <span className="text-slate-200">|</span>
-                <button onClick={() => handleDelete(t.id, t.nombre)}
-                  className="flex-1 text-xs text-red-400 hover:text-red-600 font-medium transition-colors">
-                  Eliminar
-                </button>
-              </div>
+              {!readOnly && (
+                <div className="flex gap-2 pt-3 border-t border-slate-100">
+                  <button onClick={() => openEdit(t)}
+                    className="flex-1 text-xs text-slate-600 hover:text-indigo-600 font-medium transition-colors">
+                    Editar
+                  </button>
+                  <span className="text-slate-200">|</span>
+                  <button onClick={() => handleDelete(t.id, t.nombre)}
+                    className="flex-1 text-xs text-red-400 hover:text-red-600 font-medium transition-colors">
+                    Eliminar
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -196,9 +202,11 @@ export default function TipologiasManager({ tipologias, obraId, constructoraId }
       {tipologias.length === 0 && (
         <div className="text-center py-16 text-slate-400">
           <p className="mb-2">No hay tipologías cargadas.</p>
-          <button onClick={openNew} className="text-indigo-500 text-sm hover:text-indigo-700">
-            Crear la primera tipología
-          </button>
+          {!readOnly && (
+            <button onClick={openNew} className="text-indigo-500 text-sm hover:text-indigo-700">
+              Crear la primera tipología
+            </button>
+          )}
         </div>
       )}
 

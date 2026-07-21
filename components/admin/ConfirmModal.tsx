@@ -20,11 +20,15 @@ export default function ConfirmModal({
   onCancel,
 }: Props) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleConfirm() {
     setLoading(true)
+    setError(null)
     try {
       await onConfirm()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo completar la acción.')
     } finally {
       setLoading(false)
     }
@@ -46,6 +50,9 @@ export default function ConfirmModal({
               <p className="text-slate-500 text-sm mt-1 leading-relaxed">{message}</p>
             </div>
           </div>
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
+          )}
           <div className="flex gap-3">
             <button
               onClick={onCancel}

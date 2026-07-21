@@ -66,6 +66,7 @@ export default async function CobrosPage({ params }: { params: Promise<{ obraId:
         obraId={obraId}
         constructoraId={ctx.constructoraId}
         moneda={moneda}
+        readOnly={ctx.obraEstado === 'finalizada'}
       />
     </div>
   )

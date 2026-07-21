@@ -1,14 +1,15 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { ProyectoAsignado } from '@/lib/permisos'
 
 export interface ConstructoraContext {
   constructoraId: string
   constructoraNombre: string
   perfilNombre: string
   perfilRol: 'admin' | 'operador'
-  perfilPermisos: string[] | null
-  perfilObraId: string | null
+  perfilPermisos: string[]
+  perfilProyectos: ProyectoAsignado[]
 }
 
 export interface ProyectoContext extends ConstructoraContext {
@@ -32,7 +33,7 @@ const resolveConstructora = cache(async (): Promise<ConstructoraContext | null> 
   // Una sola query a perfiles trae constructora_id + datos del perfil del usuario
   const { data: perfil } = await admin
     .from('perfiles')
-    .select('constructora_id, nombre, rol, permisos, obra_id')
+    .select('constructora_id, nombre, rol, permisos')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -50,12 +51,11 @@ const resolveConstructora = cache(async (): Promise<ConstructoraContext | null> 
 
   if (!constructoraId) return null
 
-  // Obtener nombre de la constructora (paralelo — no necesita datos previos)
-  const { data: constructora } = await admin
-    .from('constructoras')
-    .select('id, nombre')
-    .eq('id', constructoraId)
-    .maybeSingle()
+  // Nombre de la constructora + árbol de proyectos asignados (paralelo).
+  const [{ data: constructora }, { data: proyectos }] = await Promise.all([
+    admin.from('constructoras').select('id, nombre').eq('id', constructoraId).maybeSingle(),
+    admin.from('perfil_proyectos').select('obra_id, permisos').eq('perfil_id', user.id),
+  ])
 
   const rol = ((perfil as any)?.rol ?? 'operador') as 'admin' | 'operador'
 
@@ -64,9 +64,8 @@ const resolveConstructora = cache(async (): Promise<ConstructoraContext | null> 
     constructoraNombre: constructora?.nombre ?? 'Constructora',
     perfilNombre: (perfil as any)?.nombre ?? '',
     perfilRol: rol,
-    perfilPermisos: (perfil as any)?.permisos ?? null,
-    // Un admin nunca queda acotado a un proyecto, sea cual sea el dato crudo.
-    perfilObraId: rol === 'admin' ? null : ((perfil as any)?.obra_id ?? null),
+    perfilPermisos: (perfil as any)?.permisos ?? [],
+    perfilProyectos: (proyectos ?? []).map(p => ({ obraId: p.obra_id, permisos: p.permisos ?? [] })),
   }
 })
 
@@ -78,11 +77,12 @@ export const getProyectoContext = cache(async (obraId: string): Promise<Proyecto
   const resolved = await resolveConstructora()
   if (!resolved) return null
 
-  // Enforcement central: un operador acotado a un proyecto no puede resolver
-  // el contexto de ningún otro. Todas las páginas de proyecto (dashboard,
-  // certificados, cobros, contratos, caja, etc.) redirigen a /admin cuando
-  // este helper devuelve null, así que este único chequeo las cubre a todas.
-  if (resolved.perfilObraId && resolved.perfilObraId !== obraId) return null
+  // Enforcement central: un operador solo puede resolver el contexto de un
+  // proyecto que tenga asignado en su árbol. Todas las páginas de proyecto
+  // (dashboard, certificados, cobros, contratos, caja, etc.) redirigen a
+  // /admin cuando este helper devuelve null, así que este único chequeo
+  // las cubre a todas.
+  if (resolved.perfilRol !== 'admin' && !resolved.perfilProyectos.some(p => p.obraId === obraId)) return null
 
   const admin = createAdminClient()
   const { data: obra } = await admin
@@ -100,7 +100,7 @@ export const getProyectoContext = cache(async (obraId: string): Promise<Proyecto
     perfilNombre: resolved.perfilNombre,
     perfilRol: resolved.perfilRol,
     perfilPermisos: resolved.perfilPermisos,
-    perfilObraId: resolved.perfilObraId,
+    perfilProyectos: resolved.perfilProyectos,
     obraId: obra.id,
     obraNombre: obra.nombre,
     obraTipo: (obra.tipo ?? 'desarrollo') as 'desarrollo' | 'obra',

@@ -3,10 +3,15 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
 import AdminSidebar from '@/components/admin/AdminSidebar'
-import { MODULOS } from '@/lib/permisos'
+import { MODULOS, puedeAcceder } from '@/lib/permisos'
 import type { ModuloKey } from '@/lib/permisos'
 
 const MODULO_KEYS = MODULOS.map(m => m.key)
+
+// El segmento de URL no siempre coincide con la key del módulo (la Caja de
+// un proyecto vive en /caja pero su permiso es 'tesoreria') — sin este mapeo
+// el guard de abajo nunca matchea ese segmento y la ruta queda sin proteger.
+const SEGMENTO_A_MODULO: Record<string, ModuloKey> = { caja: 'tesoreria' }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Autenticación y contexto en paralelo
@@ -27,26 +32,29 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const constructoraCtx = await getConstructoraContext()
 
   const rol = constructoraCtx?.perfilRol ?? 'operador'
-  const permisos: string[] | null = constructoraCtx?.perfilPermisos ?? null
-  const obraAsignada = constructoraCtx?.perfilObraId ?? null
+  const permisosEmpresa = constructoraCtx?.perfilPermisos ?? []
+  const proyectosAsignados = constructoraCtx?.perfilProyectos ?? []
 
   const pathname = headersList.get('x-pathname') ?? ''
   const segmentos = pathname.split('/')
   const esRutaDeProyecto = segmentos[2] === 'proyectos'
 
-  // Operador acotado a un proyecto: bloquear cualquier otra obra (además del
+  // Operador: bloquear cualquier proyecto que no esté en su árbol (además del
   // enforcement en getProyectoContext() — esto corta antes de renderizar).
-  if (obraAsignada && esRutaDeProyecto && segmentos[3] && segmentos[3] !== obraAsignada) {
+  if (rol !== 'admin' && esRutaDeProyecto && segmentos[3] && !proyectosAsignados.some(p => p.obraId === segmentos[3])) {
     redirect('/admin')
   }
 
-  // Guard de rutas para operadores con permisos explícitos
-  if (rol !== 'admin' && permisos !== null) {
-    const segmento = esRutaDeProyecto
-      ? (segmentos[4] as ModuloKey | undefined)
-      : (segmentos[2] as ModuloKey | undefined)
+  // Guard de rutas por módulo — mismo chequeo que usa AdminSidebar para
+  // decidir qué mostrar en la nav (puedeAcceder), así no pueden desincronizarse.
+  if (rol !== 'admin') {
+    const segmentoCrudo = esRutaDeProyecto ? segmentos[4] : segmentos[2]
+    const segmento = segmentoCrudo
+      ? (SEGMENTO_A_MODULO[segmentoCrudo] ?? (segmentoCrudo as ModuloKey))
+      : undefined
+    const obraIdActual = esRutaDeProyecto ? (segmentos[3] ?? null) : null
 
-    if (segmento && MODULO_KEYS.includes(segmento as ModuloKey) && !permisos.includes(segmento)) {
+    if (segmento && MODULO_KEYS.includes(segmento as ModuloKey) && !puedeAcceder(rol, permisosEmpresa, proyectosAsignados, segmento, obraIdActual)) {
       redirect('/admin')
     }
   }
@@ -56,7 +64,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <AdminSidebar
         userName={constructoraCtx?.perfilNombre ?? user.email ?? 'Usuario'}
         userRole={rol}
-        userPermisos={permisos}
+        permisosEmpresa={permisosEmpresa}
+        proyectos={proyectosAsignados}
         constructoraNombre={constructoraCtx?.constructoraNombre ?? 'Panel ERP'}
       />
       <main className="flex-1 overflow-auto admin-scroll">

@@ -17,4 +17,6 @@ No hay un migration runner automático — todo se corre a mano en **Supabase �
 
 ## Próxima migración a correr
 
-`migration_020.sql` (después de `migration_016.sql` a `migration_019.sql`, que ya deberían estar aplicadas).
+`migration_022.sql` a `migration_028.sql` — confirmadas corridas en Supabase (verificado en vivo el 2026-07-21: trigger de perfiles, policies de `obras`, `perfil_proyectos`, índice de reservas y `trg_bloquear_cerrado` existen en la base real). `migration_029.sql` es la única pendiente de correr a esta fecha; `schema.sql` ya refleja su estado final.
+
+`migration_029.sql` (2026-07-21, auditoría de cuentas/caja): cierra el gap de inmutabilidad financiera que quedó afuera de `migration_015` — `cuotas` Pagadas y `contratos_venta` con cobros ya registrados (entrega efectiva y/o cuotas pagadas) ahora bloquean UPDATE/DELETE para no-admin, igual que ya pasaba con `gastos`/`certificados_avance`/`cobros_proyecto`. Suma CHECK de moneda (`ARS`/`USD`) en `cuentas_propias`/`gastos` (antes solo lo validaba la UI) y un guard contra división por cero en `generar_cuotas_contrato()` si `cantidad_cuotas` llega en 0 por una vía distinta al formulario.

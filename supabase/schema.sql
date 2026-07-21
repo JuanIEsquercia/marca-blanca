@@ -1,7 +1,7 @@
 -- ============================================================
 -- SCHEMA CANÓNICO — ERP multi-tenant para constructoras
 -- Refleja el estado final acumulado de schema.sql + migration_001
--- a migration_017. Ver supabase/README.md para la convención.
+-- a migration_029. Ver supabase/README.md para la convención.
 --
 -- Este archivo es SOLO REFERENCIA / bootstrap de un ambiente nuevo.
 -- El proyecto Supabase existente NO necesita correrlo: ya llegó a
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS perfiles (
   nombre      TEXT NOT NULL,
   rol         rol_usuario NOT NULL DEFAULT 'operador',
   activo      BOOLEAN NOT NULL DEFAULT true,
-  permisos    TEXT[] DEFAULT NULL,  -- NULL = sin restricción (admin/legado); [] = ningún módulo; ['gastos',...] = allowlist
+  permisos    TEXT[] DEFAULT '{}',  -- bucket Empresa únicamente ('proveedores'/'tesoreria') — ver perfil_proyectos para módulos por-proyecto
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -82,10 +82,24 @@ CREATE TABLE IF NOT EXISTS obras (
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
--- NULL = operador de toda la constructora (o admin). Un valor acota al
--- operador a esa obra — ver mi_obra_id() y las policies que lo usan.
+-- LEGADO — reemplazado por perfil_proyectos (migration_022). Columna y
+-- mi_obra_id() quedan dormidas (nada las lee/escribe) pero no se dropean
+-- todavía, para poder auditar/revertir fácil en producción.
 ALTER TABLE perfiles
   ADD COLUMN IF NOT EXISTS obra_id UUID REFERENCES obras(id) ON DELETE SET NULL;
+
+-- Árbol de permisos: un operador puede tener VARIOS proyectos asignados,
+-- cada uno con su propio set de módulos (permisos). Reemplaza el modelo
+-- de un solo perfiles.obra_id.
+CREATE TABLE IF NOT EXISTS perfil_proyectos (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  perfil_id       UUID NOT NULL REFERENCES perfiles(id) ON DELETE CASCADE,
+  obra_id         UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+  constructora_id UUID NOT NULL REFERENCES constructoras(id) ON DELETE CASCADE,
+  permisos        TEXT[] NOT NULL DEFAULT '{}',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (perfil_id, obra_id)
+);
 
 -- ============================================================
 -- NIVEL EMPRESA — TESORERÍA / PROVEEDORES / GASTOS
@@ -101,7 +115,7 @@ CREATE TABLE IF NOT EXISTS cuentas_propias (
   obra_id        UUID REFERENCES obras(id) ON DELETE SET NULL,  -- NULL = cuenta de empresa, no de un proyecto
   nombre         TEXT NOT NULL,
   tipo           TEXT NOT NULL DEFAULT 'banco',   -- 'banco' | 'caja'
-  moneda         TEXT NOT NULL DEFAULT 'USD',     -- 'ARS' | 'USD'
+  moneda         TEXT NOT NULL DEFAULT 'USD' CHECK (moneda IN ('ARS', 'USD')),
   saldo_inicial  DECIMAL(15,2) NOT NULL DEFAULT 0,
   activa         BOOLEAN NOT NULL DEFAULT true,
   created_by     UUID REFERENCES auth.users(id),
@@ -152,7 +166,7 @@ CREATE TABLE IF NOT EXISTS gastos (
   cuenta_propia_id     UUID REFERENCES cuentas_propias(id),
   descripcion          TEXT NOT NULL,
   monto                DECIMAL(15,2) NOT NULL,
-  moneda               TEXT NOT NULL DEFAULT 'ARS',
+  moneda               TEXT NOT NULL DEFAULT 'ARS' CHECK (moneda IN ('ARS', 'USD')),
   fecha_vencimiento    DATE NOT NULL,
   fecha_pago           DATE,
   estado               TEXT NOT NULL DEFAULT 'Pendiente' CHECK (estado IN ('Pendiente', 'Pagado')),
@@ -423,24 +437,74 @@ AS $$
   SELECT COALESCE((SELECT rol = 'admin' FROM perfiles WHERE id = auth.uid()), false)
 $$;
 
--- Replica lib/permisos.ts:tienePermiso() del lado del servidor:
--- admin => true siempre; permisos NULL => legado sin restricción;
--- si no, el módulo tiene que estar en el array.
+-- Bucket Empresa únicamente (proveedores/tesoreria) — perfiles.permisos ya
+-- no mezcla módulos de proyecto. Sin acceso implícito: permisos vacío = sin
+-- acceso a ese módulo.
 CREATE OR REPLACE FUNCTION tiene_permiso(p_modulo TEXT)
 RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT COALESCE(
-    (SELECT CASE
-       WHEN rol = 'admin' THEN true
-       WHEN permisos IS NULL THEN true
-       ELSE p_modulo = ANY(permisos)
-     END
-     FROM perfiles WHERE id = auth.uid()),
+  SELECT es_admin() OR COALESCE(
+    (SELECT p_modulo = ANY(permisos) FROM perfiles WHERE id = auth.uid()),
     false
   )
 $$;
+
+-- Módulo dentro de UN proyecto específico — perfil_proyectos es la fuente
+-- de verdad para todo módulo por-proyecto (tipologias, amenities, unidades,
+-- reservas, contratos, certificados, cobros, gastos, cuentas).
+CREATE OR REPLACE FUNCTION tiene_permiso_proyecto(p_obra_id UUID, p_modulo TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT es_admin() OR EXISTS (
+    SELECT 1 FROM perfil_proyectos
+    WHERE perfil_id = auth.uid()
+      AND obra_id = p_obra_id
+      AND p_modulo = ANY(permisos)
+  )
+$$;
+
+-- Módulo en CUALQUIERA de los proyectos asignados — para tablas sin
+-- obra_id propio que dependen de un módulo por-proyecto (categorias_costo,
+-- compradores) y para la lectura del pool de cuentas compartidas.
+CREATE OR REPLACE FUNCTION tiene_permiso_en_algun_proyecto(p_modulo TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT es_admin() OR EXISTS (
+    SELECT 1 FROM perfil_proyectos
+    WHERE perfil_id = auth.uid() AND p_modulo = ANY(permisos)
+  )
+$$;
+
+-- Reemplaza el árbol de proyectos de un operador de forma atómica (DELETE +
+-- INSERT en una sola sentencia) — usada por el PATCH de
+-- app/api/admin/usuarios/route.ts al editar permisos. Sin REVOKE, cualquier
+-- autenticado podría llamarla con un perfil_id ajeno (mismo bug real que
+-- tuvo seed_constructora_defaults) — solo se invoca vía createAdminClient()
+-- desde una route que ya verificó rol='admin'.
+CREATE OR REPLACE FUNCTION sync_perfil_proyectos(p_perfil_id UUID, p_constructora_id UUID, p_rows JSONB)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  DELETE FROM perfil_proyectos WHERE perfil_id = p_perfil_id;
+
+  INSERT INTO perfil_proyectos (perfil_id, obra_id, constructora_id, permisos)
+  SELECT
+    p_perfil_id,
+    (r->>'obraId')::UUID,
+    p_constructora_id,
+    ARRAY(SELECT jsonb_array_elements_text(r->'permisos'))
+  FROM jsonb_array_elements(p_rows) AS r;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION sync_perfil_proyectos(UUID, UUID, JSONB) FROM PUBLIC, authenticated;
 
 CREATE OR REPLACE FUNCTION generar_cuotas_contrato()
 RETURNS TRIGGER AS $$
@@ -450,6 +514,13 @@ DECLARE
   i               INTEGER;
   fecha_venc      DATE;
 BEGIN
+  -- cantidad_cuotas=0 solo se valida min=1 en el cliente (SaleForm) — un
+  -- insert por otra vía (RPC, service role) sin este guard dividiría por
+  -- cero.
+  IF NEW.cantidad_cuotas IS NULL OR NEW.cantidad_cuotas <= 0 THEN
+    RETURN NEW;
+  END IF;
+
   saldo_restante := NEW.precio_final - NEW.entrega_efectiva;
   monto_cuota    := ROUND(saldo_restante / NEW.cantidad_cuotas, 2);
 
@@ -564,6 +635,154 @@ BEGIN
     RAISE EXCEPTION 'Solo un admin puede modificar el saldo inicial de una cuenta.';
   END IF;
   RETURN NEW;
+END;
+$$;
+
+-- migration_029: cuotas Pagadas inmutables para no-admin — mismo patrón que
+-- proteger_registro_financiero_terminal, pero la columna se llama
+-- estado_pago (no estado) así que no se puede reusar esa función genérica.
+CREATE OR REPLACE FUNCTION proteger_cuota_pagada()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF es_admin() OR current_setting('app.bypass_inmutable', true) = 'true' THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'No se puede eliminar: la cuota ya está Pagada y solo un admin puede modificarla.';
+  END IF;
+  RAISE EXCEPTION 'No se puede editar: la cuota ya está Pagada y solo un admin puede modificarla.';
+END;
+$$;
+
+-- migration_029: contratos_venta no tiene columna "estado" propia (a
+-- diferencia de gastos/certificados/cobros) — la inmutabilidad se decide
+-- mirando si ya tiene cuotas Pagadas o una entrega_efectiva ya cobrada.
+CREATE OR REPLACE FUNCTION proteger_contrato_con_cobros()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_tiene_cuotas_pagadas BOOLEAN;
+BEGIN
+  IF es_admin() OR current_setting('app.bypass_inmutable', true) = 'true' THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1 FROM cuotas WHERE contrato_id = OLD.id AND estado_pago = 'Pagado'
+  ) INTO v_tiene_cuotas_pagadas;
+
+  IF NOT v_tiene_cuotas_pagadas AND COALESCE(OLD.entrega_efectiva, 0) = 0 THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'No se puede eliminar: el contrato ya tiene cobros registrados (entrega y/o cuotas pagadas) y solo un admin puede hacerlo.';
+  END IF;
+
+  IF TG_OP = 'UPDATE' AND (NEW.precio_final IS DISTINCT FROM OLD.precio_final OR NEW.entrega_efectiva IS DISTINCT FROM OLD.entrega_efectiva) THEN
+    RAISE EXCEPTION 'No se puede editar el precio final ni la entrega efectiva: el contrato ya tiene cobros registrados y solo un admin puede hacerlo.';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+-- migration_028: "perfiles_propios" es FOR ALL y solo restringe LA FILA
+-- (id = auth.uid()), no las columnas — sin este trigger, cualquier usuario
+-- autenticado podía hacer PATCH .../perfiles?id=eq.<su-id> con {rol:'admin'}
+-- (o pisar constructora_id) directo por PostgREST, sin pasar por la app.
+-- Las escrituras legítimas de estas columnas siempre vienen del service
+-- role (app/api/admin/usuarios, app/api/superadmin/constructoras).
+CREATE OR REPLACE FUNCTION proteger_columnas_sensibles_perfil()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF auth.role() = 'service_role' THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.rol IS DISTINCT FROM OLD.rol
+     OR NEW.permisos IS DISTINCT FROM OLD.permisos
+     OR NEW.constructora_id IS DISTINCT FROM OLD.constructora_id
+     OR NEW.activo IS DISTINCT FROM OLD.activo THEN
+    RAISE EXCEPTION 'No podés modificar rol, permisos, constructora o estado de tu propio perfil.';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+-- Bloquea escritura en tablas obra-scoped cuando obras.estado = 'finalizada'.
+-- A propósito sin excepción para admin (ver migration_023.sql) — el banner de
+-- "proyecto cerrado" no distingue rol, así que el trigger tampoco. Respeta
+-- app.bypass_inmutable para no romper purgar_constructora_completa().
+CREATE OR REPLACE FUNCTION bloquear_escritura_proyecto_cerrado()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_obra_id UUID := COALESCE(NEW.obra_id, OLD.obra_id);
+  v_estado  TEXT;
+BEGIN
+  IF current_setting('app.bypass_inmutable', true) = 'true' OR v_obra_id IS NULL THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  SELECT estado INTO v_estado FROM obras WHERE id = v_obra_id;
+
+  IF v_estado = 'finalizada' THEN
+    RAISE EXCEPTION 'El proyecto está cerrado. Reactivalo para poder modificar sus datos.';
+  END IF;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- amenity_imagenes cuelga de amenities (sin obra_id propio).
+CREATE OR REPLACE FUNCTION bloquear_escritura_proyecto_cerrado_amenity()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_obra_id UUID;
+  v_estado  TEXT;
+BEGIN
+  IF current_setting('app.bypass_inmutable', true) = 'true' THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  SELECT obra_id INTO v_obra_id FROM amenities WHERE id = COALESCE(NEW.amenity_id, OLD.amenity_id);
+  IF v_obra_id IS NULL THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  SELECT estado INTO v_estado FROM obras WHERE id = v_obra_id;
+
+  IF v_estado = 'finalizada' THEN
+    RAISE EXCEPTION 'El proyecto está cerrado. Reactivalo para poder modificar sus datos.';
+  END IF;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- cuotas cuelga de contratos_venta (sin obra_id propio).
+CREATE OR REPLACE FUNCTION bloquear_escritura_proyecto_cerrado_cuota()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_obra_id UUID;
+  v_estado  TEXT;
+BEGIN
+  IF current_setting('app.bypass_inmutable', true) = 'true' THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  SELECT obra_id INTO v_obra_id FROM contratos_venta WHERE id = COALESCE(NEW.contrato_id, OLD.contrato_id);
+  IF v_obra_id IS NULL THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  SELECT estado INTO v_estado FROM obras WHERE id = v_obra_id;
+
+  IF v_estado = 'finalizada' THEN
+    RAISE EXCEPTION 'El proyecto está cerrado. Reactivalo para poder modificar sus datos.';
+  END IF;
+
+  RETURN COALESCE(NEW, OLD);
 END;
 $$;
 
@@ -684,6 +903,11 @@ CREATE TRIGGER trg_cuentas_propias_saldo_inicial
   BEFORE UPDATE ON cuentas_propias
   FOR EACH ROW EXECUTE FUNCTION proteger_saldo_inicial();
 
+DROP TRIGGER IF EXISTS trg_proteger_columnas_sensibles_perfil ON perfiles;
+CREATE TRIGGER trg_proteger_columnas_sensibles_perfil
+  BEFORE UPDATE ON perfiles
+  FOR EACH ROW EXECUTE FUNCTION proteger_columnas_sensibles_perfil();
+
 DROP TRIGGER IF EXISTS trg_gastos_inmutable ON gastos;
 CREATE TRIGGER trg_gastos_inmutable
   BEFORE UPDATE OR DELETE ON gastos
@@ -716,6 +940,40 @@ CREATE TRIGGER trg_cobros_proyecto_inmutable
   BEFORE UPDATE OR DELETE ON cobros_proyecto
   FOR EACH ROW WHEN (OLD.estado = 'cobrado')
   EXECUTE FUNCTION proteger_registro_financiero_terminal();
+
+DROP TRIGGER IF EXISTS trg_cuotas_inmutable ON cuotas;
+CREATE TRIGGER trg_cuotas_inmutable
+  BEFORE UPDATE OR DELETE ON cuotas
+  FOR EACH ROW WHEN (OLD.estado_pago = 'Pagado')
+  EXECUTE FUNCTION proteger_cuota_pagada();
+
+DROP TRIGGER IF EXISTS trg_contratos_venta_con_cobros ON contratos_venta;
+CREATE TRIGGER trg_contratos_venta_con_cobros
+  BEFORE UPDATE OR DELETE ON contratos_venta
+  FOR EACH ROW EXECUTE FUNCTION proteger_contrato_con_cobros();
+
+DO $$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'tipologias', 'unidades', 'amenities', 'contratos_venta', 'reservas',
+    'gastos', 'contratos_obra', 'certificados_avance', 'cobros_proyecto', 'cuentas_propias'
+  ]
+  LOOP
+    EXECUTE format('DROP TRIGGER IF EXISTS trg_bloquear_cerrado ON %I', t);
+    EXECUTE format('CREATE TRIGGER trg_bloquear_cerrado BEFORE INSERT OR UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION bloquear_escritura_proyecto_cerrado()', t);
+  END LOOP;
+END $$;
+
+DROP TRIGGER IF EXISTS trg_bloquear_cerrado ON amenity_imagenes;
+CREATE TRIGGER trg_bloquear_cerrado
+  BEFORE INSERT OR UPDATE OR DELETE ON amenity_imagenes
+  FOR EACH ROW EXECUTE FUNCTION bloquear_escritura_proyecto_cerrado_amenity();
+
+DROP TRIGGER IF EXISTS trg_bloquear_cerrado ON cuotas;
+CREATE TRIGGER trg_bloquear_cerrado
+  BEFORE INSERT OR UPDATE OR DELETE ON cuotas
+  FOR EACH ROW EXECUTE FUNCTION bloquear_escritura_proyecto_cerrado_cuota();
 
 DO $$
 DECLARE t TEXT;
@@ -773,6 +1031,7 @@ REVOKE EXECUTE ON FUNCTION purgar_constructora_completa(UUID) FROM anon;
 -- ============================================================
 
 ALTER TABLE perfiles             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE perfil_proyectos     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE constructoras        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE miembros             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE obras                ENABLE ROW LEVEL SECURITY;
@@ -794,12 +1053,25 @@ ALTER TABLE certificados_avance  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cobros_proyecto      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auditoria            ENABLE ROW LEVEL SECURITY;
 
--- Cada usuario ve/edita solo su propio perfil (el admin gestiona su
--- equipo vía createAdminClient(), que bypasea RLS a propósito).
+-- Cada usuario ve/edita solo su propio perfil. La policy de fila NO alcanza
+-- para bloquear escalación de privilegios (rol/permisos/constructora_id) —
+-- ver trigger proteger_columnas_sensibles_perfil (migration_028) más abajo,
+-- que sí impide que esas columnas se toquen fuera del service role.
 DROP POLICY IF EXISTS "perfiles_propios" ON perfiles;
 CREATE POLICY "perfiles_propios" ON perfiles
   FOR ALL TO authenticated
   USING (id = auth.uid()) WITH CHECK (id = auth.uid());
+
+-- Policy ADICIONAL de SELECT (migration_026): un admin puede listar el
+-- equipo de su propia constructora vía RLS normal, sin depender de
+-- createAdminClient(). No reemplaza "perfiles_propios" — Postgres OR-ea
+-- policies permisivas del mismo comando, así que esto solo amplía lectura;
+-- INSERT/UPDATE/DELETE siguen exclusivos de id = auth.uid() (la escritura
+-- del equipo sigue haciéndose vía app/api/admin/usuarios con admin client).
+DROP POLICY IF EXISTS "perfiles_admin_lee_equipo" ON perfiles;
+CREATE POLICY "perfiles_admin_lee_equipo" ON perfiles
+  FOR SELECT TO authenticated
+  USING (es_admin() AND constructora_id IN (SELECT mis_constructoras()));
 
 DROP POLICY IF EXISTS "constructoras_miembros_ven" ON constructoras;
 CREATE POLICY "constructoras_miembros_ven" ON constructoras
@@ -813,94 +1085,129 @@ DROP POLICY IF EXISTS "miembros_ven_propios" ON miembros;
 CREATE POLICY "miembros_ven_propios" ON miembros
   FOR SELECT TO authenticated USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "perfil_proyectos_propio_lee" ON perfil_proyectos;
+CREATE POLICY "perfil_proyectos_propio_lee" ON perfil_proyectos
+  FOR SELECT TO authenticated USING (perfil_id = auth.uid());
+
+-- migration_028: separada en SELECT (cualquier asignado) vs INSERT/UPDATE/
+-- DELETE (solo admin) — antes era FOR ALL y bastaba tener un solo módulo
+-- asignado en el proyecto para poder cerrarlo/eliminarlo por completo.
 DROP POLICY IF EXISTS "obras_tenant" ON obras;
-CREATE POLICY "obras_tenant" ON obras
-  FOR ALL TO authenticated
-  USING      (constructora_id IN (SELECT mis_constructoras()) AND (mi_obra_id() IS NULL OR id = mi_obra_id()))
-  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND (mi_obra_id() IS NULL OR id = mi_obra_id()));
+
+CREATE POLICY "obras_ven_asignados" ON obras
+  FOR SELECT TO authenticated
+  USING (
+    constructora_id IN (SELECT mis_constructoras())
+    AND (es_admin() OR EXISTS (SELECT 1 FROM perfil_proyectos WHERE perfil_id = auth.uid() AND obra_id = obras.id))
+  );
+
+CREATE POLICY "obras_admin_crea" ON obras
+  FOR INSERT TO authenticated
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND es_admin());
+
+CREATE POLICY "obras_admin_actualiza" ON obras
+  FOR UPDATE TO authenticated
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND es_admin())
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND es_admin());
+
+CREATE POLICY "obras_admin_elimina" ON obras
+  FOR DELETE TO authenticated
+  USING (constructora_id IN (SELECT mis_constructoras()) AND es_admin());
 
 DROP POLICY IF EXISTS "tipologias_tenant" ON tipologias;
 CREATE POLICY "tipologias_tenant" ON tipologias
   FOR ALL TO authenticated
-  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('tipologias') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()))
-  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('tipologias') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()));
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'tipologias'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'tipologias'));
 
 DROP POLICY IF EXISTS "unidades_tenant" ON unidades;
 CREATE POLICY "unidades_tenant" ON unidades
   FOR ALL TO authenticated
-  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('unidades') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()))
-  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('unidades') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()));
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'unidades'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'unidades'));
 
 DROP POLICY IF EXISTS "amenities_tenant" ON amenities;
 CREATE POLICY "amenities_tenant" ON amenities
   FOR ALL TO authenticated
-  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('amenities') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()))
-  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('amenities') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()));
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'amenities'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'amenities'));
 
 DROP POLICY IF EXISTS "amenity_imagenes_tenant" ON amenity_imagenes;
 CREATE POLICY "amenity_imagenes_tenant" ON amenity_imagenes
   FOR ALL TO authenticated
   USING (
-    tiene_permiso('amenities') AND
     amenity_id IN (
-      SELECT id FROM amenities
-      WHERE constructora_id IN (SELECT mis_constructoras())
-        AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id())
+      SELECT id FROM amenities a
+      WHERE a.constructora_id IN (SELECT mis_constructoras())
+        AND tiene_permiso_proyecto(a.obra_id, 'amenities')
     )
   )
   WITH CHECK (
-    tiene_permiso('amenities') AND
     amenity_id IN (
-      SELECT id FROM amenities
-      WHERE constructora_id IN (SELECT mis_constructoras())
-        AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id())
+      SELECT id FROM amenities a
+      WHERE a.constructora_id IN (SELECT mis_constructoras())
+        AND tiene_permiso_proyecto(a.obra_id, 'amenities')
     )
   );
 
--- compradores: entidad compartida entre reservas/ventas (DESARROLLO) y
--- certificados de obra (OBRA) — basta con cualquiera de los 3 módulos.
+-- compradores: entidad compartida sin obra_id propio — basta con tener
+-- alguno de los 3 módulos en CUALQUIER proyecto asignado.
 DROP POLICY IF EXISTS "compradores_tenant" ON compradores;
 CREATE POLICY "compradores_tenant" ON compradores
   FOR ALL TO authenticated
   USING (
     constructora_id IN (SELECT mis_constructoras())
-    AND (tiene_permiso('reservas') OR tiene_permiso('contratos') OR tiene_permiso('certificados'))
+    AND (tiene_permiso_en_algun_proyecto('reservas') OR tiene_permiso_en_algun_proyecto('contratos') OR tiene_permiso_en_algun_proyecto('certificados'))
   )
   WITH CHECK (
     constructora_id IN (SELECT mis_constructoras())
-    AND (tiene_permiso('reservas') OR tiene_permiso('contratos') OR tiene_permiso('certificados'))
+    AND (tiene_permiso_en_algun_proyecto('reservas') OR tiene_permiso_en_algun_proyecto('contratos') OR tiene_permiso_en_algun_proyecto('certificados'))
   );
 
 DROP POLICY IF EXISTS "contratos_tenant" ON contratos_venta;
 CREATE POLICY "contratos_tenant" ON contratos_venta
   FOR ALL TO authenticated
-  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('contratos') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()))
-  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('contratos') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()));
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'contratos'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'contratos'));
 
 -- cuotas no tiene columna obra_id propia — cuelga de contratos_venta.
 DROP POLICY IF EXISTS "cuotas_tenant" ON cuotas;
 CREATE POLICY "cuotas_tenant" ON cuotas
   FOR ALL TO authenticated
   USING (
-    constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('contratos')
-    AND (mi_obra_id() IS NULL OR contrato_id IN (SELECT id FROM contratos_venta WHERE obra_id = mi_obra_id()))
+    constructora_id IN (SELECT mis_constructoras())
+    AND contrato_id IN (SELECT id FROM contratos_venta cv WHERE tiene_permiso_proyecto(cv.obra_id, 'contratos'))
   )
   WITH CHECK (
-    constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('contratos')
-    AND (mi_obra_id() IS NULL OR contrato_id IN (SELECT id FROM contratos_venta WHERE obra_id = mi_obra_id()))
+    constructora_id IN (SELECT mis_constructoras())
+    AND contrato_id IN (SELECT id FROM contratos_venta cv WHERE tiene_permiso_proyecto(cv.obra_id, 'contratos'))
   );
 
 DROP POLICY IF EXISTS "reservas_tenant" ON reservas;
 CREATE POLICY "reservas_tenant" ON reservas
   FOR ALL TO authenticated
-  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('reservas') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()))
-  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('reservas') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()));
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'reservas'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'reservas'));
 
+-- cuentas_propias: obra_id NULL es el pool compartido de la empresa. Lectura
+-- permitida a cualquiera con 'cuentas' en ALGÚN proyecto (lo necesitan las
+-- páginas de proyecto en modo_cuentas='empresa'); escritura de filas sin
+-- proyecto queda solo para admin.
 DROP POLICY IF EXISTS "cuentas_propias_tenant" ON cuentas_propias;
 CREATE POLICY "cuentas_propias_tenant" ON cuentas_propias
   FOR ALL TO authenticated
-  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('cuentas') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()))
-  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('cuentas') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()));
+  USING (
+    constructora_id IN (SELECT mis_constructoras()) AND (
+      (obra_id IS NULL AND (es_admin() OR tiene_permiso_en_algun_proyecto('cuentas')))
+      OR (obra_id IS NOT NULL AND tiene_permiso_proyecto(obra_id, 'cuentas'))
+    )
+  )
+  WITH CHECK (
+    constructora_id IN (SELECT mis_constructoras()) AND (
+      (obra_id IS NULL AND es_admin())
+      OR (obra_id IS NOT NULL AND tiene_permiso_proyecto(obra_id, 'cuentas'))
+    )
+  );
 
 DROP POLICY IF EXISTS "proveedores_tenant" ON proveedores;
 CREATE POLICY "proveedores_tenant" ON proveedores
@@ -920,35 +1227,48 @@ CREATE POLICY "cuentas_proveedor_tenant" ON cuentas_proveedor
     proveedor_id IN (SELECT id FROM proveedores WHERE constructora_id IN (SELECT mis_constructoras()))
   );
 
+-- categorias_costo: sin obra_id propio, gateada por 'gastos' en cualquier proyecto.
 DROP POLICY IF EXISTS "categorias_costo_tenant" ON categorias_costo;
 CREATE POLICY "categorias_costo_tenant" ON categorias_costo
   FOR ALL TO authenticated
-  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('gastos'))
-  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('gastos'));
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_en_algun_proyecto('gastos'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_en_algun_proyecto('gastos'));
 
+-- gastos: obra_id NULL = gasto administrativo de la constructora, solo admin
+-- (las páginas de proyecto solo leen filas con obra_id = esa obra, nunca NULL).
 DROP POLICY IF EXISTS "gastos_tenant" ON gastos;
 CREATE POLICY "gastos_tenant" ON gastos
   FOR ALL TO authenticated
-  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('gastos') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()))
-  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('gastos') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()));
+  USING (
+    constructora_id IN (SELECT mis_constructoras()) AND (
+      (obra_id IS NULL AND es_admin())
+      OR (obra_id IS NOT NULL AND tiene_permiso_proyecto(obra_id, 'gastos'))
+    )
+  )
+  WITH CHECK (
+    constructora_id IN (SELECT mis_constructoras()) AND (
+      (obra_id IS NULL AND es_admin())
+      OR (obra_id IS NOT NULL AND tiene_permiso_proyecto(obra_id, 'gastos'))
+    )
+  );
 
 DROP POLICY IF EXISTS "contratos_obra_tenant" ON contratos_obra;
 CREATE POLICY "contratos_obra_tenant" ON contratos_obra
   FOR ALL TO authenticated
-  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('certificados') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()))
-  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('certificados') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()));
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'certificados'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'certificados'));
 
 DROP POLICY IF EXISTS "certificados_avance_tenant" ON certificados_avance;
 CREATE POLICY "certificados_avance_tenant" ON certificados_avance
   FOR ALL TO authenticated
-  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('certificados') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()))
-  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('certificados') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()));
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'certificados'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'certificados'));
 
 DROP POLICY IF EXISTS "cobros_proyecto_tenant" ON cobros_proyecto;
 CREATE POLICY "cobros_proyecto_tenant" ON cobros_proyecto
   FOR ALL TO authenticated
-  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('cobros') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()))
-  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('cobros') AND (mi_obra_id() IS NULL OR obra_id = mi_obra_id()));
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'cobros'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso_proyecto(obra_id, 'cobros'));
 
 -- Nadie escribe directo — solo el trigger registrar_auditoria() (SECURITY
 -- DEFINER). Solo un admin lee la auditoría de su propia constructora.
@@ -964,7 +1284,12 @@ CREATE POLICY "auditoria_admin_lee" ON auditoria
 CREATE INDEX IF NOT EXISTS idx_miembros_user_id           ON miembros(user_id);
 CREATE INDEX IF NOT EXISTS idx_miembros_constructora       ON miembros(constructora_id);
 CREATE INDEX IF NOT EXISTS idx_obras_constructora          ON obras(constructora_id);
-CREATE INDEX IF NOT EXISTS idx_perfiles_obra               ON perfiles(obra_id);
+CREATE INDEX IF NOT EXISTS idx_perfiles_obra               ON perfiles(obra_id);  -- legado, ver perfil_proyectos
+CREATE INDEX IF NOT EXISTS idx_perfiles_permisos_gin       ON perfiles USING GIN (permisos);
+
+CREATE INDEX IF NOT EXISTS idx_perfil_proyectos_perfil       ON perfil_proyectos(perfil_id);
+CREATE INDEX IF NOT EXISTS idx_perfil_proyectos_obra         ON perfil_proyectos(obra_id);
+CREATE INDEX IF NOT EXISTS idx_perfil_proyectos_constructora ON perfil_proyectos(constructora_id);
 
 CREATE INDEX IF NOT EXISTS idx_tipologias_obra             ON tipologias(obra_id);
 CREATE INDEX IF NOT EXISTS idx_unidades_obra                ON unidades(obra_id);
@@ -975,6 +1300,11 @@ CREATE INDEX IF NOT EXISTS idx_contratos_constructora        ON contratos_venta(
 CREATE INDEX IF NOT EXISTS idx_contratos_venta_obra_id       ON contratos_venta(obra_id);
 CREATE INDEX IF NOT EXISTS idx_reservas_constructora         ON reservas(constructora_id);
 CREATE INDEX IF NOT EXISTS idx_reservas_unidad_estado        ON reservas(unidad_id, estado);
+
+-- migration_028: evita dos reservas 'Vigente' simultáneas sobre la misma
+-- unidad (contratos_venta.unidad_id ya era UNIQUE, esto era el hueco).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reservas_unica_vigente
+  ON reservas (unidad_id) WHERE estado = 'Vigente';
 CREATE INDEX IF NOT EXISTS idx_cuotas_constructora           ON cuotas(constructora_id);
 CREATE INDEX IF NOT EXISTS idx_cuotas_pendientes_vencimiento ON cuotas(fecha_vencimiento) WHERE estado_pago = 'Pendiente';
 

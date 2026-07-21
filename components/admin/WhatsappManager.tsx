@@ -4,11 +4,15 @@ import { useState } from 'react'
 
 interface Props {
   telefonoInicial: string | null
+  // Nombre del admin que vinculó el teléfono, solo si NO es quien está
+  // mirando esta pantalla — permite que cualquier admin de la constructora
+  // vea y desvincule el teléfono de un compañero (ver API DELETE).
+  vinculadoNombre?: string | null
   kapsoPhoneIdInicial: string | null
   numeroWhatsappInicial: string | null
 }
 
-export default function WhatsappManager({ telefonoInicial, kapsoPhoneIdInicial, numeroWhatsappInicial }: Props) {
+export default function WhatsappManager({ telefonoInicial, vinculadoNombre, kapsoPhoneIdInicial, numeroWhatsappInicial }: Props) {
   const [telefono, setTelefono] = useState(telefonoInicial)
   const [kapsoPhoneId] = useState(kapsoPhoneIdInicial)
   const [numeroWhatsapp] = useState(numeroWhatsappInicial)
@@ -70,6 +74,9 @@ export default function WhatsappManager({ telefonoInicial, kapsoPhoneIdInicial, 
           <div>
             <p className="text-sm text-slate-500">Teléfono vinculado</p>
             <p className="text-lg font-semibold text-slate-900">{telefono}</p>
+            {vinculadoNombre && (
+              <p className="text-xs text-slate-400 mt-0.5">Vinculado por {vinculadoNombre}</p>
+            )}
           </div>
           <button
             onClick={desvincular}

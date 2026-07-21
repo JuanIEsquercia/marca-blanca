@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verificarFirmaWebhook, enviarMensajeWhatsapp, enviarListaWhatsapp, enviarBotonesWhatsapp } from '@/lib/kapso'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { crearRateLimiter } from '@/lib/auth-helpers'
 import {
   resolverConstructoraPorNumero, resolverPerfilPorTelefono, obtenerAccesoCaja,
   type WhatsappPerfil,
@@ -14,6 +15,12 @@ export const runtime = 'nodejs'
 
 const REGEX_VINCULAR = /^vincular\s+(\d{6})$/i
 const MONTO_MAXIMO = 1_000_000_000 // 1.000 millones — tope de sanidad ante un typo, no un límite de negocio
+
+// El código tiene 900.000 combinaciones y 10 min de vida — sin este límite,
+// alguien con acceso a WhatsApp podía probar sin freno durante esa ventana.
+// Clave por número emisor (from), no por phoneNumberId: cada atacante tiene
+// su propio contador, no comparte cupo con intentos legítimos de otros.
+const vincularLimiter = crearRateLimiter(5, 10 * 60 * 1000)
 
 interface Entrada {
   texto: string | null
@@ -33,6 +40,10 @@ function parsearMonto(texto: string): number {
 }
 
 async function intentarVincular(phoneNumberId: string, from: string, codigo: string): Promise<string> {
+  if (!vincularLimiter.chequear(from)) {
+    return 'Demasiados intentos. Esperá unos minutos y volvé a intentar.'
+  }
+
   const admin = createAdminClient()
 
   // El número<->constructora se configura SOLO por el superadmin de la
@@ -83,6 +94,7 @@ async function intentarVincular(phoneNumberId: string, from: string, codigo: str
     .update({ usado_en: new Date().toISOString() })
     .eq('id', vinculo.id)
 
+  vincularLimiter.limpiar(from)
   return '✅ Tu WhatsApp quedó vinculado. Ya podés hacer consultas por acá.'
 }
 
@@ -161,8 +173,8 @@ async function iniciarBorradorGasto(constructoraId: string, perfil: WhatsappPerf
     await enviarMensajeWhatsapp({ phoneNumberId, to, body: 'No tenés ningún proyecto con permiso para cargar gastos.' })
     return
   }
-  await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'monto', {})
   await enviarMensajeWhatsapp({ phoneNumberId, to, body: '¿Cuál es el monto del gasto? Escribí el número entero sin puntos; si tiene decimales usá coma, ej: 1000222,55\n\nEscribí "cancelar" en cualquier momento para salir.' })
+  await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'monto', {})
 }
 
 async function manejarBorradorGasto(
@@ -185,11 +197,11 @@ async function manejarBorradorGasto(
       await enviarMensajeWhatsapp({ phoneNumberId, to, body: `Ese monto (${formatearMonto(monto, 'ARS')}) parece demasiado alto — ¿te confundiste con los puntos? Escribilo de nuevo.` })
       return
     }
-    await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'moneda', { ...datos, monto })
     await enviarBotonesWhatsapp({
       phoneNumberId, to, texto: '¿En qué moneda?',
       botones: [{ id: 'moneda_ars', title: 'ARS' }, { id: 'moneda_usd', title: 'USD' }],
     })
+    await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'moneda', { ...datos, monto })
     return
   }
 
@@ -199,8 +211,8 @@ async function manejarBorradorGasto(
       return
     }
     const moneda = entrada.buttonReplyId === 'moneda_usd' ? 'USD' : 'ARS'
-    await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'descripcion', { ...datos, moneda })
     await enviarMensajeWhatsapp({ phoneNumberId, to, body: '¿Descripción del gasto?' })
+    await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'descripcion', { ...datos, moneda })
     return
   }
 
@@ -209,11 +221,11 @@ async function manejarBorradorGasto(
       await enviarMensajeWhatsapp({ phoneNumberId, to, body: 'Mandame una descripción breve del gasto.' })
       return
     }
+    const descripcion = entrada.texto.trim()
     const categorias = await obtenerCategorias(constructoraId)
-    await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'categoria', { ...datos, descripcion: entrada.texto.trim() })
 
     if (categorias.length === 0) {
-      await avanzarAProyecto(constructoraId, perfil, phoneNumberId, to, { ...datos, descripcion: entrada.texto.trim(), categoriaId: null, categoriaNombre: null })
+      await avanzarAProyecto(constructoraId, perfil, phoneNumberId, to, { ...datos, descripcion, categoriaId: null, categoriaNombre: null })
       return
     }
     await enviarListaWhatsapp({
@@ -226,6 +238,7 @@ async function manejarBorradorGasto(
         { id: 'gasto_categoria_ninguna', title: 'Sin categoría' },
       ],
     })
+    await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'categoria', { ...datos, descripcion })
     return
   }
 
@@ -273,11 +286,11 @@ async function manejarBorradorGasto(
     }
 
     const datosFinales: Record<string, unknown> = { ...datos, obraId, obraNombre }
-    await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'cuenta', datosFinales)
     await enviarListaWhatsapp({
       phoneNumberId, to, texto: '¿Con qué cuenta se pagó?', tituloBoton: 'Elegir',
       filas: cuentas.map(c => ({ id: `gasto_cuenta:${c.id}`, title: c.nombre.slice(0, 24), description: c.moneda })),
     })
+    await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'cuenta', datosFinales)
     return
   }
 
@@ -295,7 +308,6 @@ async function manejarBorradorGasto(
     }
 
     const datosFinales: Record<string, unknown> = { ...datos, cuentaPropiaId: cuenta.id, cuentaPropiaNombre: cuenta.nombre }
-    await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'confirmar', datosFinales)
 
     const resumen = [
       '📝 *Confirmá el gasto (queda como Pagado)*',
@@ -310,6 +322,7 @@ async function manejarBorradorGasto(
       phoneNumberId, to, texto: resumen,
       botones: [{ id: 'gasto_confirmar', title: 'Confirmar' }, { id: 'gasto_cancelar', title: 'Cancelar' }],
     })
+    await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'confirmar', datosFinales)
     return
   }
 
@@ -329,6 +342,17 @@ async function manejarBorradorGasto(
       }
       const d = reclamado.datos
       try {
+        // Revalida acceso al momento de confirmar, no solo al iniciar la
+        // conversación — si a mitad de camino se le revoca el permiso de
+        // "gastos" en ese proyecto (o dejó de tener acceso general), un
+        // borrador viejo no debe poder colarse igual.
+        const obraId = (d.obraId as string | null) ?? null
+        const acceso = await obtenerAccesoGastos(constructoraId, perfil)
+        const tieneAcceso = obraId ? acceso.proyectos.some(p => p.obraId === obraId) : acceso.general
+        if (!tieneAcceso) {
+          await enviarMensajeWhatsapp({ phoneNumberId, to, body: 'Ya no tenés permiso para cargar gastos en ese proyecto — el gasto no se registró.' })
+          return
+        }
         await registrarGasto(constructoraId, perfil.perfilId, {
           monto: d.monto as number,
           moneda: (d.moneda as 'ARS' | 'USD') ?? 'ARS',
@@ -353,13 +377,13 @@ async function manejarBorradorGasto(
 
 async function avanzarAProyecto(constructoraId: string, perfil: WhatsappPerfil, phoneNumberId: string, to: string, datos: Record<string, unknown>) {
   const acceso = await obtenerAccesoGastos(constructoraId, perfil)
-  await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'proyecto', datos)
 
   const filas = [
     ...acceso.proyectos.map(p => ({ id: `gasto_proyecto:${p.obraId}`, title: p.nombre.slice(0, 24) })),
     ...(acceso.general ? [{ id: 'gasto_proyecto_empresa', title: 'Gasto de empresa' }] : []),
   ]
   await enviarListaWhatsapp({ phoneNumberId, to, texto: '¿A qué proyecto pertenece?', tituloBoton: 'Elegir', filas })
+  await guardarBorrador(perfil.perfilId, constructoraId, 'gasto', 'proyecto', datos)
 }
 
 // ---------- Cobro de obra (con estado — whatsapp_borradores) ----------
@@ -370,8 +394,8 @@ async function iniciarBorradorCobro(constructoraId: string, perfil: WhatsappPerf
     await enviarMensajeWhatsapp({ phoneNumberId, to, body: 'No tenés ningún proyecto de obra con permiso para cobros.' })
     return
   }
-  await guardarBorrador(perfil.perfilId, constructoraId, 'cobro', 'monto', {})
   await enviarMensajeWhatsapp({ phoneNumberId, to, body: '¿Cuál es el monto del cobro? Escribí el número entero sin puntos; si tiene decimales usá coma, ej: 1000222,55\n\nEscribí "cancelar" en cualquier momento para salir.' })
+  await guardarBorrador(perfil.perfilId, constructoraId, 'cobro', 'monto', {})
 }
 
 async function manejarBorradorCobro(
@@ -394,11 +418,11 @@ async function manejarBorradorCobro(
       await enviarMensajeWhatsapp({ phoneNumberId, to, body: `Ese monto (${formatearMonto(monto, 'ARS')}) parece demasiado alto — ¿te confundiste con los puntos? Escribilo de nuevo.` })
       return
     }
-    await guardarBorrador(perfil.perfilId, constructoraId, 'cobro', 'moneda', { ...datos, monto })
     await enviarBotonesWhatsapp({
       phoneNumberId, to, texto: '¿En qué moneda?',
       botones: [{ id: 'moneda_ars', title: 'ARS' }, { id: 'moneda_usd', title: 'USD' }],
     })
+    await guardarBorrador(perfil.perfilId, constructoraId, 'cobro', 'moneda', { ...datos, monto })
     return
   }
 
@@ -409,11 +433,11 @@ async function manejarBorradorCobro(
     }
     const moneda = entrada.buttonReplyId === 'moneda_usd' ? 'USD' : 'ARS'
     const proyectos = await obtenerAccesoCobros(constructoraId, perfil)
-    await guardarBorrador(perfil.perfilId, constructoraId, 'cobro', 'proyecto', { ...datos, moneda })
     await enviarListaWhatsapp({
       phoneNumberId, to, texto: '¿A qué proyecto de obra pertenece?', tituloBoton: 'Elegir',
       filas: proyectos.map(p => ({ id: `cobro_proyecto:${p.obraId}`, title: p.nombre.slice(0, 24) })),
     })
+    await guardarBorrador(perfil.perfilId, constructoraId, 'cobro', 'proyecto', { ...datos, moneda })
     return
   }
 
@@ -438,11 +462,11 @@ async function manejarBorradorCobro(
     }
 
     const datosFinales: Record<string, unknown> = { ...datos, obraId, obraNombre: proyecto.nombre }
-    await guardarBorrador(perfil.perfilId, constructoraId, 'cobro', 'cuenta', datosFinales)
     await enviarListaWhatsapp({
       phoneNumberId, to, texto: '¿A qué cuenta ingresó el cobro?', tituloBoton: 'Elegir',
       filas: cuentas.map(c => ({ id: `cobro_cuenta:${c.id}`, title: c.nombre.slice(0, 24), description: c.moneda })),
     })
+    await guardarBorrador(perfil.perfilId, constructoraId, 'cobro', 'cuenta', datosFinales)
     return
   }
 
@@ -460,7 +484,6 @@ async function manejarBorradorCobro(
     }
 
     const datosFinales: Record<string, unknown> = { ...datos, cuentaPropiaId: cuenta.id, cuentaPropiaNombre: cuenta.nombre }
-    await guardarBorrador(perfil.perfilId, constructoraId, 'cobro', 'confirmar', datosFinales)
 
     const resumen = [
       '📝 *Confirmá el cobro*',
@@ -473,6 +496,7 @@ async function manejarBorradorCobro(
       phoneNumberId, to, texto: resumen,
       botones: [{ id: 'cobro_confirmar', title: 'Confirmar' }, { id: 'cobro_cancelar', title: 'Cancelar' }],
     })
+    await guardarBorrador(perfil.perfilId, constructoraId, 'cobro', 'confirmar', datosFinales)
     return
   }
 
@@ -492,6 +516,12 @@ async function manejarBorradorCobro(
       }
       const d = reclamado.datos
       try {
+        // Mismo chequeo TOCTOU que en gasto_confirmar — ver comentario ahí.
+        const proyectos = await obtenerAccesoCobros(constructoraId, perfil)
+        if (!proyectos.some(p => p.obraId === d.obraId)) {
+          await enviarMensajeWhatsapp({ phoneNumberId, to, body: 'Ya no tenés permiso para cargar cobros en ese proyecto — el cobro no se registró.' })
+          return
+        }
         await registrarCobro(constructoraId, perfil.perfilId, {
           monto: d.monto as number,
           moneda: (d.moneda as 'ARS' | 'USD') ?? 'ARS',

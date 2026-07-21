@@ -15,18 +15,19 @@ export default async function WhatsappPage() {
   const adminClient = createAdminClient()
   const { data: perfil } = await adminClient
     .from('perfiles')
-    .select('rol, telefono, constructora_id')
+    .select('rol, constructora_id')
     .eq('id', user.id)
     .single()
 
   if (perfil?.rol !== 'admin') redirect('/admin')
 
-  const { data: numero } = await adminClient
-    .from('whatsapp_numeros')
-    .select('kapso_phone_id, numero')
-    .eq('constructora_id', perfil.constructora_id)
-    .eq('activo', true)
-    .maybeSingle()
+  // El teléfono vinculado puede ser el propio o el de OTRO admin de la misma
+  // constructora — se busca por constructora, no por el propio user.id, para
+  // poder mostrarlo/desvincularlo aunque lo haya vinculado un compañero.
+  const [{ data: vinculado }, { data: numero }] = await Promise.all([
+    adminClient.from('perfiles').select('id, nombre, telefono').eq('constructora_id', perfil.constructora_id).eq('rol', 'admin').not('telefono', 'is', null).maybeSingle(),
+    adminClient.from('whatsapp_numeros').select('kapso_phone_id, numero').eq('constructora_id', perfil.constructora_id).eq('activo', true).maybeSingle(),
+  ])
 
   return (
     <div>
@@ -37,7 +38,8 @@ export default async function WhatsappPage() {
         </p>
       </div>
       <WhatsappManager
-        telefonoInicial={perfil?.telefono ?? null}
+        telefonoInicial={vinculado?.telefono ?? null}
+        vinculadoNombre={vinculado ? (vinculado.id === user.id ? null : vinculado.nombre) : null}
         kapsoPhoneIdInicial={numero?.kapso_phone_id ?? null}
         numeroWhatsappInicial={numero?.numero ?? null}
       />

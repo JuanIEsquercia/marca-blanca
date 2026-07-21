@@ -21,6 +21,12 @@ export async function obtenerBorrador(perfilId: string): Promise<Borrador | null
   return data as Borrador | null
 }
 
+// Convención: llamar DESPUÉS de enviar el mensaje de WhatsApp correspondiente
+// al nuevo paso, nunca antes. Si se guarda primero y el envío falla (rate
+// limit de Kapso, etc.), el borrador queda en un paso que el usuario nunca
+// vio preguntado — su próximo mensaje se interpreta como respuesta a una
+// pregunta que no le llegó. Si el envío falla, la excepción se propaga y el
+// paso anterior queda intacto para reintentar.
 export async function guardarBorrador(perfilId: string, constructoraId: string, tipo: string, paso: string, datos: Record<string, unknown>): Promise<void> {
   const admin = createAdminClient()
   const { error } = await admin

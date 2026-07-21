@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, redondear2 } from '@/lib/utils'
 import type { Unidad, Tipologia, CuentaPropia } from '@/types/database'
 
 interface CompradorPreFill {
@@ -34,22 +34,46 @@ export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compra
 
   // Contrato
   const [precioFinal, setPrecioFinal] = useState(String(unidad.precio_lista))
-  const [entregaEfectiva, setEntregaEfectiva] = useState(
-    String(Math.round(unidad.precio_lista * unidad.entrega_minima_pct / 100))
-  )
+  const entregaMinima = redondear2(unidad.precio_lista * unidad.entrega_minima_pct / 100)
+  const [entregaEfectiva, setEntregaEfectiva] = useState(String(entregaMinima))
   const [cantCuotas, setCantCuotas] = useState(String(unidad.max_cuotas))
   const [fechaFirma, setFechaFirma] = useState(new Date().toISOString().split('T')[0])
   const [cuentaPropiaId, setCuentaPropiaId] = useState('')
   const [notas, setNotas] = useState('')
+  const [senaPrevia, setSenaPrevia] = useState<number | null>(null)
 
   useEffect(() => {
+    // Entrega efectiva es siempre USD (mismo criterio que precio_lista) —
+    // solo se ofrecen cuentas USD.
     createClient()
       .from('cuentas_propias')
       .select('*')
       .eq('activa', true)
+      .eq('moneda', 'USD')
       .order('nombre')
       .then(({ data }) => setCuentasPropias(data ?? []))
   }, [])
+
+  // Si la venta viene de una reserva, la seña ya cobrada (monto_sena) es
+  // plata que ya entró a una cuenta — sin este prefill, el vendedor
+  // recalculaba "entrega efectiva" desde cero y esa plata quedaba sin
+  // reflejarse en ningún lado (ni duplicada ni contada). La entrega
+  // efectiva del contrato debe incluirla como mínimo.
+  useEffect(() => {
+    if (!reservaId) return
+    createClient()
+      .from('reservas')
+      .select('monto_sena, cuenta_propia_id')
+      .eq('id', reservaId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data?.monto_sena) return
+        setSenaPrevia(data.monto_sena)
+        setEntregaEfectiva(String(Math.max(entregaMinima, data.monto_sena)))
+        if (data.cuenta_propia_id) setCuentaPropiaId(data.cuenta_propia_id)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reservaId])
 
   const saldoRestante = parseFloat(precioFinal || '0') - parseFloat(entregaEfectiva || '0')
   const montoCuota = cantCuotas ? saldoRestante / parseInt(cantCuotas) : 0
@@ -199,6 +223,11 @@ export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compra
                 <input required type="number" min="0" step="0.01" value={entregaEfectiva}
                   onChange={e => setEntregaEfectiva(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                {senaPrevia !== null && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    Incluye la seña de {formatCurrency(senaPrevia)} ya cobrada en la reserva — no la vuelvas a cargar aparte.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Cantidad de cuotas *</label>

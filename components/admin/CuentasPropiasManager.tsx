@@ -3,21 +3,30 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { cn } from '@/lib/utils'
+import { cn, formatCurrency, redondear2 } from '@/lib/utils'
 import type { CuentaPropia } from '@/types/database'
+import type { SaldoCuenta } from '@/lib/tesoreria'
 import ConfirmModal from './ConfirmModal'
 
 type ConfirmModalState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
 
 interface Props {
-  cuentas: CuentaPropia[]
+  // obra_nombre solo lo manda la vista de empresa (/admin/cuentas, que lista
+  // cuentas de todos los proyectos a la vez) — la vista de un proyecto ya
+  // está scopeada a uno solo, no hace falta repetirlo ahí.
+  cuentas: (CuentaPropia & { obra_nombre?: string | null })[]
+  // Saldo consolidado (saldo_inicial + movimientos) por cuenta.id, calculado
+  // en el server con lib/tesoreria.ts. Si falta una cuenta acá (no debería
+  // pasar, la página siempre lo calcula para todas) se cae al saldo_inicial.
+  saldos?: Record<string, SaldoCuenta>
   constructoraId: string
   obraId?: string
+  readOnly?: boolean
 }
 
 const EMPTY_FORM = { nombre: '', tipo: 'banco', moneda: 'USD', saldo_inicial: '0' }
 
-export default function CuentasPropiasManager({ cuentas, constructoraId, obraId }: Props) {
+export default function CuentasPropiasManager({ cuentas, saldos, constructoraId, obraId, readOnly }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
@@ -57,7 +66,7 @@ export default function CuentasPropiasManager({ cuentas, constructoraId, obraId 
       nombre: form.nombre.trim(),
       tipo: form.tipo,
       moneda: form.moneda,
-      saldo_inicial: parseFloat(form.saldo_inicial || '0'),
+      saldo_inicial: redondear2(parseFloat(form.saldo_inicial || '0')),
     }
     const { error: err } = editing
       ? await supabase.from('cuentas_propias').update(payload).eq('id', editing.id)
@@ -70,7 +79,8 @@ export default function CuentasPropiasManager({ cuentas, constructoraId, obraId 
 
   async function handleToggle(c: CuentaPropia) {
     const supabase = createClient()
-    await supabase.from('cuentas_propias').update({ activa: !c.activa }).eq('id', c.id)
+    const { error } = await supabase.from('cuentas_propias').update({ activa: !c.activa }).eq('id', c.id)
+    if (error) { setError(error.message); return }
     refresh()
   }
 
@@ -81,30 +91,32 @@ export default function CuentasPropiasManager({ cuentas, constructoraId, obraId 
       confirmLabel: 'Eliminar',
       onConfirm: async () => {
         const supabase = createClient()
-        await supabase.from('cuentas_propias').delete().eq('id', c.id)
+        const { error } = await supabase.from('cuentas_propias').delete().eq('id', c.id)
+        if (error) throw new Error(error.message)
         setConfirmModal(null)
         refresh()
       },
     })
   }
 
-  const fmt = (c: CuentaPropia) =>
-    c.moneda === 'USD'
-      ? `U$D ${c.saldo_inicial.toLocaleString('es-AR')}`
-      : `$ ${c.saldo_inicial.toLocaleString('es-AR')}`
+  const fmtSaldoInicial = (c: CuentaPropia) => formatCurrency(c.saldo_inicial, c.moneda)
+  const saldoActual = (c: CuentaPropia) => saldos?.[c.id]?.saldo_actual ?? c.saldo_inicial
+  const fmtSaldoActual = (c: CuentaPropia) => formatCurrency(saldoActual(c), c.moneda)
 
   return (
     <div>
       <div className="flex justify-between items-center mb-5">
         <p className="text-slate-500 text-sm">{cuentas.length} cuenta(s) configurada(s)</p>
-        <button onClick={openNew}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                     text-white rounded-lg text-sm font-medium transition-colors">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Nueva cuenta
-        </button>
+        {!readOnly && (
+          <button onClick={openNew}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
+                       text-white rounded-lg text-sm font-medium transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nueva cuenta
+          </button>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -142,26 +154,43 @@ export default function CuentasPropiasManager({ cuentas, constructoraId, obraId 
                 )}>{c.moneda}</span>
                 <span className="text-xs text-slate-400 capitalize">{c.tipo}</span>
                 {!c.activa && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactiva</span>}
+                {c.obra_nombre !== undefined && (
+                  c.obra_nombre ? (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-600">{c.obra_nombre}</span>
+                  ) : (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-500">Empresa</span>
+                  )
+                )}
               </div>
               <p className="text-sm text-slate-500 mt-0.5">
-                Saldo inicial: <span className="font-medium text-slate-700">{fmt(c)}</span>
+                Saldo inicial: <span className="font-medium text-slate-700">{fmtSaldoInicial(c)}</span>
               </p>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <button onClick={() => openEdit(c)}
-                className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600
-                           hover:border-indigo-300 hover:text-indigo-600 transition-colors">
-                Editar
-              </button>
-              <button onClick={() => handleToggle(c)}
-                className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600
-                           hover:border-slate-300 transition-colors">
-                {c.activa ? 'Desactivar' : 'Activar'}
-              </button>
-              <button onClick={() => handleDelete(c)}
-                className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>
+            <div className="text-right shrink-0">
+              <p className="text-xs text-slate-400">Saldo actual</p>
+              <p className={cn(
+                'text-lg font-bold',
+                saldoActual(c) >= 0 ? 'text-slate-900' : 'text-red-600'
+              )}>{fmtSaldoActual(c)}</p>
             </div>
+
+            {!readOnly && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => openEdit(c)}
+                  className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600
+                             hover:border-indigo-300 hover:text-indigo-600 transition-colors">
+                  Editar
+                </button>
+                <button onClick={() => handleToggle(c)}
+                  className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600
+                             hover:border-slate-300 transition-colors">
+                  {c.activa ? 'Desactivar' : 'Activar'}
+                </button>
+                <button onClick={() => handleDelete(c)}
+                  className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -172,9 +201,11 @@ export default function CuentasPropiasManager({ cuentas, constructoraId, obraId 
           <p className="text-xs mb-4 text-slate-300">
             Creá tus cuentas bancarias y cajas para poder asignar cobros y pagos.
           </p>
-          <button onClick={openNew} className="text-indigo-500 text-sm hover:text-indigo-700">
-            Crear primera cuenta
-          </button>
+          {!readOnly && (
+            <button onClick={openNew} className="text-indigo-500 text-sm hover:text-indigo-700">
+              Crear primera cuenta
+            </button>
+          )}
         </div>
       )}
 
@@ -213,11 +244,17 @@ export default function CuentasPropiasManager({ cuentas, constructoraId, obraId 
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
-                  <select value={form.moneda} onChange={e => setForm(f => ({ ...f, moneda: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option>USD</option>
-                    <option>ARS</option>
-                  </select>
+                  {editing ? (
+                    <div className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-500">
+                      {form.moneda}
+                    </div>
+                  ) : (
+                    <select value={form.moneda} onChange={e => setForm(f => ({ ...f, moneda: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option>USD</option>
+                      <option>ARS</option>
+                    </select>
+                  )}
                 </div>
               </div>
 

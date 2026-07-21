@@ -3,15 +3,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
 import PrintToolbar from '@/components/admin/PrintToolbar'
+import { formatCurrency } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
 function fmt(n: number, moneda = 'ARS') {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: moneda === 'USD' ? 'USD' : 'ARS',
-    minimumFractionDigits: 2,
-  }).format(n)
+  return formatCurrency(n, moneda)
 }
 
 function fmtDate(d: string | null) {

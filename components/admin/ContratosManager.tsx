@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { cn, formatCurrency, formatDate, ESTADO_COLORS } from '@/lib/utils'
+import { cn, formatCurrency, formatDate, redondear2, sumarMontos, ESTADO_COLORS } from '@/lib/utils'
 import SaleForm from './SaleForm'
 import ConfirmModal from './ConfirmModal'
 import type { Unidad, Tipologia, Comprador, Cuota, CuentaPropia } from '@/types/database'
@@ -30,6 +30,7 @@ interface Props {
   unidadesDisponibles: UnidadConTipologia[]
   cuentasPropias: CuentaPropia[]
   constructoraId: string
+  readOnly?: boolean
 }
 
 interface DeleteTarget {
@@ -46,7 +47,7 @@ interface EditState {
   notas: string
 }
 
-export default function ContratosManager({ contratos, unidadesDisponibles, cuentasPropias, constructoraId }: Props) {
+export default function ContratosManager({ contratos, unidadesDisponibles, cuentasPropias, constructoraId, readOnly = false }: Props) {
   const router = useRouter()
   const today = new Date().toISOString().split('T')[0]
   const [, startTransition] = useTransition()
@@ -89,7 +90,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
       })
     : rows
 
-  const totalIngresos = rows.reduce((acc, c) => acc + Number(c.precio_final), 0)
+  const totalIngresos = sumarMontos(rows.map(c => Number(c.precio_final)))
   const totalVencidas = rows.reduce((acc, c) => acc + c.vencidas, 0)
 
   function refresh() { startTransition(() => router.refresh()) }
@@ -129,7 +130,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
       .update({
         estado_pago: 'Pagado',
         fecha_pago: pagoFecha,
-        monto_cobrado: parseFloat(pagoMonto) || pagoModal.monto,
+        monto_cobrado: redondear2(parseFloat(pagoMonto) || pagoModal.monto),
         cuenta_propia_id: pagoCuenta || null,
       })
       .eq('id', pagoModal.cuotaId)
@@ -144,8 +145,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     const comp = cuotaPanel.compradores!
     const unidad = cuotaPanel.unidades!
     const totalCuotas = cuotaPanel.cuotas.length
-    const fmt = (n: number) =>
-      new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n)
+    const fmt = (n: number) => formatCurrency(n, 'USD')
     const fmtDate = (s: string) =>
       new Date(s).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
@@ -202,24 +202,23 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     const comp = cuotaPanel.compradores!
     const unidad = cuotaPanel.unidades!
     const cuotasOrdenadas = [...cuotaPanel.cuotas].sort((a, b) => a.numero_cuota - b.numero_cuota)
-    const fmt = (n: number) =>
-      new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(n)
+    const fmt = (n: number) => formatCurrency(n, 'USD')
     const fmtDate = (s: string) =>
       new Date(s).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
-    const saldoFinanciado = cuotaPanel.precio_final - cuotaPanel.entrega_efectiva
+    const saldoFinanciado = redondear2(cuotaPanel.precio_final - cuotaPanel.entrega_efectiva)
     const cuotasPagadasCount = cuotasOrdenadas.filter(c => c.estado_pago === 'Pagado').length
     const cuotasPendientesCount = cuotasOrdenadas.filter(c => c.estado_pago === 'Pendiente').length
-    const totalCuotasPagado = cuotasOrdenadas
-      .filter(c => c.estado_pago === 'Pagado')
-      .reduce((acc, c) => acc + Number(c.monto_cobrado ?? c.monto_base), 0)
-    const totalPendiente = cuotasOrdenadas
-      .filter(c => c.estado_pago === 'Pendiente')
-      .reduce((acc, c) => acc + Number(c.monto_base), 0)
-    const totalAbonado = cuotaPanel.entrega_efectiva + totalCuotasPagado
+    const totalCuotasPagado = sumarMontos(
+      cuotasOrdenadas.filter(c => c.estado_pago === 'Pagado').map(c => Number(c.monto_cobrado ?? c.monto_base))
+    )
+    const totalPendiente = sumarMontos(
+      cuotasOrdenadas.filter(c => c.estado_pago === 'Pendiente').map(c => Number(c.monto_base))
+    )
+    const totalAbonado = redondear2(cuotaPanel.entrega_efectiva + totalCuotasPagado)
     const pctAbonado = Math.round((totalAbonado / cuotaPanel.precio_final) * 100)
     const montoCuotaAprox = cuotasOrdenadas.length > 0
-      ? Math.round(saldoFinanciado / cuotasOrdenadas.length)
+      ? redondear2(saldoFinanciado / cuotasOrdenadas.length)
       : 0
 
     const filas = cuotasOrdenadas.map(c => {
@@ -401,8 +400,8 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     const { error } = await supabase
       .from('contratos_venta')
       .update({
-        precio_final: parseFloat(editState.precioFinal),
-        entrega_efectiva: parseFloat(editState.entregaEfectiva),
+        precio_final: redondear2(parseFloat(editState.precioFinal)),
+        entrega_efectiva: redondear2(parseFloat(editState.entregaEfectiva)),
         fecha_firma: editState.fechaFirma,
         notas: editState.notas || null,
       })
@@ -416,9 +415,16 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
   async function handleDelete() {
     if (!deleteTarget) return
     const supabase = createClient()
-    await supabase.from('cuotas').delete().eq('contrato_id', deleteTarget.contratoId)
-    await supabase.from('contratos_venta').delete().eq('id', deleteTarget.contratoId)
-    await supabase.from('unidades').update({ estado_comercial: 'Disponible' }).eq('id', deleteTarget.unidadId)
+    // Si alguna cuota ya está Pagada (o el contrato tiene entrega_efectiva
+    // cobrada), la DB bloquea el borrado para no-admins — no seguir con el
+    // resto de la cascada si esto falla, para no dejar la unidad marcada
+    // "Disponible" con un contrato/cuotas huérfanos todavía en la base.
+    const { error: errCuotas } = await supabase.from('cuotas').delete().eq('contrato_id', deleteTarget.contratoId)
+    if (errCuotas) throw new Error(errCuotas.message)
+    const { error: errContrato } = await supabase.from('contratos_venta').delete().eq('id', deleteTarget.contratoId)
+    if (errContrato) throw new Error(errContrato.message)
+    const { error: errUnidad } = await supabase.from('unidades').update({ estado_comercial: 'Disponible' }).eq('id', deleteTarget.unidadId)
+    if (errUnidad) throw new Error(errUnidad.message)
     setDeleteTarget(null)
     refresh()
   }
@@ -429,7 +435,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
   }
 
   const saldoEdicion = editState
-    ? Math.max(0, parseFloat(editState.precioFinal || '0') - parseFloat(editState.entregaEfectiva || '0'))
+    ? Math.max(0, redondear2(parseFloat(editState.precioFinal || '0') - parseFloat(editState.entregaEfectiva || '0')))
     : 0
 
   // Cuotas del panel activo
@@ -462,19 +468,21 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                          focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full bg-white"
             />
           </div>
-          <button
-            onClick={() => setShowUnitPicker(true)}
-            disabled={unidadesDisponibles.length === 0}
-            title={unidadesDisponibles.length === 0 ? 'No hay unidades disponibles' : undefined}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                       disabled:opacity-40 disabled:cursor-not-allowed
-                       text-white rounded-xl text-sm font-semibold transition-colors w-full sm:w-auto"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Nueva venta
-          </button>
+          {!readOnly && (
+            <button
+              onClick={() => setShowUnitPicker(true)}
+              disabled={unidadesDisponibles.length === 0}
+              title={unidadesDisponibles.length === 0 ? 'No hay unidades disponibles' : undefined}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
+                         disabled:opacity-40 disabled:cursor-not-allowed
+                         text-white rounded-xl text-sm font-semibold transition-colors w-full sm:w-auto"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nueva venta
+            </button>
+          )}
         </div>
       </div>
 
@@ -552,30 +560,34 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                         >
                           Ver cuotas →
                         </button>
-                        <button
-                          onClick={() => openEdit(c)}
-                          title="Editar"
-                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => setDeleteTarget({
-                            contratoId: c.id,
-                            compradorNombre: comprador?.nombre_completo ?? '',
-                            unidadId: c.unidad_id,
-                          })}
-                          title="Eliminar"
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                        {!readOnly && (
+                          <button
+                            onClick={() => openEdit(c)}
+                            title="Editar"
+                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                        )}
+                        {!readOnly && (
+                          <button
+                            onClick={() => setDeleteTarget({
+                              contratoId: c.id,
+                              compradorNombre: comprador?.nombre_completo ?? '',
+                              unidadId: c.unidad_id,
+                            })}
+                            title="Eliminar"
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -591,13 +603,15 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
               ) : (
                 <>
                   <p className="text-sm">No hay ventas registradas aún.</p>
-                  <button
-                    onClick={() => setShowUnitPicker(true)}
-                    disabled={unidadesDisponibles.length === 0}
-                    className="mt-2 text-xs text-indigo-500 hover:text-indigo-700 disabled:opacity-40"
-                  >
-                    {unidadesDisponibles.length > 0 ? 'Registrar primera venta →' : 'No hay unidades disponibles'}
-                  </button>
+                  {!readOnly && (
+                    <button
+                      onClick={() => setShowUnitPicker(true)}
+                      disabled={unidadesDisponibles.length === 0}
+                      className="mt-2 text-xs text-indigo-500 hover:text-indigo-700 disabled:opacity-40"
+                    >
+                      {unidadesDisponibles.length > 0 ? 'Registrar primera venta →' : 'No hay unidades disponibles'}
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -722,7 +736,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                                 >
                                   Recibo
                                 </button>
-                              ) : (
+                              ) : !readOnly ? (
                                 <button
                                   onClick={() => abrirPago(cuota.id, cuota.monto_base)}
                                   className={cn(
@@ -734,7 +748,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                                 >
                                   Cobrar
                                 </button>
-                              )}
+                              ) : null}
                             </td>
                           </tr>
                         )
@@ -778,10 +792,13 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                              focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">Sin asignar</option>
-                  {cuentasPropias.filter(c => c.activa).map(c => (
+                  {cuentasPropias.filter(c => c.activa && c.moneda === 'USD').map(c => (
                     <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>
                   ))}
                 </select>
+                {cuentasPropias.some(c => c.activa && c.moneda === 'USD') === false && (
+                  <p className="text-[10px] text-amber-600 mt-1">No hay cuentas en USD configuradas (los contratos se cobran en USD).</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de cobro *</label>

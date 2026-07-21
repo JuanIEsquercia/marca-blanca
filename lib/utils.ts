@@ -5,13 +5,27 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Toda cifra monetaria del ERP se muestra con exactamente 2 decimales — sin
+// truncar centavos ni dejarlos "flotantes" según el valor (antes cada
+// pantalla tenía su propio formateador con minimumFractionDigits distinto).
 export function formatCurrency(value: number, moneda: string = 'USD'): string {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: moneda === 'ARS' ? 'ARS' : 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(redondear2(value))
+}
+
+// Redondeo "bancario" simple a 2 decimales para evitar arrastrar errores de
+// punto flotante (0.1 + 0.2 = 0.30000000000000004) a través de sumas
+// encadenadas de montos — aplicar en cada acumulador, no solo al mostrar.
+export function redondear2(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+export function sumarMontos(values: (number | null | undefined)[]): number {
+  return redondear2(values.reduce((acc: number, v) => acc + (v ?? 0), 0))
 }
 
 export function formatDate(dateStr: string): string {

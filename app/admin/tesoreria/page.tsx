@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
-import TesoreriaView from '@/components/admin/TesoreriaView'
+import { calcularCajaEmpresa } from '@/lib/tesoreria'
+import TesoreriaView, { type MovimientoFlujo } from '@/components/admin/TesoreriaView'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Caja' }
@@ -28,50 +29,47 @@ export default async function TesoreriaPage() {
   const supabase = await createClient()
 
   const [
-    { data: cuentas },
+    { data: obras },
     { data: cuotas },
     { data: contratos },
     { data: gastos },
     { data: cobrosProyecto },
+    cuentasConSaldo,
   ] = await Promise.all([
-    supabase.from('cuentas_propias').select('*').eq('constructora_id', ctx.constructoraId).eq('activa', true).is('obra_id', null).order('nombre'),
-    supabase.from('cuotas').select('monto_base, fecha_pago, estado_pago, cuenta_propia_id').eq('constructora_id', ctx.constructoraId).eq('estado_pago', 'Pagado'),
-    supabase.from('contratos_venta').select('entrega_efectiva, fecha_firma, cuenta_propia_id').eq('constructora_id', ctx.constructoraId),
+    supabase.from('obras').select('id, nombre').eq('constructora_id', ctx.constructoraId).order('nombre'),
+    supabase.from('cuotas')
+      .select('monto_base, monto_cobrado, fecha_pago, estado_pago, contratos_venta(obra_id)')
+      .eq('constructora_id', ctx.constructoraId).eq('estado_pago', 'Pagado'),
+    supabase.from('contratos_venta').select('entrega_efectiva, fecha_firma, obra_id').eq('constructora_id', ctx.constructoraId),
     supabase.from('gastos').select('*, proveedores(razon_social), categorias_costo(nombre, color)').eq('constructora_id', ctx.constructoraId),
-    supabase.from('cobros_proyecto').select('monto, cuenta_propia_id').eq('constructora_id', ctx.constructoraId).eq('estado', 'cobrado'),
+    supabase.from('cobros_proyecto').select('monto, moneda, fecha_pago, fecha, obra_id').eq('constructora_id', ctx.constructoraId).eq('estado', 'cobrado'),
+    calcularCajaEmpresa(supabase, ctx.constructoraId),
   ])
 
-  const cuentasConSaldo = (cuentas ?? []).map(cuenta => {
-    const ingresosCuotas = (cuotas ?? []).filter(c => c.cuenta_propia_id === cuenta.id).reduce((s, c) => s + (c.monto_base ?? 0), 0)
-    const ingresosEntregas = (contratos ?? []).filter(c => c.cuenta_propia_id === cuenta.id).reduce((s, c) => s + (c.entrega_efectiva ?? 0), 0)
-    const ingresosCobros = (cobrosProyecto ?? []).filter(c => c.cuenta_propia_id === cuenta.id).reduce((s, c) => s + (c.monto ?? 0), 0)
-    const egresos = (gastos ?? []).filter(g => g.cuenta_propia_id === cuenta.id && g.estado === 'Pagado').reduce((s, g) => s + (g.monto ?? 0), 0)
-    return {
-      ...cuenta,
-      ingresos_ventas: ingresosCuotas + ingresosEntregas + ingresosCobros,
-      egresos_gastos: egresos,
-      saldo_actual: cuenta.saldo_inicial + ingresosCuotas + ingresosEntregas + ingresosCobros - egresos,
-    }
-  })
-
-  const meses = getLast12Months()
-
-  const flujoMensual = meses.map(({ year, month, label }) => {
-    const inMonth = (dateStr: string | null) => {
-      if (!dateStr) return false
-      const d = new Date(dateStr)
-      return d.getFullYear() === year && d.getMonth() + 1 === month
-    }
-    const ingresos_usd = [
-      ...(cuotas ?? []).filter(c => inMonth(c.fecha_pago)).map(c => c.monto_base ?? 0),
-      ...(contratos ?? []).filter(c => inMonth(c.fecha_firma)).map(c => c.entrega_efectiva ?? 0),
-    ].reduce((s, v) => s + v, 0)
-    const egresos_usd = (gastos ?? []).filter(g => g.estado === 'Pagado' && g.moneda === 'USD' && inMonth(g.fecha_pago)).reduce((s, g) => s + (g.monto ?? 0), 0)
-    const egresos_ars = (gastos ?? []).filter(g => g.estado === 'Pagado' && g.moneda === 'ARS' && inMonth(g.fecha_pago)).reduce((s, g) => s + (g.monto ?? 0), 0)
-    const comprometido_usd = (gastos ?? []).filter(g => g.estado === 'Pendiente' && g.moneda === 'USD' && inMonth(g.fecha_vencimiento)).reduce((s, g) => s + (g.monto ?? 0), 0)
-    const comprometido_ars = (gastos ?? []).filter(g => g.estado === 'Pendiente' && g.moneda === 'ARS' && inMonth(g.fecha_vencimiento)).reduce((s, g) => s + (g.monto ?? 0), 0)
-    return { label, ingresos_usd, egresos_usd, egresos_ars, comprometido_usd, comprometido_ars }
-  })
+  // Serie normalizada de movimientos con su obra_id — antes el "Flujo
+  // mensual" sumaba todo junto sin distinguir de qué proyecto venía cada
+  // ingreso/egreso; ahora el filtro de proyecto en TesoreriaView recalcula
+  // esto mismo del lado del cliente sin ir de nuevo a la base.
+  const movimientos: MovimientoFlujo[] = [
+    ...(cuotas ?? []).map(c => ({
+      tipo: 'ingreso' as const, moneda: 'USD', monto: c.monto_cobrado ?? c.monto_base ?? 0,
+      fecha: c.fecha_pago, obraId: (c.contratos_venta as unknown as { obra_id: string } | null)?.obra_id ?? null,
+    })),
+    ...(contratos ?? []).filter(c => (c.entrega_efectiva ?? 0) > 0).map(c => ({
+      tipo: 'ingreso' as const, moneda: 'USD', monto: c.entrega_efectiva ?? 0,
+      fecha: c.fecha_firma, obraId: c.obra_id,
+    })),
+    ...(cobrosProyecto ?? []).map(c => ({
+      tipo: 'ingreso' as const, moneda: c.moneda, monto: c.monto ?? 0,
+      fecha: c.fecha_pago ?? c.fecha, obraId: c.obra_id,
+    })),
+    ...(gastos ?? []).map(g => ({
+      tipo: (g.estado === 'Pagado' ? 'egreso' : 'comprometido') as 'egreso' | 'comprometido',
+      moneda: g.moneda, monto: g.monto ?? 0,
+      fecha: g.estado === 'Pagado' ? g.fecha_pago : g.fecha_vencimiento,
+      obraId: g.obra_id,
+    })),
+  ]
 
   const gastosPendientes = (gastos ?? [])
     .filter(g => g.estado === 'Pendiente')
@@ -85,6 +83,7 @@ export default async function TesoreriaPage() {
       proveedor: g.proveedores?.razon_social ?? null,
       categoria: g.categorias_costo?.nombre ?? null,
       categoria_color: g.categorias_costo?.color ?? null,
+      obraId: g.obra_id,
     }))
 
   return (
@@ -95,7 +94,9 @@ export default async function TesoreriaPage() {
       </div>
       <TesoreriaView
         cuentas={cuentasConSaldo}
-        flujoMensual={flujoMensual}
+        movimientos={movimientos}
+        meses={getLast12Months()}
+        proyectos={obras ?? []}
         gastosPendientes={gastosPendientes}
       />
     </div>

@@ -1,21 +1,12 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { getProyectoContext } from '@/lib/tenant'
-import { cn } from '@/lib/utils'
+import { calcularCajaProyecto } from '@/lib/tesoreria'
+import { cn, formatCurrency as fmt } from '@/lib/utils'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Caja del proyecto' }
 export const dynamic = 'force-dynamic'
-
-function fmt(n: number, moneda = 'USD') {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: moneda,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(n)
-}
 
 export default async function CajaProyectoPage({ params }: { params: Promise<{ obraId: string }> }) {
   const { obraId } = await params
@@ -23,19 +14,6 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
   if (!ctx) redirect('/admin')
 
   const supabase = await createClient()
-  const admin = createAdminClient()
-
-  // Cuentas del proyecto: propias si modo=especificas, empresa si modo=empresa
-  const cuentasQuery = supabase.from('cuentas_propias').select('*')
-    .eq('constructora_id', ctx.constructoraId)
-    .eq('activa', true)
-    .order('nombre')
-
-  const { data: cuentas } = await (
-    ctx.obraModo === 'especificas'
-      ? cuentasQuery.eq('obra_id', obraId)
-      : cuentasQuery.is('obra_id', null)
-  )
 
   // Gastos imputados a este proyecto
   const { data: gastos } = await supabase
@@ -46,12 +24,11 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
     .order('fecha_vencimiento', { ascending: false })
 
   let ingresos: { fecha: string; descripcion: string; monto: number; moneda: string; tipo: string }[] = []
-  let ingresosConCuenta: { monto: number; cuenta_propia_id: string | null }[] = []
 
   if (ctx.obraTipo === 'desarrollo') {
     const { data: cuotas } = await supabase
       .from('cuotas')
-      .select('monto_base, fecha_pago, cuenta_propia_id, contratos_venta!inner(unidades!inner(obra_id))')
+      .select('monto_base, monto_cobrado, fecha_pago, cuenta_propia_id, contratos_venta!inner(unidades!inner(obra_id))')
       .eq('estado_pago', 'Pagado')
       .eq('contratos_venta.unidades.obra_id', obraId)
 
@@ -61,11 +38,20 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
       .eq('unidades.obra_id', obraId)
       .not('entrega_efectiva', 'is', null)
 
+    const { data: reservasVigentes } = await supabase
+      .from('reservas')
+      .select('monto_sena, fecha_reserva, cuenta_propia_id')
+      .eq('obra_id', obraId)
+      .eq('estado', 'Vigente')
+      .not('monto_sena', 'is', null)
+
+    // Ventas de unidades son siempre USD (precio_lista/cuotas no tienen
+    // columna moneda propia — convención del negocio, ver lib/tesoreria.ts).
     ingresos = [
       ...(cuotas ?? []).map(c => ({
         fecha: c.fecha_pago ?? '',
         descripcion: 'Cuota cobrada',
-        monto: c.monto_base ?? 0,
+        monto: c.monto_cobrado ?? c.monto_base ?? 0,
         moneda: 'USD',
         tipo: 'cuota',
       })),
@@ -76,12 +62,14 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
         moneda: 'USD',
         tipo: 'entrega',
       })),
+      ...(reservasVigentes ?? []).map(r => ({
+        fecha: r.fecha_reserva ?? '',
+        descripcion: 'Seña de reserva',
+        monto: r.monto_sena ?? 0,
+        moneda: 'USD',
+        tipo: 'sena',
+      })),
     ].sort((a, b) => b.fecha.localeCompare(a.fecha))
-
-    ingresosConCuenta = [
-      ...(cuotas ?? []).map(c => ({ monto: c.monto_base ?? 0, cuenta_propia_id: c.cuenta_propia_id ?? null })),
-      ...(contratos ?? []).filter(c => (c.entrega_efectiva ?? 0) > 0).map(c => ({ monto: c.entrega_efectiva ?? 0, cuenta_propia_id: c.cuenta_propia_id ?? null })),
-    ]
   } else {
     const { data: cobros } = await supabase
       .from('cobros_proyecto')
@@ -94,26 +82,18 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
       fecha: c.fecha_pago ?? c.fecha,
       descripcion: c.notas ?? 'Cobro de proyecto',
       monto: c.monto,
-      moneda: 'ARS',
+      moneda: c.moneda,
       tipo: 'cobro',
     }))
-
-    ingresosConCuenta = (cobros ?? []).map(c => ({ monto: c.monto, cuenta_propia_id: c.cuenta_propia_id ?? null }))
   }
 
-  const totalIngresos = ingresos.reduce((s, i) => s + i.monto, 0)
-  const totalEgresosPagados = (gastos ?? []).filter(g => g.estado === 'Pagado').reduce((s, g) => s + (g.monto ?? 0), 0)
-  const totalEgresosPendientes = (gastos ?? []).filter(g => g.estado === 'Pendiente').reduce((s, g) => s + (g.monto ?? 0), 0)
-
-  const cuentasConSaldo = (cuentas ?? []).map(cuenta => {
-    const ingresosCuenta = ingresosConCuenta
-      .filter(i => i.cuenta_propia_id === cuenta.id)
-      .reduce((s, i) => s + i.monto, 0)
-    const egresosCuenta = (gastos ?? [])
-      .filter(g => g.cuenta_propia_id === cuenta.id && g.estado === 'Pagado')
-      .reduce((s, g) => s + (g.monto ?? 0), 0)
-    return { ...cuenta, saldo_actual: cuenta.saldo_inicial + ingresosCuenta - egresosCuenta }
+  const { cuentasConSaldo, totalesPorMoneda } = await calcularCajaProyecto(supabase, {
+    constructoraId: ctx.constructoraId,
+    obraId,
+    obraTipo: ctx.obraTipo,
+    obraModo: ctx.obraModo,
   })
+  const monedasConMovimiento = Object.keys(totalesPorMoneda)
 
   return (
     <div>
@@ -122,26 +102,43 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
         <p className="text-slate-500 text-sm mt-1">{ctx.obraNombre} — flujo de caja imputado a este proyecto</p>
       </div>
 
-      {/* Resumen */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="bg-white border border-slate-200 rounded-2xl p-5">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Ingresos</p>
-          <p className="text-2xl font-bold text-emerald-600">{fmt(totalIngresos)}</p>
+      {/* Resumen — una fila de tarjetas por moneda, nunca se mezclan ARS/USD en un mismo total */}
+      {monedasConMovimiento.length === 0 ? (
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center text-slate-400 text-sm mb-8">
+          Sin movimientos registrados en este proyecto.
         </div>
-        <div className="bg-white border border-slate-200 rounded-2xl p-5">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Egresos pagados</p>
-          <p className="text-2xl font-bold text-red-600">{fmt(totalEgresosPagados)}</p>
+      ) : (
+        <div className="space-y-4 mb-8">
+          {monedasConMovimiento.map(moneda => {
+            const t = totalesPorMoneda[moneda]
+            const saldoNeto = t.ingresos - t.egresosPagados
+            return (
+              <div key={moneda}>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{moneda}</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Ingresos</p>
+                    <p className="text-2xl font-bold text-emerald-600">{fmt(t.ingresos, moneda)}</p>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Egresos pagados</p>
+                    <p className="text-2xl font-bold text-red-600">{fmt(t.egresosPagados, moneda)}</p>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Saldo neto</p>
+                    <p className={cn('text-2xl font-bold', saldoNeto >= 0 ? 'text-slate-900' : 'text-red-600')}>
+                      {fmt(saldoNeto, moneda)}
+                    </p>
+                    {t.egresosPendientes > 0 && (
+                      <p className="text-xs text-amber-600 mt-1">{fmt(t.egresosPendientes, moneda)} comprometido pendiente</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
-        <div className="bg-white border border-slate-200 rounded-2xl p-5">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Saldo neto</p>
-          <p className={cn('text-2xl font-bold', totalIngresos - totalEgresosPagados >= 0 ? 'text-slate-900' : 'text-red-600')}>
-            {fmt(totalIngresos - totalEgresosPagados)}
-          </p>
-          {totalEgresosPendientes > 0 && (
-            <p className="text-xs text-amber-600 mt-1">{fmt(totalEgresosPendientes)} comprometido pendiente</p>
-          )}
-        </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Cuentas del proyecto */}

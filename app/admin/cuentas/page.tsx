@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
+import { calcularSaldosDeCuentas } from '@/lib/tesoreria'
 import CuentasPropiasManager from '@/components/admin/CuentasPropiasManager'
 import type { Metadata } from 'next'
 
@@ -12,11 +13,22 @@ export default async function CuentasPage() {
   if (!ctx) redirect('/auth/login')
 
   const supabase = await createClient()
-  const { data: cuentas } = await supabase
+  const { data: cuentasRaw } = await supabase
     .from('cuentas_propias')
-    .select('*')
+    .select('*, obras(nombre)')
     .eq('constructora_id', ctx.constructoraId)
     .order('nombre')
+
+  // Esta vista lista TODAS las cuentas (compartidas de empresa + específicas
+  // de cada proyecto) para tener un control único — antes no indicaba de qué
+  // proyecto era cada una, lo que confundía porque Tesorería (el consolidado)
+  // no necesariamente mostraba las mismas cuentas en el mismo lugar.
+  const cuentas = (cuentasRaw ?? []).map(({ obras, ...c }) => ({ ...c, obra_nombre: obras?.nombre ?? null }))
+
+  // saldo_inicial es fijo (solo cambia si un admin lo edita) — el saldo
+  // consolidado (con movimientos de gastos/cuotas/cobros/señas) se calcula
+  // aparte, igual que en Caja/Tesorería.
+  const saldos = await calcularSaldosDeCuentas(supabase, ctx.constructoraId, cuentas)
 
   return (
     <div>
@@ -27,8 +39,10 @@ export default async function CuentasPage() {
         </p>
       </div>
       <CuentasPropiasManager
-        cuentas={cuentas ?? []}
+        cuentas={cuentas}
+        saldos={saldos}
         constructoraId={ctx.constructoraId}
+        readOnly={ctx.perfilRol !== 'admin'}
       />
     </div>
   )

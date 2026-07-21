@@ -45,6 +45,7 @@ export default async function GastosPage() {
         categorias={categorias ?? []}
         cuentasPropias={cuentasPropias ?? []}
         constructoraId={ctx.constructoraId}
+        readOnly={ctx.perfilRol !== 'admin'}
       />
     </div>
   )

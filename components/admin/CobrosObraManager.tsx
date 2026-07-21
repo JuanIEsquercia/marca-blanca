@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
 import type { CobroProyecto, CuentaPropia } from '@/types/database'
 
 type FiltroCobro = 'todos' | 'pendiente' | 'cobrado'
@@ -52,9 +52,19 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
   const pendientes = cobros.filter(c => c.estado === 'pendiente' && !esVencido(c))
   const cobrados   = cobros.filter(c => c.estado === 'cobrado')
 
-  const totalCobrado   = cobrados.reduce((s, c) => s + c.monto, 0)
-  const totalPendiente = pendientes.reduce((s, c) => s + c.monto, 0)
-  const totalVencido   = vencidos.reduce((s, c) => s + c.monto, 0)
+  // Los cobros de un mismo proyecto pueden estar en distinta moneda (el
+  // selector de "Nuevo cobro" lo permite) — se agrupa por moneda en vez de
+  // sumar todo junto para no mostrar un total que mezcle ARS y USD.
+  const monedasPresentes = Array.from(new Set(cobros.map(c => c.moneda)))
+  const monedasKpi = monedasPresentes.length > 0 ? monedasPresentes : [moneda]
+  const totalesPorMoneda = Object.fromEntries(monedasKpi.map(m => [m, {
+    cobrado: sumarMontos(cobrados.filter(c => c.moneda === m).map(c => c.monto)),
+    pendiente: sumarMontos(pendientes.filter(c => c.moneda === m).map(c => c.monto)),
+    vencido: sumarMontos(vencidos.filter(c => c.moneda === m).map(c => c.monto)),
+    cobradosCount: cobrados.filter(c => c.moneda === m).length,
+    pendientesCount: pendientes.filter(c => c.moneda === m).length,
+    vencidosCount: vencidos.filter(c => c.moneda === m).length,
+  }]))
 
   const filtrados = filtro === 'pendiente'
     ? [...vencidos, ...pendientes]
@@ -90,9 +100,11 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
   async function handleDelete() {
     if (!deleteTarget) return
     setLoading(true)
+    setError(null)
     const supabase = createClient()
-    await supabase.from('cobros_proyecto').delete().eq('id', deleteTarget.id)
+    const { error: err } = await supabase.from('cobros_proyecto').delete().eq('id', deleteTarget.id)
     setLoading(false)
+    if (err) { setError(err.message); return }
     setDeleteTarget(null)
     refresh()
   }
@@ -110,7 +122,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
         obra_id:           obraId,
         constructora_id:   constructoraId,
         certificado_id:    nuevoForm.certificado_id || null,
-        monto:             parseFloat(nuevoForm.monto),
+        monto:             redondear2(parseFloat(nuevoForm.monto)),
         moneda:            nuevoForm.moneda,
         fecha_vencimiento: nuevoForm.fecha_vencimiento,
         fecha:             nuevoForm.fecha_vencimiento, // legacy
@@ -127,32 +139,42 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
   return (
     <div className="space-y-6">
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white border border-slate-200 rounded-2xl p-5">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Cobrado</p>
-          <p className="text-2xl font-bold text-emerald-600">{formatCurrency(totalCobrado, moneda)}</p>
-          <p className="text-xs text-slate-400 mt-1">{cobrados.length} pago{cobrados.length !== 1 ? 's' : ''}</p>
-        </div>
-        <div className="bg-white border border-amber-200 rounded-2xl p-5">
-          <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-1">Pendiente</p>
-          <p className="text-2xl font-bold text-amber-700">{formatCurrency(totalPendiente, moneda)}</p>
-          <p className="text-xs text-amber-500 mt-1">{pendientes.length} cobro{pendientes.length !== 1 ? 's' : ''}</p>
-        </div>
-        <div className={cn(
-          'rounded-2xl p-5 border',
-          vencidos.length > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'
-        )}>
-          <p className={cn('text-xs font-semibold uppercase tracking-wider mb-1', vencidos.length > 0 ? 'text-red-600' : 'text-slate-500')}>
-            Vencido
-          </p>
-          <p className={cn('text-2xl font-bold', vencidos.length > 0 ? 'text-red-700' : 'text-slate-400')}>
-            {formatCurrency(totalVencido, moneda)}
-          </p>
-          <p className={cn('text-xs mt-1', vencidos.length > 0 ? 'text-red-500' : 'text-slate-400')}>
-            {vencidos.length} cobro{vencidos.length !== 1 ? 's' : ''}
-          </p>
-        </div>
+      {/* KPIs — una fila por moneda, nunca se mezclan ARS/USD en un total */}
+      <div className="space-y-3">
+        {monedasKpi.map(m => {
+          const t = totalesPorMoneda[m]
+          return (
+            <div key={m}>
+              {monedasKpi.length > 1 && <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">{m}</p>}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Cobrado</p>
+                  <p className="text-2xl font-bold text-emerald-600">{formatCurrency(t.cobrado, m)}</p>
+                  <p className="text-xs text-slate-400 mt-1">{t.cobradosCount} pago{t.cobradosCount !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="bg-white border border-amber-200 rounded-2xl p-5">
+                  <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-1">Pendiente</p>
+                  <p className="text-2xl font-bold text-amber-700">{formatCurrency(t.pendiente, m)}</p>
+                  <p className="text-xs text-amber-500 mt-1">{t.pendientesCount} cobro{t.pendientesCount !== 1 ? 's' : ''}</p>
+                </div>
+                <div className={cn(
+                  'rounded-2xl p-5 border',
+                  t.vencidosCount > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'
+                )}>
+                  <p className={cn('text-xs font-semibold uppercase tracking-wider mb-1', t.vencidosCount > 0 ? 'text-red-600' : 'text-slate-500')}>
+                    Vencido
+                  </p>
+                  <p className={cn('text-2xl font-bold', t.vencidosCount > 0 ? 'text-red-700' : 'text-slate-400')}>
+                    {formatCurrency(t.vencido, m)}
+                  </p>
+                  <p className={cn('text-xs mt-1', t.vencidosCount > 0 ? 'text-red-500' : 'text-slate-400')}>
+                    {t.vencidosCount} cobro{t.vencidosCount !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {/* Barra de acciones */}
@@ -276,12 +298,15 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-slate-900 mb-2">Eliminar cobro</h2>
             <p className="text-sm text-slate-600 mb-6">
-              ¿Eliminar el cobro de <strong>{formatCurrency(deleteTarget.monto, moneda)}</strong>?
+              ¿Eliminar el cobro de <strong>{formatCurrency(deleteTarget.monto, deleteTarget.moneda)}</strong>?
               {deleteTarget.certificados_avance && ` (Cert. #${deleteTarget.certificados_avance.numero} — ${deleteTarget.certificados_avance.periodo})`}
               Esta acción no se puede deshacer.
             </p>
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
+            )}
             <div className="flex gap-3">
-              <button onClick={() => setDeleteTarget(null)}
+              <button onClick={() => { setDeleteTarget(null); setError(null) }}
                 className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
                 Cancelar
               </button>
@@ -372,7 +397,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
             <div className="flex items-center justify-between p-6 border-b border-slate-200">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Registrar pago</h2>
-                <p className="text-sm text-slate-500 mt-0.5">{formatCurrency(pagoTarget.monto, moneda)}</p>
+                <p className="text-sm text-slate-500 mt-0.5">{formatCurrency(pagoTarget.monto, pagoTarget.moneda)}</p>
               </div>
               <button onClick={() => setPagoTarget(null)} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -392,10 +417,13 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
                     onChange={e => setPagoForm(f => ({ ...f, cuenta_propia_id: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">— Sin cuenta asignada —</option>
-                    {cuentasPropias.map(c => (
+                    {cuentasPropias.filter(c => c.moneda === pagoTarget.moneda).map(c => (
                       <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>
                     ))}
                   </select>
+                  {cuentasPropias.some(c => c.moneda === pagoTarget.moneda) === false && (
+                    <p className="text-xs text-amber-600 mt-1">No hay cuentas en {pagoTarget.moneda} configuradas.</p>
+                  )}
                 </div>
               )}
               {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}

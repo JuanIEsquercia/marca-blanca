@@ -4,7 +4,7 @@ import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { uploadToCloudinary } from '@/lib/cloudinary'
-import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
 import type { Gasto, Proveedor, CuentaProveedor, CategoriaCosto, CuentaPropia } from '@/types/database'
 import ConfirmModal from './ConfirmModal'
 
@@ -57,6 +57,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   const [pagandoGasto, setPagandoGasto] = useState<Gasto | null>(null)
   const [pagoForm, setPagoForm] = useState({ cuenta_propia_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
   const [loadingPago, setLoadingPago] = useState(false)
+  const [pagoError, setPagoError] = useState<string | null>(null)
 
   function refresh() { startTransition(() => router.refresh()) }
 
@@ -111,15 +112,15 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       cuenta_proveedor_id: form.cuenta_proveedor_id || null,
       categoria_id: form.categoria_id || null,
       descripcion: form.descripcion.trim(),
-      monto: parseFloat(form.monto),
+      monto: redondear2(parseFloat(form.monto)),
       moneda: form.moneda,
       fecha_vencimiento: form.fecha_vencimiento,
       numero_comprobante: form.numero_comprobante.trim() || null,
       notas: form.notas.trim() || null,
       comprobante_url: comprobanteUrl || null,
-      monto_neto: form.monto_neto ? parseFloat(form.monto_neto) : null,
-      iva: form.iva ? parseFloat(form.iva) : null,
-      percepciones: form.percepciones ? parseFloat(form.percepciones) : null,
+      monto_neto: form.monto_neto ? redondear2(parseFloat(form.monto_neto)) : null,
+      iva: form.iva ? redondear2(parseFloat(form.iva)) : null,
+      percepciones: form.percepciones ? redondear2(parseFloat(form.percepciones)) : null,
     }
     const { error: err } = editingId
       ? await supabase.from('gastos').update(payload).eq('id', editingId)
@@ -137,7 +138,8 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       confirmLabel: 'Eliminar',
       onConfirm: async () => {
         const supabase = createClient()
-        await supabase.from('gastos').delete().eq('id', g.id)
+        const { error } = await supabase.from('gastos').delete().eq('id', g.id)
+        if (error) throw new Error(error.message)
         setConfirmModal(null)
         refresh()
       },
@@ -246,7 +248,8 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
 
   async function handleDeleteCat(id: string) {
     const supabase = createClient()
-    await supabase.from('categorias_costo').delete().eq('id', id)
+    const { error } = await supabase.from('categorias_costo').delete().eq('id', id)
+    if (error) { setCatError(error.message); return }
     refresh()
   }
 
@@ -254,19 +257,21 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
     if (!pagandoGasto) return
     if (!pagoForm.cuenta_propia_id) { return }
     setLoadingPago(true)
+    setPagoError(null)
     const supabase = createClient()
-    await supabase.from('gastos').update({
+    const { error } = await supabase.from('gastos').update({
       estado: 'Pagado',
       fecha_pago: pagoForm.fecha_pago,
       cuenta_propia_id: pagoForm.cuenta_propia_id,
     }).eq('id', pagandoGasto.id)
     setLoadingPago(false)
+    if (error) { setPagoError(error.message); return }
     setPagandoGasto(null)
     refresh()
   }
 
-  const totalPendienteARS = gastos.filter(g => g.estado === 'Pendiente' && g.moneda === 'ARS').reduce((s, g) => s + g.monto, 0)
-  const totalPendienteUSD = gastos.filter(g => g.estado === 'Pendiente' && g.moneda === 'USD').reduce((s, g) => s + g.monto, 0)
+  const totalPendienteARS = sumarMontos(gastos.filter(g => g.estado === 'Pendiente' && g.moneda === 'ARS').map(g => g.monto))
+  const totalPendienteUSD = sumarMontos(gastos.filter(g => g.estado === 'Pendiente' && g.moneda === 'USD').map(g => g.monto))
 
   return (
     <div>
@@ -275,7 +280,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
           <p className="text-xs text-orange-600 font-medium mb-1">Comprometido ARS</p>
           <p className="text-2xl font-bold text-orange-700">
-            ${totalPendienteARS.toLocaleString('es-AR', { minimumFractionDigits: 0 })}
+            {formatCurrency(totalPendienteARS, 'ARS')}
           </p>
           <p className="text-xs text-orange-500 mt-0.5">
             {gastos.filter(g => g.estado === 'Pendiente' && g.moneda === 'ARS').length} pago(s) pendiente(s)
@@ -284,7 +289,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <p className="text-xs text-blue-600 font-medium mb-1">Comprometido USD</p>
           <p className="text-2xl font-bold text-blue-700">
-            U$D {totalPendienteUSD.toLocaleString('es-AR', { minimumFractionDigits: 0 })}
+            {formatCurrency(totalPendienteUSD, 'USD')}
           </p>
           <p className="text-xs text-blue-500 mt-0.5">
             {gastos.filter(g => g.estado === 'Pendiente' && g.moneda === 'USD').length} pago(s) pendiente(s)
@@ -387,7 +392,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                     ) : <span className="text-slate-400 text-xs">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                    {g.moneda === 'USD' ? 'U$D' : '$'} {g.monto.toLocaleString('es-AR')}
+                    {formatCurrency(g.monto, g.moneda)}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{formatDate(g.fecha_vencimiento)}</td>
                   <td className="px-4 py-3 text-center">
@@ -445,7 +450,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
               <h2 className="font-bold text-slate-900">Registrar pago</h2>
               <p className="text-sm text-slate-500 mt-0.5">
                 {pagandoGasto.descripcion} ·{' '}
-                <strong>{pagandoGasto.moneda === 'USD' ? 'U$D' : '$'} {pagandoGasto.monto.toLocaleString('es-AR')}</strong>
+                <strong>{formatCurrency(pagandoGasto.monto, pagandoGasto.moneda)}</strong>
               </p>
             </div>
             <div className="p-6 space-y-4">
@@ -461,15 +466,10 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                     .map(c => (
                       <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>
                     ))}
-                  {cuentasPropias.filter(c => c.activa && c.moneda !== pagandoGasto.moneda).length > 0 && (
-                    <>
-                      <option disabled>── Otra moneda ──</option>
-                      {cuentasPropias.filter(c => c.activa && c.moneda !== pagandoGasto.moneda).map(c => (
-                        <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>
-                      ))}
-                    </>
-                  )}
                 </select>
+                {cuentasPropias.some(c => c.activa && c.moneda === pagandoGasto.moneda) === false && (
+                  <p className="text-xs text-amber-600 mt-1">No hay cuentas en {pagandoGasto.moneda} configuradas.</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de pago *</label>
@@ -477,8 +477,11 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   onChange={e => setPagoForm(f => ({ ...f, fecha_pago: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
+              {pagoError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{pagoError}</div>
+              )}
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setPagandoGasto(null)}
+                <button onClick={() => { setPagandoGasto(null); setPagoError(null) }}
                   className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
                   Cancelar
                 </button>

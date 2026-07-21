@@ -3,17 +3,18 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import { cn, formatCurrency, formatDate, redondear2 } from '@/lib/utils'
 import ConfirmModal from './ConfirmModal'
-import type { ContratoObra, CertificadoAvance, CobroProyecto, CuentaPropia, EstadoCertificado } from '@/types/database'
+import type { ContratoObra, CertificadoAvance, CobroProyecto, CuentaPropia, EstadoCertificado, ContratoObraItem, CertificadoItem } from '@/types/database'
 
 type ConfirmState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
 
-type CertificadoConCobros = CertificadoAvance & { cobros_proyecto: CobroProyecto[] }
+type CertificadoConCobros = CertificadoAvance & { cobros_proyecto: CobroProyecto[]; certificado_items?: CertificadoItem[] }
 
 interface Props {
   contrato: ContratoObra | null
   certificados: CertificadoConCobros[]
+  contratoObraItems?: ContratoObraItem[]
   cuentasPropias: CuentaPropia[]
   constructoraId: string
   obraId: string
@@ -30,8 +31,9 @@ const EMPTY_CONTRATO = { cliente_nombre: '', cliente_cuit: '', cliente_email: ''
 const EMPTY_CERT = { periodo: '', porcentaje_avance: '', monto_certificado: '', descripcion_avances: '', notas: '' }
 const EMPTY_COBRO = { numero: '', fecha_vencimiento: '', monto: '', moneda: 'ARS', notas: '' }
 const EMPTY_PAGO = { fecha_pago: new Date().toISOString().split('T')[0], cuenta_propia_id: '' }
+const EMPTY_ADICIONAL = { rubro: '', monto: '' }
 
-export default function CertificadosManager({ contrato: contratoInicial, certificados, cuentasPropias, constructoraId, obraId, readOnly = false }: Props) {
+export default function CertificadosManager({ contrato: contratoInicial, certificados, contratoObraItems = [], cuentasPropias, constructoraId, obraId, readOnly = false }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
@@ -47,6 +49,42 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showCertForm, setShowCertForm] = useState(false)
   const [certForm, setCertForm] = useState(EMPTY_CERT)
+  const [itemPcts, setItemPcts] = useState<Record<string, string>>({})
+  const [showAdicionalForm, setShowAdicionalForm] = useState(false)
+  const [adicionalForm, setAdicionalForm] = useState(EMPTY_ADICIONAL)
+
+  // El contrato certifica por ítem (presupuesto aceptado) apenas tiene algún
+  // contrato_obra_items — si no tiene ninguno, sigue el flujo viejo de %
+  // global tipeado a mano, sin tocar nada de ese comportamiento.
+  const usaItems = contratoObraItems.length > 0
+
+  // Avance acumulado ya certificado de cada ítem, a la fecha (el máximo entre
+  // todos los certificados existentes) — es el punto de partida para el
+  // próximo certificado, nunca puede bajar.
+  const avanceAcumuladoPrevio: Record<string, number> = {}
+  for (const cert of certificados) {
+    for (const ci of cert.certificado_items ?? []) {
+      avanceAcumuladoPrevio[ci.contrato_obra_item_id] = Math.max(avanceAcumuladoPrevio[ci.contrato_obra_item_id] ?? 0, ci.pct_avance_acumulado)
+    }
+  }
+
+  function abrirNuevoCert() {
+    setShowCertForm(true)
+    setCertForm(EMPTY_CERT)
+    const iniciales: Record<string, string> = {}
+    for (const item of contratoObraItems) {
+      iniciales[item.id] = String(avanceAcumuladoPrevio[item.id] ?? 0)
+    }
+    setItemPcts(iniciales)
+    setError(null)
+  }
+
+  const totalCertificarEsteItem = (item: ContratoObraItem) => {
+    const nuevoPct = parseFloat(itemPcts[item.id] ?? '0') || 0
+    const previoPct = avanceAcumuladoPrevio[item.id] ?? 0
+    return redondear2(((nuevoPct - previoPct) / 100) * item.monto_contratado)
+  }
+  const totalCertificarNuevo = contratoObraItems.reduce((s, item) => s + totalCertificarEsteItem(item), 0)
 
   // Cobros
   const [cobroParaCert, setCobroParaCert] = useState<string | null>(null)
@@ -140,26 +178,91 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
     if (!contrato) return
     setError(null)
     setLoading(true)
-    const nextNum = (certificados.length > 0 ? Math.max(...certificados.map(c => c.numero)) : 0) + 1
     const supabase = createClient()
-    const { error: err } = await supabase
-      .from('certificados_avance')
-      .insert({
-        contrato_obra_id:    contrato.id,
-        obra_id:             obraId,
-        constructora_id:     constructoraId,
-        numero:              nextNum,
-        periodo:             certForm.periodo.trim(),
-        porcentaje_avance:   parseFloat(certForm.porcentaje_avance),
-        monto_certificado:   parseFloat(certForm.monto_certificado),
-        descripcion_avances: certForm.descripcion_avances.trim() || null,
-        notas:               certForm.notas.trim() || null,
-        estado:              'borrador',
-      })
-    setLoading(false)
-    if (err) { setError(err.message); return }
+
+    if (usaItems) {
+      // Modo por ítem: el certificado se crea en 0/0 y el trigger
+      // recalcular_monto_certificado lo completa solo apenas se insertan los
+      // certificado_items (una sola sentencia INSERT con todas las filas —
+      // si el trigger de validación rechaza un ítem, la sentencia entera se
+      // revierte y no queda ningún certificado_item huérfano).
+      const { data: nuevoCert, error: errCert } = await supabase
+        .from('certificados_avance')
+        .insert({
+          contrato_obra_id:    contrato.id,
+          obra_id:             obraId,
+          constructora_id:     constructoraId,
+          periodo:             certForm.periodo.trim(),
+          porcentaje_avance:   0,
+          monto_certificado:   0,
+          descripcion_avances: certForm.descripcion_avances.trim() || null,
+          notas:               certForm.notas.trim() || null,
+          estado:              'borrador',
+        })
+        .select('id')
+        .single()
+
+      if (errCert || !nuevoCert) { setLoading(false); setError(errCert?.message ?? 'Error al crear el certificado'); return }
+
+      const filas = contratoObraItems.map(item => ({
+        certificado_id: nuevoCert.id,
+        contrato_obra_item_id: item.id,
+        constructora_id: constructoraId,
+        pct_avance_acumulado: parseFloat(itemPcts[item.id] ?? '0') || 0,
+        monto_certificado: totalCertificarEsteItem(item),
+      }))
+
+      const { error: errItems } = await supabase.from('certificado_items').insert(filas)
+      setLoading(false)
+      if (errItems) {
+        // Compensar: no dejar un certificado vacío colgado si los ítems fallaron.
+        await supabase.from('certificados_avance').delete().eq('id', nuevoCert.id)
+        setError(errItems.message)
+        return
+      }
+    } else {
+      const nextNum = (certificados.length > 0 ? Math.max(...certificados.map(c => c.numero)) : 0) + 1
+      const { error: err } = await supabase
+        .from('certificados_avance')
+        .insert({
+          contrato_obra_id:    contrato.id,
+          obra_id:             obraId,
+          constructora_id:     constructoraId,
+          numero:              nextNum,
+          periodo:             certForm.periodo.trim(),
+          porcentaje_avance:   parseFloat(certForm.porcentaje_avance),
+          monto_certificado:   parseFloat(certForm.monto_certificado),
+          descripcion_avances: certForm.descripcion_avances.trim() || null,
+          notas:               certForm.notas.trim() || null,
+          estado:              'borrador',
+        })
+      setLoading(false)
+      if (err) { setError(err.message); return }
+    }
+
     setCertForm(EMPTY_CERT)
     setShowCertForm(false)
+    refresh()
+  }
+
+  async function handleAdicionalSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!contrato || !adicionalForm.rubro.trim() || !adicionalForm.monto) return
+    setError(null)
+    setLoading(true)
+    const supabase = createClient()
+    const { error: err } = await supabase.from('contrato_obra_items').insert({
+      contrato_obra_id: contrato.id,
+      constructora_id: constructoraId,
+      orden: contratoObraItems.length,
+      rubro: adicionalForm.rubro.trim(),
+      monto_contratado: redondear2(parseFloat(adicionalForm.monto)),
+      origen: 'adicional',
+    })
+    setLoading(false)
+    if (err) { setError(err.message); return }
+    setAdicionalForm(EMPTY_ADICIONAL)
+    setShowAdicionalForm(false)
     refresh()
   }
 
@@ -412,6 +515,27 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
               <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${porcentajeCertificado}%` }} />
             </div>
           )}
+
+          {usaItems && (
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Ítems contratados</p>
+              <div className="divide-y divide-slate-100">
+                {contratoObraItems.map(item => {
+                  const acumulado = avanceAcumuladoPrevio[item.id] ?? 0
+                  return (
+                    <div key={item.id} className="py-2 flex items-center justify-between gap-3 text-sm">
+                      <span className="text-slate-700 truncate">
+                        {item.rubro}
+                        {item.origen === 'adicional' && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 align-middle">Adicional</span>}
+                      </span>
+                      <span className="text-xs text-slate-400 shrink-0">{acumulado}% certificado</span>
+                      <span className="font-medium text-slate-900 shrink-0">{formatCurrency(item.monto_contratado, contrato.moneda)}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -423,15 +547,23 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
               <h2 className="font-semibold text-slate-800">Paso 2 — Certificados de avance</h2>
               <p className="text-xs text-slate-400 mt-0.5">{certificados.length} certificado{certificados.length !== 1 ? 's' : ''}</p>
             </div>
-            {!readOnly && (
-              <button onClick={() => { setShowCertForm(true); setCertForm(EMPTY_CERT); setError(null) }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Nuevo certificado
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {!readOnly && usaItems && (
+                <button onClick={() => { setShowAdicionalForm(true); setAdicionalForm(EMPTY_ADICIONAL); setError(null) }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors">
+                  + Adicional
+                </button>
+              )}
+              {!readOnly && (
+                <button onClick={abrirNuevoCert}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Nuevo certificado
+                </button>
+              )}
+            </div>
           </div>
 
           {certificados.length === 0 ? (
@@ -508,6 +640,22 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
                       <div className="bg-slate-50 border-t border-slate-100 px-5 py-4 space-y-3">
                         {cert.descripcion_avances && (
                           <p className="text-xs text-slate-500 italic">{cert.descripcion_avances}</p>
+                        )}
+
+                        {/* Desglose por ítem/rubro (solo contratos que certifican por ítem) */}
+                        {(cert.certificado_items?.length ?? 0) > 0 && (
+                          <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+                            {cert.certificado_items!.map(ci => {
+                              const item = contratoObraItems.find(i => i.id === ci.contrato_obra_item_id)
+                              return (
+                                <div key={ci.id} className="px-4 py-2 flex items-center justify-between gap-3 text-sm">
+                                  <span className="text-slate-700 truncate">{item?.rubro ?? 'Ítem'}</span>
+                                  <span className="text-xs text-slate-400 shrink-0">{ci.pct_avance_acumulado}% acum.</span>
+                                  <span className="font-medium text-slate-900 shrink-0">{formatCurrency(ci.monto_certificado, contrato.moneda)}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
                         )}
 
                         {/* Lista de cobros */}
@@ -601,14 +749,14 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
       {/* ── MODAL: Nuevo certificado ── */}
       {showCertForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <div className={cn('bg-white rounded-2xl shadow-2xl w-full', usaItems ? 'max-w-lg' : 'max-w-md')} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-200">
               <h2 className="text-lg font-bold text-slate-900">Nuevo certificado</h2>
               <button onClick={() => setShowCertForm(false)} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <form onSubmit={handleCertSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleCertSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Período *</label>
                 <input required value={certForm.periodo}
@@ -616,21 +764,55 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
                   placeholder="Ej: Enero 2025, Mes 3, Etapa 1..."
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">% Avance *</label>
-                  <input required type="number" min="0" max="100" step="0.01" value={certForm.porcentaje_avance}
-                    onChange={e => setCertForm(f => ({ ...f, porcentaje_avance: e.target.value }))}
-                    placeholder="Ej: 25"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+
+              {usaItems ? (
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium text-slate-600">Avance acumulado por ítem *</label>
+                  <div className="border border-slate-200 rounded-xl divide-y divide-slate-100">
+                    {contratoObraItems.map(item => {
+                      const previo = avanceAcumuladoPrevio[item.id] ?? 0
+                      return (
+                        <div key={item.id} className="px-3 py-2.5 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm text-slate-800 truncate">
+                              {item.rubro}
+                              {item.origen === 'adicional' && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 align-middle">Adicional</span>}
+                            </span>
+                            <span className="text-xs text-slate-400 shrink-0">{formatCurrency(item.monto_contratado, contrato?.moneda)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-slate-400 shrink-0">Previo: {previo}%</span>
+                            <input type="number" min={previo} max="100" step="0.01"
+                              value={itemPcts[item.id] ?? String(previo)}
+                              onChange={e => setItemPcts(p => ({ ...p, [item.id]: e.target.value }))}
+                              className="w-20 px-2 py-1 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            <span className="text-xs text-slate-400">% acum.</span>
+                            <span className="ml-auto text-xs font-medium text-slate-700">{formatCurrency(totalCertificarEsteItem(item), contrato?.moneda)}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="text-sm font-semibold text-slate-900 text-right">Total a certificar: {formatCurrency(totalCertificarNuevo, contrato?.moneda)}</p>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Monto a certificar *</label>
-                  <input required type="number" min="0" step="0.01" value={certForm.monto_certificado}
-                    onChange={e => setCertForm(f => ({ ...f, monto_certificado: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">% Avance *</label>
+                    <input required type="number" min="0" max="100" step="0.01" value={certForm.porcentaje_avance}
+                      onChange={e => setCertForm(f => ({ ...f, porcentaje_avance: e.target.value }))}
+                      placeholder="Ej: 25"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Monto a certificar *</label>
+                    <input required type="number" min="0" step="0.01" value={certForm.monto_certificado}
+                      onChange={e => setCertForm(f => ({ ...f, monto_certificado: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
                 </div>
-              </div>
+              )}
+
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Descripción de los avances</label>
                 <textarea rows={3} value={certForm.descripcion_avances}
@@ -642,9 +824,50 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setShowCertForm(false)}
                   className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
-                <button type="submit" disabled={loading}
+                <button type="submit" disabled={loading || (usaItems && totalCertificarNuevo <= 0)}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                   {loading ? 'Guardando...' : 'Crear certificado'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: Adicional de obra ── */}
+      {showAdicionalForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Adicional de obra</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Trabajo extra no incluido en el presupuesto original</p>
+              </div>
+              <button onClick={() => setShowAdicionalForm(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleAdicionalSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Rubro *</label>
+                <input required value={adicionalForm.rubro}
+                  onChange={e => setAdicionalForm(f => ({ ...f, rubro: e.target.value }))}
+                  placeholder="Ej: Refuerzo de fundación extra"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Monto *</label>
+                <input required type="number" min="0.01" step="0.01" value={adicionalForm.monto}
+                  onChange={e => setAdicionalForm(f => ({ ...f, monto: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setShowAdicionalForm(false)}
+                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+                <button type="submit" disabled={loading}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
+                  {loading ? 'Guardando...' : 'Agregar'}
                 </button>
               </div>
             </form>

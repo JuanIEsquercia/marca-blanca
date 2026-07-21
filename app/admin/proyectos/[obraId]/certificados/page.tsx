@@ -27,7 +27,7 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
       .limit(1),
     supabase
       .from('certificados_avance')
-      .select('*, cobros_proyecto(*)')
+      .select('*, cobros_proyecto(*), certificado_items(*)')
       .eq('obra_id', obraId)
       .order('numero', { ascending: true }),
     ctx.obraModo === 'especificas'
@@ -45,6 +45,10 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
 
   const contrato = contratos?.[0] ?? null
 
+  const { data: contratoObraItems } = contrato
+    ? await supabase.from('contrato_obra_items').select('*').eq('contrato_obra_id', contrato.id).order('orden')
+    : { data: [] }
+
   return (
     <div>
       <div className="mb-6">
@@ -56,6 +60,7 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
       <CertificadosManager
         contrato={contrato ?? null}
         certificados={(certificados ?? []) as any}
+        contratoObraItems={contratoObraItems ?? []}
         cuentasPropias={cuentasPropias ?? []}
         constructoraId={ctx.constructoraId}
         obraId={obraId}

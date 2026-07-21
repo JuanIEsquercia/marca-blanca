@@ -272,6 +272,7 @@ export interface ContratoObra {
   fecha_fin_estimada: string | null
   descripcion: string | null
   estado: 'vigente' | 'terminado' | 'rescindido'
+  presupuesto_id: string | null
   created_at: string
   compradores?: Comprador
 }
@@ -292,6 +293,66 @@ export interface CertificadoAvance {
   notas: string | null
   created_at: string
   cobros_proyecto?: CobroProyecto[]
+  certificado_items?: CertificadoItem[]
+}
+
+export type EstadoPresupuesto = 'borrador' | 'enviado' | 'aceptado' | 'rechazado'
+
+export interface Presupuesto {
+  id: string
+  constructora_id: string
+  obra_id: string | null
+  contrato_obra_id: string | null
+  cliente_nombre: string
+  cliente_cuit: string | null
+  cliente_email: string | null
+  cliente_telefono: string | null
+  moneda: string
+  estado: EstadoPresupuesto
+  descripcion: string | null
+  notas: string | null
+  created_at: string
+  presupuesto_items?: PresupuestoItem[]
+  obras?: { id: string; nombre: string } | null
+}
+
+export interface PresupuestoItem {
+  id: string
+  presupuesto_id: string
+  constructora_id: string
+  orden: number
+  rubro: string
+  unidad: string | null
+  cantidad: number
+  precio_unitario: number
+  subtotal: number
+  created_at: string
+}
+
+export type OrigenItemContrato = 'presupuesto' | 'adicional'
+
+export interface ContratoObraItem {
+  id: string
+  contrato_obra_id: string
+  constructora_id: string
+  orden: number
+  rubro: string
+  monto_contratado: number
+  origen: OrigenItemContrato
+  notas: string | null
+  created_at: string
+  certificado_items?: CertificadoItem[]
+}
+
+export interface CertificadoItem {
+  id: string
+  certificado_id: string
+  contrato_obra_item_id: string
+  constructora_id: string
+  pct_avance_acumulado: number
+  monto_certificado: number
+  created_at: string
+  contrato_obra_items?: ContratoObraItem
 }
 
 export interface CobroProyecto {

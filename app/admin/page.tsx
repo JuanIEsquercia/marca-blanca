@@ -54,25 +54,23 @@ export default async function AdminHomePage() {
       .order('nombre'),
   ])
 
-  // Unidades por proyecto (solo desarrollos)
+  // Unidades por proyecto (solo desarrollos) — agregado en Postgres
+  // (resumen_unidades_por_obra, migration_030) en vez de traer cada fila de
+  // `unidades` y contar en JS, para no quedar sujeto al límite default de
+  // PostgREST (~1000 filas) si la constructora acumula muchas unidades.
   const desarrolloIds = (proyectos ?? [])
     .filter(p => p.tipo === 'desarrollo')
     .map(p => p.id)
 
-  const { data: unidadesData } = desarrolloIds.length > 0
-    ? await supabase
-        .from('unidades')
-        .select('obra_id, estado_comercial')
-        .in('obra_id', desarrolloIds)
-    : { data: [] }
+  interface ResumenUnidadesObra { obra_id: string; total: number; vendidas: number; reservadas: number; disponibles: number }
 
-  // Agrupar por obra_id
-  const unidadesPorObra = (unidadesData ?? []).reduce<Record<string, { total: number; vendidas: number; reservadas: number; disponibles: number }>>((acc, u) => {
-    if (!acc[u.obra_id]) acc[u.obra_id] = { total: 0, vendidas: 0, reservadas: 0, disponibles: 0 }
-    acc[u.obra_id].total++
-    if (u.estado_comercial === 'Vendido') acc[u.obra_id].vendidas++
-    else if (u.estado_comercial === 'Reservado') acc[u.obra_id].reservadas++
-    else acc[u.obra_id].disponibles++
+  const { data: resumenUnidadesRaw } = desarrolloIds.length > 0
+    ? await supabase.rpc('resumen_unidades_por_obra', { p_obra_ids: desarrolloIds })
+    : { data: [] as ResumenUnidadesObra[] }
+  const resumenUnidades = (resumenUnidadesRaw ?? []) as ResumenUnidadesObra[]
+
+  const unidadesPorObra = resumenUnidades.reduce<Record<string, { total: number; vendidas: number; reservadas: number; disponibles: number }>>((acc, r) => {
+    acc[r.obra_id] = { total: r.total, vendidas: r.vendidas, reservadas: r.reservadas, disponibles: r.disponibles }
     return acc
   }, {})
 

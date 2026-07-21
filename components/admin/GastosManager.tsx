@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useTransition, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
@@ -18,6 +19,11 @@ interface Props {
   constructoraId: string
   obraId?: string
   readOnly?: boolean
+  // Si la página aplicó la ventana de "últimos 12 meses" a los Pagados
+  // (default, para no traer todo el historial de la constructora en cada
+  // carga — ver app/admin/gastos/page.tsx). Los Pendientes SIEMPRE vienen
+  // completos sin importar este flag.
+  historialAcotado?: boolean
 }
 
 const EMPTY_FORM = {
@@ -35,8 +41,9 @@ const EMPTY_FORM = {
   percepciones: '',
 }
 
-export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias, constructoraId, obraId, readOnly }: Props) {
+export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias, constructoraId, obraId, readOnly, historialAcotado }: Props) {
   const router = useRouter()
+  const pathname = usePathname()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -296,6 +303,15 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
           </p>
         </div>
       </div>
+
+      {historialAcotado && (
+        <div className="mb-4 flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-xs text-slate-500">
+          <span>Mostrando pagados de los últimos 12 meses (los pendientes se ven todos, sin importar la fecha).</span>
+          <Link href={`${pathname}?historial=todo`} className="shrink-0 font-medium text-indigo-600 hover:text-indigo-700">
+            Ver historial completo
+          </Link>
+        </div>
+      )}
 
       {/* Filtros + botón */}
       <div className="flex flex-col md:flex-row gap-3 mb-5">

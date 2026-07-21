@@ -28,23 +28,41 @@ export default async function TesoreriaPage() {
 
   const supabase = await createClient()
 
+  // El flujo mensual solo muestra los últimos 12 meses (`meses`, abajo) —
+  // filtrar estas 4 queries a esa misma ventana evita traer TODO el
+  // historial de la constructora en cada carga (sin esto, quedaba sujeto al
+  // límite default de PostgREST de ~1000 filas y subestimaba los totales
+  // silenciosamente en tenants con historial largo). Los gastos Pendientes
+  // NO se filtran por fecha: una deuda vieja sigue siendo relevante aunque
+  // esté fuera de la ventana del gráfico.
+  const meses = getLast12Months()
+  const ventanaInicio = `${meses[0].year}-${String(meses[0].month).padStart(2, '0')}-01`
+
   const [
     { data: obras },
     { data: cuotas },
     { data: contratos },
-    { data: gastos },
+    { data: gastosPagados },
+    { data: gastosPendientesRaw },
     { data: cobrosProyecto },
     cuentasConSaldo,
   ] = await Promise.all([
     supabase.from('obras').select('id, nombre').eq('constructora_id', ctx.constructoraId).order('nombre'),
     supabase.from('cuotas')
       .select('monto_base, monto_cobrado, fecha_pago, estado_pago, contratos_venta(obra_id)')
-      .eq('constructora_id', ctx.constructoraId).eq('estado_pago', 'Pagado'),
-    supabase.from('contratos_venta').select('entrega_efectiva, fecha_firma, obra_id').eq('constructora_id', ctx.constructoraId),
-    supabase.from('gastos').select('*, proveedores(razon_social), categorias_costo(nombre, color)').eq('constructora_id', ctx.constructoraId),
-    supabase.from('cobros_proyecto').select('monto, moneda, fecha_pago, fecha, obra_id').eq('constructora_id', ctx.constructoraId).eq('estado', 'cobrado'),
+      .eq('constructora_id', ctx.constructoraId).eq('estado_pago', 'Pagado').gte('fecha_pago', ventanaInicio),
+    supabase.from('contratos_venta').select('entrega_efectiva, fecha_firma, obra_id')
+      .eq('constructora_id', ctx.constructoraId).gte('fecha_firma', ventanaInicio),
+    supabase.from('gastos').select('*, proveedores(razon_social), categorias_costo(nombre, color)')
+      .eq('constructora_id', ctx.constructoraId).eq('estado', 'Pagado').gte('fecha_pago', ventanaInicio),
+    supabase.from('gastos').select('*, proveedores(razon_social), categorias_costo(nombre, color)')
+      .eq('constructora_id', ctx.constructoraId).eq('estado', 'Pendiente'),
+    supabase.from('cobros_proyecto').select('monto, moneda, fecha_pago, fecha, obra_id')
+      .eq('constructora_id', ctx.constructoraId).eq('estado', 'cobrado').gte('fecha', ventanaInicio),
     calcularCajaEmpresa(supabase, ctx.constructoraId),
   ])
+
+  const gastos = [...(gastosPagados ?? []), ...(gastosPendientesRaw ?? [])]
 
   // Serie normalizada de movimientos con su obra_id — antes el "Flujo
   // mensual" sumaba todo junto sin distinguir de qué proyecto venía cada
@@ -95,7 +113,7 @@ export default async function TesoreriaPage() {
       <TesoreriaView
         cuentas={cuentasConSaldo}
         movimientos={movimientos}
-        meses={getLast12Months()}
+        meses={meses}
         proyectos={obras ?? []}
         gastosPendientes={gastosPendientes}
       />

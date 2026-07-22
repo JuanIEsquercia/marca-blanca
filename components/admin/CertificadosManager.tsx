@@ -3,8 +3,10 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
+import { cn, formatCurrency, formatDate, redondear2 } from '@/lib/utils'
 import ConfirmModal from './ConfirmModal'
+import ClienteYFechasForm, { EMPTY_DATOS_GENERALES, type DatosGenerales } from './ClienteYFechasForm'
+import ItemsRubroTable, { nuevaFilaItem, subtotalFilaItem, totalFilasItem, type FilaItem } from './ItemsRubroTable'
 import type { ContratoObra, CertificadoAvance, CobroProyecto, CuentaPropia, EstadoCertificado, ContratoObraItem, CertificadoItem } from '@/types/database'
 
 type ConfirmState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
@@ -27,22 +29,10 @@ const ESTADO_CERT: Record<EstadoCertificado, { label: string; color: string; nex
   aprobado:   { label: 'Aprobado',   color: 'bg-emerald-100 text-emerald-700', next: null,       nextLabel: null },
 }
 
-const EMPTY_CONTRATO = { cliente_nombre: '', cliente_cuit: '', cliente_email: '', cliente_telefono: '', moneda: 'ARS', fecha_inicio: '', fecha_fin_estimada: '', descripcion: '' }
 const EMPTY_CERT = { periodo: '', porcentaje_avance: '', monto_certificado: '', descripcion_avances: '', notas: '' }
 const EMPTY_COBRO = { numero: '', fecha_vencimiento: '', monto: '', moneda: 'ARS', notas: '' }
 const EMPTY_PAGO = { fecha_pago: new Date().toISOString().split('T')[0], cuenta_propia_id: '' }
 const EMPTY_ADICIONAL = { rubro: '', monto: '' }
-
-// El contrato (con o sin presupuesto de origen) siempre se arma por
-// ítems — monto_total es derivado (trigger recalcular_monto_total_contrato,
-// migration_035), nunca se tipea a mano. Mismo shape que las filas de
-// NuevoPresupuestoForm, para que la experiencia de cargar ítems sea
-// idéntica en los dos lugares donde existe.
-type FilaContrato = { key: number; rubro: string; unidad: string; cantidad: string; precio_unitario: string }
-let filaContratoKeySeq = 0
-function nuevaFilaContrato(): FilaContrato {
-  return { key: ++filaContratoKeySeq, rubro: '', unidad: '', cantidad: '1', precio_unitario: '' }
-}
 
 export default function CertificadosManager({ contrato: contratoInicial, certificados, contratoObraItems = [], cuentasPropias, constructoraId, obraId, readOnly = false }: Props) {
   const router = useRouter()
@@ -66,22 +56,9 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
     setContratoPrevio(contratoInicial)
     setContrato(contratoInicial)
   }
-  const [contratoForm, setContratoForm] = useState(EMPTY_CONTRATO)
-  const [contratoFilas, setContratoFilas] = useState<FilaContrato[]>([nuevaFilaContrato()])
-
-  function actualizarFilaContrato(key: number, cambios: Partial<FilaContrato>) {
-    setContratoFilas(filas => filas.map(f => (f.key === key ? { ...f, ...cambios } : f)))
-  }
-  function agregarFilaContrato() {
-    setContratoFilas(filas => [...filas, nuevaFilaContrato()])
-  }
-  function quitarFilaContrato(key: number) {
-    setContratoFilas(filas => (filas.length > 1 ? filas.filter(f => f.key !== key) : filas))
-  }
-  function subtotalFilaContrato(f: FilaContrato) {
-    return redondear2((parseFloat(f.cantidad) || 0) * (parseFloat(f.precio_unitario) || 0))
-  }
-  const totalContratoFilas = sumarMontos(contratoFilas.map(subtotalFilaContrato))
+  const [contratoForm, setContratoForm] = useState<DatosGenerales>(EMPTY_DATOS_GENERALES)
+  const [contratoFilas, setContratoFilas] = useState<FilaItem[]>([nuevaFilaItem()])
+  const totalContratoFilas = totalFilasItem(contratoFilas)
 
   // Certificados
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -203,7 +180,7 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
           constructora_id: constructoraId,
           orden: i,
           rubro: f.rubro.trim(),
-          monto_contratado: subtotalFilaContrato(f),
+          monto_contratado: subtotalFilaItem(f),
           origen: 'directo',
         }))
       )
@@ -475,102 +452,9 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
             </div>
           </div>
           <form onSubmit={handleContratoSubmit} className="p-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-xs font-medium text-slate-600 mb-1">Nombre del cliente *</label>
-                <input required value={contratoForm.cliente_nombre}
-                  onChange={e => setContratoForm(f => ({ ...f, cliente_nombre: e.target.value }))}
-                  placeholder="Razón social o nombre"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">CUIT</label>
-                <input value={contratoForm.cliente_cuit}
-                  onChange={e => setContratoForm(f => ({ ...f, cliente_cuit: e.target.value }))}
-                  placeholder="20-12345678-9"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
-                <input type="email" value={contratoForm.cliente_email}
-                  onChange={e => setContratoForm(f => ({ ...f, cliente_email: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono</label>
-                <input value={contratoForm.cliente_telefono}
-                  onChange={e => setContratoForm(f => ({ ...f, cliente_telefono: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
-                <select value={contratoForm.moneda}
-                  onChange={e => setContratoForm(f => ({ ...f, moneda: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="ARS">ARS — Pesos</option>
-                  <option value="USD">USD — Dólares</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Fecha inicio</label>
-                <input type="date" value={contratoForm.fecha_inicio}
-                  onChange={e => setContratoForm(f => ({ ...f, fecha_inicio: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Fin estimado</label>
-                <input type="date" value={contratoForm.fecha_fin_estimada}
-                  onChange={e => setContratoForm(f => ({ ...f, fecha_fin_estimada: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-xs font-medium text-slate-600 mb-1">Descripción del objeto del contrato</label>
-                <textarea rows={2} value={contratoForm.descripcion}
-                  onChange={e => setContratoForm(f => ({ ...f, descripcion: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-            </div>
+            <ClienteYFechasForm form={contratoForm} onChange={setContratoForm} descripcionLabel="Descripción del objeto del contrato" />
 
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-medium text-slate-600">Ítems del contrato *</label>
-                <button type="button" onClick={agregarFilaContrato}
-                  className="text-xs px-2 py-1 border border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                  + Agregar fila
-                </button>
-              </div>
-              <div className="border border-slate-200 rounded-xl divide-y divide-slate-100">
-                {contratoFilas.map((f, i) => (
-                  <div key={f.key} className="p-2.5 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400 w-4 shrink-0">{i + 1}</span>
-                      <input value={f.rubro} onChange={e => actualizarFilaContrato(f.key, { rubro: e.target.value })}
-                        placeholder="Rubro (ej: Movimiento de suelos)"
-                        className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                      <button type="button" onClick={() => quitarFilaContrato(f.key)}
-                        className="text-red-400 hover:text-red-600 px-1 shrink-0" title="Quitar fila">✕</button>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 pl-6">
-                      <input value={f.unidad} onChange={e => actualizarFilaContrato(f.key, { unidad: e.target.value })}
-                        placeholder="Unidad (m², gl...)"
-                        className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                      <input type="number" min="0.01" step="0.01" value={f.cantidad}
-                        onChange={e => actualizarFilaContrato(f.key, { cantidad: e.target.value })}
-                        placeholder="Cantidad"
-                        className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                      <input type="number" min="0" step="0.01" value={f.precio_unitario}
-                        onChange={e => actualizarFilaContrato(f.key, { precio_unitario: e.target.value })}
-                        placeholder="Precio unitario"
-                        className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                    </div>
-                    {f.rubro.trim() && f.precio_unitario && (
-                      <p className="text-xs text-slate-400 pl-6">Subtotal: {formatCurrency(subtotalFilaContrato(f), contratoForm.moneda)}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <p className="text-sm font-semibold text-slate-900 text-right mt-2">Total: {formatCurrency(totalContratoFilas, contratoForm.moneda)}</p>
-            </div>
+            <ItemsRubroTable filas={contratoFilas} onChange={setContratoFilas} moneda={contratoForm.moneda} titulo="Ítems del contrato" />
 
             {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
             <div className="flex justify-end">

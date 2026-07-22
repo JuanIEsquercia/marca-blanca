@@ -309,6 +309,8 @@ export interface Presupuesto {
   cliente_telefono: string | null
   moneda: string
   estado: EstadoPresupuesto
+  fecha_inicio: string | null
+  fecha_fin_estimada: string | null
   descripcion: string | null
   notas: string | null
   created_at: string

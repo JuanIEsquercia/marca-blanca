@@ -1,7 +1,7 @@
 -- ============================================================
 -- SCHEMA CANÓNICO — ERP multi-tenant para constructoras
 -- Refleja el estado final acumulado de schema.sql + migration_001
--- a migration_036. Ver supabase/README.md para la convención.
+-- a migration_037. Ver supabase/README.md para la convención.
 --
 -- Este archivo es SOLO REFERENCIA / bootstrap de un ambiente nuevo.
 -- El proyecto Supabase existente NO necesita correrlo: ya llegó a
@@ -1375,6 +1375,8 @@ CREATE TABLE IF NOT EXISTS presupuestos (
   moneda            TEXT NOT NULL DEFAULT 'ARS' CHECK (moneda IN ('ARS', 'USD')),
   estado            TEXT NOT NULL DEFAULT 'borrador'
     CHECK (estado IN ('borrador', 'enviado', 'aceptado', 'rechazado')),
+  fecha_inicio        DATE,
+  fecha_fin_estimada  DATE,
   descripcion       TEXT,
   notas             TEXT,
   created_by        UUID REFERENCES auth.users(id),
@@ -1689,8 +1691,8 @@ BEGIN
     RETURNING id INTO v_cliente_id;
   END IF;
 
-  INSERT INTO contratos_obra (obra_id, constructora_id, cliente_id, monto_total, moneda, descripcion, presupuesto_id)
-  VALUES (v_obra_id, v_presupuesto.constructora_id, v_cliente_id, v_monto_total, v_presupuesto.moneda, v_presupuesto.descripcion, p_presupuesto_id)
+  INSERT INTO contratos_obra (obra_id, constructora_id, cliente_id, monto_total, moneda, descripcion, presupuesto_id, fecha_inicio, fecha_fin_estimada)
+  VALUES (v_obra_id, v_presupuesto.constructora_id, v_cliente_id, v_monto_total, v_presupuesto.moneda, v_presupuesto.descripcion, p_presupuesto_id, v_presupuesto.fecha_inicio, v_presupuesto.fecha_fin_estimada)
   RETURNING id INTO v_contrato_id;
 
   INSERT INTO contrato_obra_items (contrato_obra_id, constructora_id, orden, rubro, monto_contratado, origen)

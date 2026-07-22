@@ -38,6 +38,9 @@ export default async function PrintPresupuestoPage({ params }: { params: Promise
   const obraNombre = (presupuesto.obras as unknown as { nombre: string } | null)?.nombre ?? null
   const hoy = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const fechaPresupuesto = new Date(presupuesto.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const fmtFecha = (d: string | null) => d ? new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null
+  const fechaInicio = fmtFecha(presupuesto.fecha_inicio)
+  const fechaFin = fmtFecha(presupuesto.fecha_fin_estimada)
 
   const items = [...(presupuesto.presupuesto_items ?? [])].sort((a, b) => a.orden - b.orden)
   const total = items.reduce((s, i) => s + i.subtotal, 0)
@@ -79,6 +82,15 @@ export default async function PrintPresupuestoPage({ params }: { params: Promise
             {obraNombre && <p><span className="font-semibold">Proyecto:</span> {obraNombre}</p>}
           </div>
         </div>
+
+        {(fechaInicio || fechaFin) && (
+          <p className="mb-6 text-sm">
+            <span className="font-semibold">Plazo estimado:</span>{' '}
+            {fechaInicio && <>inicio {fechaInicio}</>}
+            {fechaInicio && fechaFin && ' — '}
+            {fechaFin && <>finalización estimada {fechaFin}</>}
+          </p>
+        )}
 
         {/* Descripción */}
         {presupuesto.descripcion && (

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { cn, formatCurrency, formatDate, redondear2 } from '@/lib/utils'
+import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
 import ConfirmModal from './ConfirmModal'
 import type { ContratoObra, CertificadoAvance, CobroProyecto, CuentaPropia, EstadoCertificado, ContratoObraItem, CertificadoItem } from '@/types/database'
 
@@ -27,11 +27,22 @@ const ESTADO_CERT: Record<EstadoCertificado, { label: string; color: string; nex
   aprobado:   { label: 'Aprobado',   color: 'bg-emerald-100 text-emerald-700', next: null,       nextLabel: null },
 }
 
-const EMPTY_CONTRATO = { cliente_nombre: '', cliente_cuit: '', cliente_email: '', cliente_telefono: '', monto_total: '', moneda: 'ARS', fecha_inicio: '', fecha_fin_estimada: '', descripcion: '' }
+const EMPTY_CONTRATO = { cliente_nombre: '', cliente_cuit: '', cliente_email: '', cliente_telefono: '', moneda: 'ARS', fecha_inicio: '', fecha_fin_estimada: '', descripcion: '' }
 const EMPTY_CERT = { periodo: '', porcentaje_avance: '', monto_certificado: '', descripcion_avances: '', notas: '' }
 const EMPTY_COBRO = { numero: '', fecha_vencimiento: '', monto: '', moneda: 'ARS', notas: '' }
 const EMPTY_PAGO = { fecha_pago: new Date().toISOString().split('T')[0], cuenta_propia_id: '' }
 const EMPTY_ADICIONAL = { rubro: '', monto: '' }
+
+// El contrato (con o sin presupuesto de origen) siempre se arma por
+// ítems — monto_total es derivado (trigger recalcular_monto_total_contrato,
+// migration_035), nunca se tipea a mano. Mismo shape que las filas de
+// NuevoPresupuestoForm, para que la experiencia de cargar ítems sea
+// idéntica en los dos lugares donde existe.
+type FilaContrato = { key: number; rubro: string; unidad: string; cantidad: string; precio_unitario: string }
+let filaContratoKeySeq = 0
+function nuevaFilaContrato(): FilaContrato {
+  return { key: ++filaContratoKeySeq, rubro: '', unidad: '', cantidad: '1', precio_unitario: '' }
+}
 
 export default function CertificadosManager({ contrato: contratoInicial, certificados, contratoObraItems = [], cuentasPropias, constructoraId, obraId, readOnly = false }: Props) {
   const router = useRouter()
@@ -56,6 +67,21 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
     setContrato(contratoInicial)
   }
   const [contratoForm, setContratoForm] = useState(EMPTY_CONTRATO)
+  const [contratoFilas, setContratoFilas] = useState<FilaContrato[]>([nuevaFilaContrato()])
+
+  function actualizarFilaContrato(key: number, cambios: Partial<FilaContrato>) {
+    setContratoFilas(filas => filas.map(f => (f.key === key ? { ...f, ...cambios } : f)))
+  }
+  function agregarFilaContrato() {
+    setContratoFilas(filas => [...filas, nuevaFilaContrato()])
+  }
+  function quitarFilaContrato(key: number) {
+    setContratoFilas(filas => (filas.length > 1 ? filas.filter(f => f.key !== key) : filas))
+  }
+  function subtotalFilaContrato(f: FilaContrato) {
+    return redondear2((parseFloat(f.cantidad) || 0) * (parseFloat(f.precio_unitario) || 0))
+  }
+  const totalContratoFilas = sumarMontos(contratoFilas.map(subtotalFilaContrato))
 
   // Certificados
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -149,13 +175,17 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
       clienteId = nuevoCliente.id
     }
 
+    // monto_total arranca en 0 — lo fija solo el trigger
+    // recalcular_monto_total_contrato apenas se insertan los ítems abajo,
+    // nunca se tipea a mano (mismo criterio que un contrato originado en
+    // un presupuesto aceptado).
     const { data, error: err } = await supabase
       .from('contratos_obra')
       .insert({
         obra_id: obraId,
         constructora_id: constructoraId,
         cliente_id:     clienteId,
-        monto_total:    parseFloat(contratoForm.monto_total),
+        monto_total:    0,
         moneda:         contratoForm.moneda,
         fecha_inicio:   contratoForm.fecha_inicio || null,
         fecha_fin_estimada: contratoForm.fecha_fin_estimada || null,
@@ -163,9 +193,34 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
       })
       .select('*, compradores(*)')
       .single()
+    if (err || !data) { setLoading(false); setError(err?.message ?? 'Error al crear el contrato'); return }
+
+    const filasValidas = contratoFilas.filter(f => f.rubro.trim() && f.precio_unitario)
+    if (filasValidas.length > 0) {
+      const { error: errItems } = await supabase.from('contrato_obra_items').insert(
+        filasValidas.map((f, i) => ({
+          contrato_obra_id: data.id,
+          constructora_id: constructoraId,
+          orden: i,
+          rubro: f.rubro.trim(),
+          monto_contratado: subtotalFilaContrato(f),
+          origen: 'directo',
+        }))
+      )
+      if (errItems) {
+        // Compensar: no dejar un contrato sin ítems (monto_total=0) colgado.
+        await supabase.from('contratos_obra').delete().eq('id', data.id)
+        setLoading(false)
+        setError(errItems.message)
+        return
+      }
+    }
+
     setLoading(false)
-    if (err || !data) { setError(err?.message ?? 'Error al crear el contrato'); return }
-    setContrato(data as ContratoObra)
+    // Optimista: el trigger ya dejó monto_total correcto en la base, pero
+    // `data` se leyó antes de insertar los ítems — se corrige acá mismo
+    // para no mostrar "0" hasta que llegue el refresh().
+    setContrato({ ...(data as ContratoObra), monto_total: totalContratoFilas })
     setShowContratoForm(false)
     refresh()
   }
@@ -448,12 +503,6 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Monto total *</label>
-                <input required type="number" min="0" step="0.01" value={contratoForm.monto_total}
-                  onChange={e => setContratoForm(f => ({ ...f, monto_total: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
                 <select value={contratoForm.moneda}
                   onChange={e => setContratoForm(f => ({ ...f, moneda: e.target.value }))}
@@ -481,9 +530,51 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
             </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-slate-600">Ítems del contrato *</label>
+                <button type="button" onClick={agregarFilaContrato}
+                  className="text-xs px-2 py-1 border border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                  + Agregar fila
+                </button>
+              </div>
+              <div className="border border-slate-200 rounded-xl divide-y divide-slate-100">
+                {contratoFilas.map((f, i) => (
+                  <div key={f.key} className="p-2.5 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400 w-4 shrink-0">{i + 1}</span>
+                      <input value={f.rubro} onChange={e => actualizarFilaContrato(f.key, { rubro: e.target.value })}
+                        placeholder="Rubro (ej: Movimiento de suelos)"
+                        className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      <button type="button" onClick={() => quitarFilaContrato(f.key)}
+                        className="text-red-400 hover:text-red-600 px-1 shrink-0" title="Quitar fila">✕</button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 pl-6">
+                      <input value={f.unidad} onChange={e => actualizarFilaContrato(f.key, { unidad: e.target.value })}
+                        placeholder="Unidad (m², gl...)"
+                        className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      <input type="number" min="0.01" step="0.01" value={f.cantidad}
+                        onChange={e => actualizarFilaContrato(f.key, { cantidad: e.target.value })}
+                        placeholder="Cantidad"
+                        className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      <input type="number" min="0" step="0.01" value={f.precio_unitario}
+                        onChange={e => actualizarFilaContrato(f.key, { precio_unitario: e.target.value })}
+                        placeholder="Precio unitario"
+                        className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    </div>
+                    {f.rubro.trim() && f.precio_unitario && (
+                      <p className="text-xs text-slate-400 pl-6">Subtotal: {formatCurrency(subtotalFilaContrato(f), contratoForm.moneda)}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-sm font-semibold text-slate-900 text-right mt-2">Total: {formatCurrency(totalContratoFilas, contratoForm.moneda)}</p>
+            </div>
+
             {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
             <div className="flex justify-end">
-              <button type="submit" disabled={loading}
+              <button type="submit" disabled={loading || totalContratoFilas <= 0}
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg disabled:opacity-60">
                 {loading ? 'Guardando...' : 'Crear contrato'}
               </button>

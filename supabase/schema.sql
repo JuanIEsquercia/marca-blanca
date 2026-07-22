@@ -1,7 +1,7 @@
 -- ============================================================
 -- SCHEMA CANÓNICO — ERP multi-tenant para constructoras
 -- Refleja el estado final acumulado de schema.sql + migration_001
--- a migration_035. Ver supabase/README.md para la convención.
+-- a migration_036. Ver supabase/README.md para la convención.
 --
 -- Este archivo es SOLO REFERENCIA / bootstrap de un ambiente nuevo.
 -- El proyecto Supabase existente NO necesita correrlo: ya llegó a
@@ -1411,7 +1411,7 @@ CREATE TABLE IF NOT EXISTS contrato_obra_items (
   orden             INTEGER NOT NULL DEFAULT 0,
   rubro             TEXT NOT NULL,
   monto_contratado  NUMERIC(15,2) NOT NULL CHECK (monto_contratado >= 0),
-  origen            TEXT NOT NULL DEFAULT 'presupuesto' CHECK (origen IN ('presupuesto', 'adicional')),
+  origen            TEXT NOT NULL DEFAULT 'presupuesto' CHECK (origen IN ('presupuesto', 'adicional', 'directo')),
   notas             TEXT,
   created_by        UUID REFERENCES auth.users(id),
   created_at        TIMESTAMPTZ DEFAULT NOW()

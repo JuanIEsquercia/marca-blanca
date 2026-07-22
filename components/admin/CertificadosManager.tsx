@@ -523,13 +523,13 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
                 {contratoObraItems.map(item => {
                   const acumulado = avanceAcumuladoPrevio[item.id] ?? 0
                   return (
-                    <div key={item.id} className="py-2 flex items-center justify-between gap-3 text-sm">
-                      <span className="text-slate-700 truncate">
+                    <div key={item.id} className="py-2 grid grid-cols-[1fr_auto_auto] items-center gap-3 text-sm">
+                      <span className="text-slate-700 truncate min-w-0">
                         {item.rubro}
                         {item.origen === 'adicional' && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 align-middle">Adicional</span>}
                       </span>
-                      <span className="text-xs text-slate-400 shrink-0">{acumulado}% certificado</span>
-                      <span className="font-medium text-slate-900 shrink-0">{formatCurrency(item.monto_contratado, contrato.moneda)}</span>
+                      <span className="text-xs text-slate-400 text-right w-24 shrink-0">{acumulado}% certificado</span>
+                      <span className="font-medium text-slate-900 text-right w-28 shrink-0">{formatCurrency(item.monto_contratado, contrato.moneda)}</span>
                     </div>
                   )
                 })}
@@ -648,10 +648,10 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
                             {cert.certificado_items!.map(ci => {
                               const item = contratoObraItems.find(i => i.id === ci.contrato_obra_item_id)
                               return (
-                                <div key={ci.id} className="px-4 py-2 flex items-center justify-between gap-3 text-sm">
-                                  <span className="text-slate-700 truncate">{item?.rubro ?? 'Ítem'}</span>
-                                  <span className="text-xs text-slate-400 shrink-0">{ci.pct_avance_acumulado}% acum.</span>
-                                  <span className="font-medium text-slate-900 shrink-0">{formatCurrency(ci.monto_certificado, contrato.moneda)}</span>
+                                <div key={ci.id} className="px-4 py-2 grid grid-cols-[1fr_auto_auto] items-center gap-3 text-sm">
+                                  <span className="text-slate-700 truncate min-w-0">{item?.rubro ?? 'Ítem'}</span>
+                                  <span className="text-xs text-slate-400 text-right w-20 shrink-0">{ci.pct_avance_acumulado}% acum.</span>
+                                  <span className="font-medium text-slate-900 text-right w-28 shrink-0">{formatCurrency(ci.monto_certificado, contrato.moneda)}</span>
                                 </div>
                               )
                             })}

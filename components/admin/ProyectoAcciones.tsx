@@ -288,8 +288,11 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
             <ul className="text-xs text-slate-500 mb-6 list-disc list-inside space-y-0.5">
               <li>Contratos, certificados y cobros</li>
               <li>Unidades, tipologías y ventas</li>
-              <li>Gastos y cuentas propias del proyecto</li>
+              <li>Gastos, equipos asignados y presupuestos vinculados</li>
             </ul>
+            <p className="text-xs text-slate-400 mb-6 -mt-4">
+              Las cuentas propias específicas del proyecto no se eliminan: pasan a ser cuentas de empresa.
+            </p>
             {accionError && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs">{accionError}</div>
             )}

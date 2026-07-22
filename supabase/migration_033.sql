@@ -47,10 +47,15 @@ BEGIN
   -- Transversal a ambos tipos
   DELETE FROM equipo_asignaciones WHERE obra_id = p_obra_id;
   DELETE FROM gastos              WHERE obra_id = p_obra_id;
-  DELETE FROM cuentas_propias     WHERE obra_id = p_obra_id;
 
-  -- presupuestos.obra_id / .contrato_obra_id son ON DELETE SET NULL —
-  -- un presupuesto que originó este proyecto queda como registro
+  -- cuentas_propias NO se borra a propósito: representa una cuenta
+  -- bancaria/caja real con saldo_inicial, no un dato de ejecución del
+  -- proyecto. Su FK (obra_id ON DELETE SET NULL) ya está pensada para
+  -- que sobreviva desvinculada (pasa a ser cuenta de empresa) — acá
+  -- simplemente no se la borra a mano, y ese SET NULL corre solo al
+  -- llegar al DELETE FROM obras de más abajo. Mismo criterio para
+  -- presupuestos.obra_id/.contrato_obra_id (también SET NULL): un
+  -- presupuesto que originó este proyecto queda como registro
   -- histórico desvinculado, no se borra.
 
   DELETE FROM obras WHERE id = p_obra_id;

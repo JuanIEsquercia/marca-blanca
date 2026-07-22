@@ -1,7 +1,7 @@
 -- ============================================================
 -- SCHEMA CANÓNICO — ERP multi-tenant para constructoras
 -- Refleja el estado final acumulado de schema.sql + migration_001
--- a migration_033. Ver supabase/README.md para la convención.
+-- a migration_034. Ver supabase/README.md para la convención.
 --
 -- Este archivo es SOLO REFERENCIA / bootstrap de un ambiente nuevo.
 -- El proyecto Supabase existente NO necesita correrlo: ya llegó a
@@ -1618,7 +1618,9 @@ CREATE OR REPLACE FUNCTION aceptar_presupuesto(
   p_presupuesto_id       UUID,
   p_obra_id              UUID DEFAULT NULL,
   p_nueva_obra_nombre    TEXT DEFAULT NULL,
-  p_nueva_obra_direccion TEXT DEFAULT NULL
+  p_nueva_obra_direccion TEXT DEFAULT NULL,
+  p_modo_cuentas         TEXT DEFAULT 'empresa',
+  p_replicar_cuentas     BOOLEAN DEFAULT false
 )
 RETURNS UUID
 LANGUAGE plpgsql
@@ -1631,6 +1633,10 @@ DECLARE
   v_monto_total  NUMERIC(15,2);
   v_contrato_id  UUID;
 BEGIN
+  IF p_modo_cuentas NOT IN ('empresa', 'especificas') THEN
+    RAISE EXCEPTION 'modo_cuentas inválido: %', p_modo_cuentas;
+  END IF;
+
   SELECT * INTO v_presupuesto FROM presupuestos WHERE id = p_presupuesto_id;
   IF v_presupuesto.id IS NULL THEN
     RAISE EXCEPTION 'Presupuesto no encontrado';
@@ -1662,8 +1668,15 @@ BEGIN
       RAISE EXCEPTION 'Falta el nombre del proyecto nuevo';
     END IF;
     INSERT INTO obras (constructora_id, nombre, direccion, tipo, estado, modo_cuentas)
-    VALUES (v_presupuesto.constructora_id, btrim(p_nueva_obra_nombre), NULLIF(btrim(COALESCE(p_nueva_obra_direccion, '')), ''), 'obra', 'activa', 'empresa')
+    VALUES (v_presupuesto.constructora_id, btrim(p_nueva_obra_nombre), NULLIF(btrim(COALESCE(p_nueva_obra_direccion, '')), ''), 'obra', 'activa', p_modo_cuentas)
     RETURNING id INTO v_obra_id;
+
+    IF p_modo_cuentas = 'especificas' AND p_replicar_cuentas THEN
+      INSERT INTO cuentas_propias (constructora_id, obra_id, nombre, tipo, moneda, saldo_inicial, activa)
+      SELECT constructora_id, v_obra_id, nombre, tipo, moneda, 0, true
+      FROM cuentas_propias
+      WHERE constructora_id = v_presupuesto.constructora_id AND obra_id IS NULL AND activa = true;
+    END IF;
   END IF;
 
   IF v_presupuesto.cliente_cuit IS NOT NULL THEN
@@ -1899,7 +1912,11 @@ BEGIN
 
   DELETE FROM equipo_asignaciones WHERE obra_id = p_obra_id;
   DELETE FROM gastos              WHERE obra_id = p_obra_id;
-  DELETE FROM cuentas_propias     WHERE obra_id = p_obra_id;
+
+  -- cuentas_propias NO se borra: su FK (obra_id ON DELETE SET NULL) la
+  -- desvincula sola al llegar al DELETE FROM obras — sobrevive como
+  -- cuenta de empresa en vez de perderse (representa un saldo_inicial
+  -- real, no un dato de ejecución del proyecto).
 
   DELETE FROM obras WHERE id = p_obra_id;
 END;

@@ -48,6 +48,8 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
   const [aceptarObraId, setAceptarObraId] = useState('')
   const [aceptarNuevaNombre, setAceptarNuevaNombre] = useState('')
   const [aceptarNuevaDireccion, setAceptarNuevaDireccion] = useState('')
+  const [aceptarModoCuentas, setAceptarModoCuentas] = useState<'empresa' | 'especificas'>('empresa')
+  const [aceptarReplicarCuentas, setAceptarReplicarCuentas] = useState(true)
 
   function refresh() { startTransition(() => router.refresh()) }
 
@@ -125,6 +127,8 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
     setAceptarObraId(obrasDisponibles[0]?.id ?? '')
     setAceptarNuevaNombre(p.cliente_nombre)
     setAceptarNuevaDireccion('')
+    setAceptarModoCuentas('empresa')
+    setAceptarReplicarCuentas(true)
     setError(null)
   }
 
@@ -139,6 +143,8 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
       p_obra_id: aceptarModo === 'existente' ? aceptarObraId : null,
       p_nueva_obra_nombre: aceptarModo === 'nueva' ? aceptarNuevaNombre.trim() : null,
       p_nueva_obra_direccion: aceptarModo === 'nueva' ? (aceptarNuevaDireccion.trim() || null) : null,
+      p_modo_cuentas: aceptarModoCuentas,
+      p_replicar_cuentas: aceptarModoCuentas === 'especificas' && aceptarReplicarCuentas,
     })
     setLoading(false)
     if (err) { setError(err.message); return }
@@ -362,6 +368,20 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
                     <input value={aceptarNuevaDireccion} onChange={e => setAceptarNuevaDireccion(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Cuentas del proyecto</label>
+                    <select value={aceptarModoCuentas} onChange={e => setAceptarModoCuentas(e.target.value as 'empresa' | 'especificas')}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="empresa">Compartidas con la empresa</option>
+                      <option value="especificas">Específicas de este proyecto</option>
+                    </select>
+                  </div>
+                  {aceptarModoCuentas === 'especificas' && (
+                    <label className="flex items-center gap-2 text-xs text-slate-600">
+                      <input type="checkbox" checked={aceptarReplicarCuentas} onChange={e => setAceptarReplicarCuentas(e.target.checked)} />
+                      Replicar las cuentas de empresa existentes como cuentas propias de este proyecto (con saldo inicial en 0)
+                    </label>
+                  )}
                 </div>
               )}
 

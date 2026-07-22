@@ -34,6 +34,7 @@ const EMPTY_PERSONAL = {
   nombre: '', dni: '', cuil: '', telefono: '',
   tipo_contratacion: 'relacion_dependencia' as TipoContratacion,
   categoria: '', jornal: '', art_aseguradora: '', art_vencimiento: '', fecha_ingreso: '', notas: '',
+  cuadrilla_id: '',
 }
 const EMPTY_CUADRILLA = { nombre: '', capataz_id: '' }
 
@@ -98,6 +99,7 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
       art_vencimiento: form.art_vencimiento || null,
       fecha_ingreso: form.fecha_ingreso || null,
       notas: form.notas.trim() || null,
+      cuadrilla_id: form.cuadrilla_id || null,
       estado: 'disponible',
     })
     setLoading(false)
@@ -348,6 +350,14 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                      {p.estado !== 'baja' && (
+                        <select value={p.cuadrilla_id ?? ''} onChange={e => cambiarCuadrilla(p, e.target.value || null)}
+                          title="Cuadrilla"
+                          className="text-xs px-2 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                          <option value="">— Sin cuadrilla —</option>
+                          {cuadrillas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                        </select>
+                      )}
                       {(p.estado === 'disponible' || p.estado === 'asignado') && obras.length > 0 && (
                         <button onClick={() => abrirAsignar(p)}
                           className="text-xs px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors">
@@ -396,15 +406,6 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
                         {p.art_aseguradora && <span>ART: {p.art_aseguradora}{p.art_vencimiento ? ` (vence ${formatDate(p.art_vencimiento)})` : ''}</span>}
                       </div>
                       {p.notas && <p className="text-xs text-slate-500 italic">{p.notas}</p>}
-
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-slate-500">Cuadrilla:</label>
-                        <select value={p.cuadrilla_id ?? ''} onChange={e => cambiarCuadrilla(p, e.target.value || null)}
-                          className="text-xs px-2 py-1 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                          <option value="">— Sin cuadrilla —</option>
-                          {cuadrillas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                        </select>
-                      </div>
 
                       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Trazabilidad — historial de asignaciones</p>
                       {historial.length === 0 ? (
@@ -485,6 +486,15 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
                     placeholder="Oficial, Medio Oficial, Ayudante..."
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Cuadrilla</label>
+                <select value={form.cuadrilla_id} onChange={e => setForm(f => ({ ...f, cuadrilla_id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">— Sin cuadrilla —</option>
+                  {cuadrillas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+                <p className="text-xs text-slate-400 mt-1">Asignar la cuadrilla completa a un proyecto asigna a esta persona junto con el resto.</p>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>

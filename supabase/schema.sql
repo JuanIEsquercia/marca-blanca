@@ -1,7 +1,7 @@
 -- ============================================================
 -- SCHEMA CANÓNICO — ERP multi-tenant para constructoras
 -- Refleja el estado final acumulado de schema.sql + migration_001
--- a migration_034. Ver supabase/README.md para la convención.
+-- a migration_035. Ver supabase/README.md para la convención.
 --
 -- Este archivo es SOLO REFERENCIA / bootstrap de un ambiente nuevo.
 -- El proyecto Supabase existente NO necesita correrlo: ya llegó a
@@ -1921,3 +1921,31 @@ BEGIN
   DELETE FROM obras WHERE id = p_obra_id;
 END;
 $$;
+
+-- ============================================================
+-- MIGRATION 035 — contratos_obra.monto_total se recalcula solo al
+-- cambiar contrato_obra_items (adicionales incluidos). Ver
+-- migration_035.sql para el detalle comentado.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION recalcular_monto_total_contrato()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_contrato_id UUID := COALESCE(NEW.contrato_obra_id, OLD.contrato_obra_id);
+  v_total       NUMERIC(15,2);
+BEGIN
+  SELECT COALESCE(SUM(monto_contratado), 0) INTO v_total
+  FROM contrato_obra_items WHERE contrato_obra_id = v_contrato_id;
+
+  PERFORM set_config('app.bypass_inmutable', 'true', true);
+  UPDATE contratos_obra SET monto_total = v_total WHERE id = v_contrato_id;
+  PERFORM set_config('app.bypass_inmutable', 'false', true);
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_recalcular_monto_total_contrato ON contrato_obra_items;
+CREATE TRIGGER trg_recalcular_monto_total_contrato
+  AFTER INSERT OR UPDATE OR DELETE ON contrato_obra_items
+  FOR EACH ROW EXECUTE FUNCTION recalcular_monto_total_contrato();

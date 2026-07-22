@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
 import ConfirmModal from './ConfirmModal'
@@ -23,14 +24,7 @@ const ESTADO_INFO: Record<EstadoPresupuesto, { label: string; color: string }> =
   rechazado: { label: 'Rechazado', color: 'bg-red-100 text-red-700' },
 }
 
-const EMPTY_PRESUPUESTO = { cliente_nombre: '', cliente_cuit: '', cliente_email: '', cliente_telefono: '', moneda: 'ARS', descripcion: '' }
 const EMPTY_ITEM = { rubro: '', unidad: '', cantidad: '1', precio_unitario: '' }
-
-type FilaBorrador = { key: number; rubro: string; unidad: string; cantidad: string; precio_unitario: string }
-let filaKeySeq = 0
-function nuevaFilaBorrador(): FilaBorrador {
-  return { key: ++filaKeySeq, rubro: '', unidad: '', cantidad: '1', precio_unitario: '' }
-}
 
 function totalPresupuesto(items: PresupuestoItem[] | undefined) {
   return sumarMontos((items ?? []).map(i => i.subtotal))
@@ -46,10 +40,6 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
   const [filtroEstado, setFiltroEstado] = useState<'todos' | EstadoPresupuesto>('todos')
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState(EMPTY_PRESUPUESTO)
-  const [formFilas, setFormFilas] = useState<FilaBorrador[]>([nuevaFilaBorrador()])
-
   const [itemForm, setItemForm] = useState(EMPTY_ITEM)
   const [addingItemTo, setAddingItemTo] = useState<string | null>(null)
 
@@ -62,86 +52,6 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
   function refresh() { startTransition(() => router.refresh()) }
 
   const filtrados = presupuestos.filter(p => filtroEstado === 'todos' || p.estado === filtroEstado)
-
-  // ── Crear presupuesto (con sus ítems, todo en un mismo paso) ───
-
-  function abrirNuevoPresupuesto() {
-    setShowForm(true)
-    setForm(EMPTY_PRESUPUESTO)
-    setFormFilas([nuevaFilaBorrador()])
-    setError(null)
-  }
-
-  function actualizarFila(key: number, cambios: Partial<FilaBorrador>) {
-    setFormFilas(filas => filas.map(f => (f.key === key ? { ...f, ...cambios } : f)))
-  }
-  function agregarFila() {
-    setFormFilas(filas => [...filas, nuevaFilaBorrador()])
-  }
-  function quitarFila(key: number) {
-    setFormFilas(filas => (filas.length > 1 ? filas.filter(f => f.key !== key) : filas))
-  }
-
-  function subtotalFila(f: FilaBorrador) {
-    return redondear2((parseFloat(f.cantidad) || 0) * (parseFloat(f.precio_unitario) || 0))
-  }
-  const totalFormFilas = sumarMontos(formFilas.map(subtotalFila))
-
-  async function handleCrearSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!form.cliente_nombre.trim()) return
-    setLoading(true)
-    setError(null)
-    const supabase = createClient()
-
-    const { data: nuevo, error: err } = await supabase
-      .from('presupuestos')
-      .insert({
-        constructora_id: constructoraId,
-        cliente_nombre: form.cliente_nombre.trim(),
-        cliente_cuit: form.cliente_cuit.trim() || null,
-        cliente_email: form.cliente_email.trim() || null,
-        cliente_telefono: form.cliente_telefono.trim() || null,
-        moneda: form.moneda,
-        descripcion: form.descripcion.trim() || null,
-        estado: 'borrador',
-      })
-      .select('id')
-      .single()
-
-    if (err || !nuevo) { setLoading(false); setError(err?.message ?? 'Error al crear el presupuesto'); return }
-
-    // Filas con rubro y precio cargados — filas en blanco que hayan quedado
-    // (ej. una fila vacía extra) se ignoran en vez de bloquear el guardado.
-    const filasValidas = formFilas.filter(f => f.rubro.trim() && f.precio_unitario)
-    if (filasValidas.length > 0) {
-      const { error: errItems } = await supabase.from('presupuesto_items').insert(
-        filasValidas.map((f, i) => ({
-          presupuesto_id: nuevo.id,
-          constructora_id: constructoraId,
-          orden: i,
-          rubro: f.rubro.trim(),
-          unidad: f.unidad.trim() || null,
-          cantidad: redondear2(parseFloat(f.cantidad) || 1),
-          precio_unitario: redondear2(parseFloat(f.precio_unitario)),
-        }))
-      )
-      setLoading(false)
-      if (errItems) {
-        // Compensar: no dejar un presupuesto vacío colgado si los ítems fallaron.
-        await supabase.from('presupuestos').delete().eq('id', nuevo.id)
-        setError(errItems.message)
-        return
-      }
-    } else {
-      setLoading(false)
-    }
-
-    setForm(EMPTY_PRESUPUESTO)
-    setFormFilas([nuevaFilaBorrador()])
-    setShowForm(false)
-    refresh()
-  }
 
   function handleDeletePresupuesto(p: Presupuesto) {
     setConfirmModal({
@@ -253,13 +163,13 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
             </button>
           ))}
         </div>
-        <button onClick={abrirNuevoPresupuesto}
+        <Link href="/admin/presupuestos/nuevo"
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors w-fit">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           Nuevo presupuesto
-        </button>
+        </Link>
       </div>
 
       {filtrados.length === 0 ? (
@@ -395,112 +305,6 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
               </div>
             )
           })}
-        </div>
-      )}
-
-      {/* Modal: nuevo presupuesto */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowForm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">Nuevo presupuesto</h2>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <form onSubmit={handleCrearSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Cliente *</label>
-                <input required value={form.cliente_nombre} onChange={e => setForm(f => ({ ...f, cliente_nombre: e.target.value }))}
-                  placeholder="Razón social o nombre"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">CUIT</label>
-                  <input value={form.cliente_cuit} onChange={e => setForm(f => ({ ...f, cliente_cuit: e.target.value }))}
-                    placeholder="20-12345678-9"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
-                  <select value={form.moneda} onChange={e => setForm(f => ({ ...f, moneda: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="ARS">ARS — Pesos</option>
-                    <option value="USD">USD — Dólares</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
-                  <input type="email" value={form.cliente_email} onChange={e => setForm(f => ({ ...f, cliente_email: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono</label>
-                  <input value={form.cliente_telefono} onChange={e => setForm(f => ({ ...f, cliente_telefono: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Descripción del trabajo</label>
-                <textarea rows={2} value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-medium text-slate-600">Ítems</label>
-                  <button type="button" onClick={agregarFila}
-                    className="text-xs px-2 py-1 border border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                    + Agregar fila
-                  </button>
-                </div>
-                <div className="border border-slate-200 rounded-xl divide-y divide-slate-100">
-                  {formFilas.map((f, i) => (
-                    <div key={f.key} className="p-2.5 space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400 w-4 shrink-0">{i + 1}</span>
-                        <input value={f.rubro} onChange={e => actualizarFila(f.key, { rubro: e.target.value })}
-                          placeholder="Rubro (ej: Movimiento de suelos)"
-                          className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                        <button type="button" onClick={() => quitarFila(f.key)}
-                          className="text-red-400 hover:text-red-600 px-1 shrink-0" title="Quitar fila">✕</button>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 pl-6">
-                        <input value={f.unidad} onChange={e => actualizarFila(f.key, { unidad: e.target.value })}
-                          placeholder="Unidad (m², gl...)"
-                          className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                        <input type="number" min="0.01" step="0.01" value={f.cantidad}
-                          onChange={e => actualizarFila(f.key, { cantidad: e.target.value })}
-                          placeholder="Cantidad"
-                          className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                        <input type="number" min="0" step="0.01" value={f.precio_unitario}
-                          onChange={e => actualizarFila(f.key, { precio_unitario: e.target.value })}
-                          placeholder="Precio unitario"
-                          className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                      </div>
-                      {f.rubro.trim() && f.precio_unitario && (
-                        <p className="text-xs text-slate-400 pl-6">Subtotal: {formatCurrency(subtotalFila(f), form.moneda)}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-sm font-semibold text-slate-900 text-right mt-2">Total: {formatCurrency(totalFormFilas, form.moneda)}</p>
-              </div>
-
-              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setShowForm(false)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
-                <button type="submit" disabled={loading}
-                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
-                  {loading ? 'Guardando...' : 'Crear presupuesto'}
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
 

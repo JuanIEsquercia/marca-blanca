@@ -386,6 +386,54 @@ export interface EquipoAsignacion {
   obras?: { id: string; nombre: string }
 }
 
+export type EstadoPersonal = 'disponible' | 'asignado' | 'licencia' | 'baja'
+export type TipoContratacion = 'relacion_dependencia' | 'contratado' | 'subcontratista'
+
+export interface Personal {
+  id: string
+  constructora_id: string
+  nombre: string
+  dni: string | null
+  cuil: string | null
+  telefono: string | null
+  tipo_contratacion: TipoContratacion
+  categoria: string | null
+  jornal: number | null
+  art_aseguradora: string | null
+  art_vencimiento: string | null
+  fecha_ingreso: string | null
+  estado: EstadoPersonal
+  cuadrilla_id: string | null
+  notas: string | null
+  created_at: string
+  personal_asignaciones?: PersonalAsignacion[]
+  cuadrillas?: { id: string; nombre: string } | null
+}
+
+export interface Cuadrilla {
+  id: string
+  constructora_id: string
+  nombre: string
+  capataz_id: string | null
+  notas: string | null
+  created_at: string
+  personal?: { id: string; nombre: string; estado: EstadoPersonal }[]
+  capataz?: { id: string; nombre: string } | null
+}
+
+export interface PersonalAsignacion {
+  id: string
+  personal_id: string
+  obra_id: string
+  constructora_id: string
+  fecha_desde: string
+  fecha_hasta: string | null
+  asignado_por: string | null
+  notas: string | null
+  created_at: string
+  obras?: { id: string; nombre: string }
+}
+
 export interface CobroProyecto {
   id: string
   obra_id: string

@@ -1,7 +1,7 @@
 -- ============================================================
 -- SCHEMA CANÓNICO — ERP multi-tenant para constructoras
 -- Refleja el estado final acumulado de schema.sql + migration_001
--- a migration_037. Ver supabase/README.md para la convención.
+-- a migration_038. Ver supabase/README.md para la convención.
 --
 -- Este archivo es SOLO REFERENCIA / bootstrap de un ambiente nuevo.
 -- El proyecto Supabase existente NO necesita correrlo: ya llegó a
@@ -1951,3 +1951,201 @@ DROP TRIGGER IF EXISTS trg_recalcular_monto_total_contrato ON contrato_obra_item
 CREATE TRIGGER trg_recalcular_monto_total_contrato
   AFTER INSERT OR UPDATE OR DELETE ON contrato_obra_items
   FOR EACH ROW EXECUTE FUNCTION recalcular_monto_total_contrato();
+
+-- ============================================================
+-- MIGRATION 038 — Personal: mismo patrón de asignación vigente +
+-- historial que equipos (Inventario). Ver migration_038.sql para el
+-- detalle comentado y las decisiones de producto.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS personal (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  constructora_id     UUID NOT NULL REFERENCES constructoras(id),
+  nombre              TEXT NOT NULL,
+  dni                 TEXT,
+  cuil                TEXT,
+  telefono            TEXT,
+  tipo_contratacion   TEXT NOT NULL DEFAULT 'relacion_dependencia'
+    CHECK (tipo_contratacion IN ('relacion_dependencia', 'contratado', 'subcontratista')),
+  categoria           TEXT,
+  jornal              NUMERIC(15,2),
+  art_aseguradora     TEXT,
+  art_vencimiento     DATE,
+  fecha_ingreso       DATE,
+  estado              TEXT NOT NULL DEFAULT 'disponible'
+    CHECK (estado IN ('disponible', 'asignado', 'licencia', 'baja')),
+  notas               TEXT,
+  created_by          UUID REFERENCES auth.users(id),
+  updated_by          UUID REFERENCES auth.users(id),
+  updated_at          TIMESTAMPTZ,
+  created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS cuadrillas (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  constructora_id UUID NOT NULL REFERENCES constructoras(id),
+  nombre          TEXT NOT NULL,
+  capataz_id      UUID REFERENCES personal(id) ON DELETE SET NULL,
+  notas           TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE personal ADD COLUMN IF NOT EXISTS cuadrilla_id UUID REFERENCES cuadrillas(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS personal_asignaciones (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  personal_id     UUID NOT NULL REFERENCES personal(id) ON DELETE CASCADE,
+  obra_id         UUID NOT NULL REFERENCES obras(id),
+  constructora_id UUID NOT NULL REFERENCES constructoras(id),
+  fecha_desde     DATE NOT NULL DEFAULT CURRENT_DATE,
+  fecha_hasta     DATE,
+  asignado_por    UUID REFERENCES auth.users(id),
+  notas           TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_personal_asignaciones_unica_vigente
+  ON personal_asignaciones(personal_id) WHERE fecha_hasta IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_personal_constructora              ON personal(constructora_id);
+CREATE INDEX IF NOT EXISTS idx_personal_cuadrilla                 ON personal(cuadrilla_id);
+CREATE INDEX IF NOT EXISTS idx_cuadrillas_constructora            ON cuadrillas(constructora_id);
+CREATE INDEX IF NOT EXISTS idx_personal_asignaciones_personal     ON personal_asignaciones(personal_id);
+CREATE INDEX IF NOT EXISTS idx_personal_asignaciones_obra         ON personal_asignaciones(obra_id);
+CREATE INDEX IF NOT EXISTS idx_personal_asignaciones_constructora ON personal_asignaciones(constructora_id);
+
+DROP TRIGGER IF EXISTS trg_auditoria_campos ON personal;
+CREATE TRIGGER trg_auditoria_campos
+  BEFORE INSERT OR UPDATE ON personal
+  FOR EACH ROW EXECUTE FUNCTION set_auditoria_campos();
+
+DROP TRIGGER IF EXISTS trg_registrar_auditoria ON personal;
+CREATE TRIGGER trg_registrar_auditoria
+  AFTER INSERT OR UPDATE OR DELETE ON personal
+  FOR EACH ROW EXECUTE FUNCTION registrar_auditoria();
+
+CREATE OR REPLACE FUNCTION asignar_personal(p_personal_id UUID, p_obra_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_personal    personal%ROWTYPE;
+  v_obra_actual UUID;
+BEGIN
+  SELECT * INTO v_personal FROM personal WHERE id = p_personal_id;
+  IF v_personal.id IS NULL THEN
+    RAISE EXCEPTION 'Personal no encontrado';
+  END IF;
+  IF v_personal.estado = 'baja' THEN
+    RAISE EXCEPTION 'No se puede asignar a una persona dada de baja';
+  END IF;
+
+  SELECT obra_id INTO v_obra_actual FROM personal_asignaciones
+  WHERE personal_id = p_personal_id AND fecha_hasta IS NULL;
+
+  IF v_obra_actual = p_obra_id THEN
+    RAISE EXCEPTION 'Ya está asignado a ese proyecto';
+  END IF;
+
+  UPDATE personal_asignaciones SET fecha_hasta = CURRENT_DATE
+  WHERE personal_id = p_personal_id AND fecha_hasta IS NULL;
+
+  INSERT INTO personal_asignaciones (personal_id, obra_id, constructora_id, fecha_desde, asignado_por)
+  VALUES (p_personal_id, p_obra_id, v_personal.constructora_id, CURRENT_DATE, auth.uid());
+
+  UPDATE personal SET estado = 'asignado' WHERE id = p_personal_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION liberar_personal(p_personal_id UUID, p_nuevo_estado TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF p_nuevo_estado NOT IN ('disponible', 'licencia', 'baja') THEN
+    RAISE EXCEPTION 'Estado inválido: %', p_nuevo_estado;
+  END IF;
+
+  UPDATE personal_asignaciones SET fecha_hasta = CURRENT_DATE
+  WHERE personal_id = p_personal_id AND fecha_hasta IS NULL;
+
+  UPDATE personal SET estado = p_nuevo_estado WHERE id = p_personal_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION asignar_cuadrilla(p_cuadrilla_id UUID, p_obra_id UUID)
+RETURNS INTEGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_persona     RECORD;
+  v_obra_actual UUID;
+  v_count       INTEGER := 0;
+BEGIN
+  FOR v_persona IN SELECT id, constructora_id FROM personal WHERE cuadrilla_id = p_cuadrilla_id AND estado != 'baja' LOOP
+    SELECT obra_id INTO v_obra_actual FROM personal_asignaciones
+    WHERE personal_id = v_persona.id AND fecha_hasta IS NULL;
+
+    IF v_obra_actual IS DISTINCT FROM p_obra_id THEN
+      UPDATE personal_asignaciones SET fecha_hasta = CURRENT_DATE
+      WHERE personal_id = v_persona.id AND fecha_hasta IS NULL;
+
+      INSERT INTO personal_asignaciones (personal_id, obra_id, constructora_id, fecha_desde, asignado_por)
+      VALUES (v_persona.id, p_obra_id, v_persona.constructora_id, CURRENT_DATE, auth.uid());
+
+      UPDATE personal SET estado = 'asignado' WHERE id = v_persona.id;
+      v_count := v_count + 1;
+    END IF;
+  END LOOP;
+
+  RETURN v_count;
+END;
+$$;
+
+ALTER TABLE personal              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cuadrillas            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE personal_asignaciones ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "personal_tenant" ON personal;
+CREATE POLICY "personal_tenant" ON personal
+  FOR ALL TO authenticated
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('personal'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('personal'));
+
+DROP POLICY IF EXISTS "cuadrillas_tenant" ON cuadrillas;
+CREATE POLICY "cuadrillas_tenant" ON cuadrillas
+  FOR ALL TO authenticated
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('personal'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('personal'));
+
+DROP POLICY IF EXISTS "personal_asignaciones_tenant" ON personal_asignaciones;
+CREATE POLICY "personal_asignaciones_tenant" ON personal_asignaciones
+  FOR ALL TO authenticated
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('personal'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('personal'));
+
+CREATE OR REPLACE FUNCTION purgar_constructora_completa(p_constructora_id UUID)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM set_config('app.bypass_inmutable', 'true', true);
+
+  DELETE FROM cobros_proyecto   WHERE constructora_id = p_constructora_id;
+  DELETE FROM contratos_obra    WHERE constructora_id = p_constructora_id;
+  DELETE FROM presupuestos      WHERE constructora_id = p_constructora_id;
+  DELETE FROM equipos           WHERE constructora_id = p_constructora_id;
+  DELETE FROM personal          WHERE constructora_id = p_constructora_id;
+  DELETE FROM cuadrillas        WHERE constructora_id = p_constructora_id;
+  DELETE FROM contratos_venta   WHERE constructora_id = p_constructora_id;
+  DELETE FROM reservas          WHERE constructora_id = p_constructora_id;
+  DELETE FROM gastos            WHERE constructora_id = p_constructora_id;
+  DELETE FROM compradores       WHERE constructora_id = p_constructora_id;
+  DELETE FROM unidades          WHERE constructora_id = p_constructora_id;
+  DELETE FROM proveedores       WHERE constructora_id = p_constructora_id;
+  DELETE FROM categorias_costo  WHERE constructora_id = p_constructora_id;
+  DELETE FROM cuentas_propias   WHERE constructora_id = p_constructora_id;
+  DELETE FROM tipologias        WHERE constructora_id = p_constructora_id;
+  DELETE FROM amenities         WHERE constructora_id = p_constructora_id;
+  DELETE FROM auditoria         WHERE constructora_id = p_constructora_id;
+  DELETE FROM constructoras     WHERE id = p_constructora_id;
+END;
+$$;

@@ -43,6 +43,18 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
   // Contrato
   const [contrato, setContrato] = useState<ContratoObra | null>(contratoInicial)
   const [showContratoForm, setShowContratoForm] = useState(!contratoInicial)
+
+  // contratoInicial llega fresco del servidor en cada refresh() (ej. al
+  // agregar un adicional, que cambia monto_total vía trigger) — sin esto,
+  // `contrato` quedaba congelado con el valor del primer render, porque
+  // useState solo usa su argumento inicial una vez. Se ajusta durante el
+  // render (patrón recomendado por React para este caso) en vez de un
+  // useEffect, que dispararía un render extra en cascada.
+  const [contratoPrevio, setContratoPrevio] = useState(contratoInicial)
+  if (contratoInicial !== contratoPrevio) {
+    setContratoPrevio(contratoInicial)
+    setContrato(contratoInicial)
+  }
   const [contratoForm, setContratoForm] = useState(EMPTY_CONTRATO)
 
   // Certificados

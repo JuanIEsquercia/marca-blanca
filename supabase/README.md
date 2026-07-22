@@ -17,7 +17,7 @@ No hay un migration runner automático — todo se corre a mano en **Supabase �
 
 ## Próxima migración a correr
 
-`migration_022.sql` a `migration_030.sql` — confirmadas corridas en Supabase (verificado en vivo el 2026-07-21: trigger de perfiles, policies de `obras`, `perfil_proyectos`, índice de reservas, `trg_bloquear_cerrado`, triggers/CHECK de `migration_029` y `resumen_unidades_por_obra` de `migration_030` existen en la base real). `migration_031.sql` y `migration_032.sql` son las pendientes de correr a esta fecha; `schema.sql` ya refleja su estado final.
+`migration_022.sql` a `migration_030.sql` — confirmadas corridas en Supabase (verificado en vivo el 2026-07-21: trigger de perfiles, policies de `obras`, `perfil_proyectos`, índice de reservas, `trg_bloquear_cerrado`, triggers/CHECK de `migration_029` y `resumen_unidades_por_obra` de `migration_030` existen en la base real). `migration_031.sql` a `migration_033.sql` son las pendientes de correr a esta fecha; `schema.sql` ya refleja su estado final.
 
 `migration_029.sql` (2026-07-21, auditoría de cuentas/caja): cierra el gap de inmutabilidad financiera que quedó afuera de `migration_015` — `cuotas` Pagadas y `contratos_venta` con cobros ya registrados (entrega efectiva y/o cuotas pagadas) ahora bloquean UPDATE/DELETE para no-admin, igual que ya pasaba con `gastos`/`certificados_avance`/`cobros_proyecto`. Suma CHECK de moneda (`ARS`/`USD`) en `cuentas_propias`/`gastos` (antes solo lo validaba la UI) y un guard contra división por cero en `generar_cuotas_contrato()` si `cantidad_cuotas` llega en 0 por una vía distinta al formulario.
 
@@ -26,3 +26,5 @@ No hay un migration runner automático — todo se corre a mano en **Supabase �
 `migration_031.sql` (2026-07-21, presupuestos): agrega `presupuestos`/`presupuesto_items` (módulo Empresa, pre-proyecto), `contrato_obra_items`/`certificado_items` (certificación de avance por rubro en vez de un % global tipeado a mano) y el RPC `aceptar_presupuesto()` que convierte un presupuesto aceptado en el contrato de un proyecto nuevo o existente de forma atómica.
 
 `migration_032.sql` (2026-07-22, inventario): agrega `equipos`/`equipo_asignaciones` (módulo Empresa) — mismo patrón de asignación vigente + historial que reservas/contratos (índice único parcial `WHERE fecha_hasta IS NULL`). RPCs `asignar_equipo()`/`liberar_equipo()` para reasignar/devolver/mandar a mantenimiento/dar de baja de forma atómica.
+
+`migration_033.sql` (2026-07-22): agrega `purgar_obra_completa()` — "Eliminar proyecto" era un `DELETE FROM obras` suelto que dependía de que Postgres lo rechazara por foreign key (casi ninguna tabla de proyecto tiene `ON DELETE CASCADE` a propósito) y mostraba un mensaje de error fijo sin relación con la tabla real que bloqueaba. Ahora borra explícitamente cada tabla del proyecto en el orden que exigen las FK, igual que `purgar_constructora_completa` pero a nivel obra.

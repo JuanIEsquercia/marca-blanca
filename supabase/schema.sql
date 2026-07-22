@@ -1,7 +1,7 @@
 -- ============================================================
 -- SCHEMA CANÓNICO — ERP multi-tenant para constructoras
 -- Refleja el estado final acumulado de schema.sql + migration_001
--- a migration_032. Ver supabase/README.md para la convención.
+-- a migration_033. Ver supabase/README.md para la convención.
 --
 -- Este archivo es SOLO REFERENCIA / bootstrap de un ambiente nuevo.
 -- El proyecto Supabase existente NO necesita correrlo: ya llegó a
@@ -1872,5 +1872,35 @@ BEGIN
   DELETE FROM amenities         WHERE constructora_id = p_constructora_id;
   DELETE FROM auditoria         WHERE constructora_id = p_constructora_id;
   DELETE FROM constructoras     WHERE id = p_constructora_id;
+END;
+$$;
+
+-- ============================================================
+-- MIGRATION 033 — purgar_obra_completa(): "Eliminar proyecto" era un
+-- DELETE FROM obras suelto que dependía de foreign keys para fallar
+-- (a propósito casi ninguna tabla de proyecto tiene ON DELETE CASCADE
+-- desde obras). Ver migration_033.sql para el detalle comentado.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION purgar_obra_completa(p_obra_id UUID)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  DELETE FROM contratos_venta   WHERE obra_id = p_obra_id;
+  DELETE FROM reservas          WHERE obra_id = p_obra_id;
+  DELETE FROM unidades          WHERE obra_id = p_obra_id;
+  DELETE FROM tipologias        WHERE obra_id = p_obra_id;
+  DELETE FROM amenities         WHERE obra_id = p_obra_id;
+
+  DELETE FROM cobros_proyecto     WHERE obra_id = p_obra_id;
+  DELETE FROM certificados_avance WHERE obra_id = p_obra_id;
+  DELETE FROM contratos_obra      WHERE obra_id = p_obra_id;
+
+  DELETE FROM equipo_asignaciones WHERE obra_id = p_obra_id;
+  DELETE FROM gastos              WHERE obra_id = p_obra_id;
+  DELETE FROM cuentas_propias     WHERE obra_id = p_obra_id;
+
+  DELETE FROM obras WHERE id = p_obra_id;
 END;
 $$;

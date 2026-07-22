@@ -52,14 +52,14 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
     setLoading(true)
     setAccionError(null)
     const supabase = createClient()
-    const { error } = await supabase.from('obras').delete().eq('id', obraId)
+    // purgar_obra_completa borra todos los datos del proyecto en el orden
+    // que exigen las FK reales (RPC, migration_033) — antes esto era un
+    // DELETE FROM obras suelto que dependía de que Postgres lo rechazara
+    // por foreign key, y mostraba un mensaje fijo sin relación con la
+    // tabla que realmente bloqueaba.
+    const { error } = await supabase.rpc('purgar_obra_completa', { p_obra_id: obraId })
     setLoading(false)
-    if (error) {
-      setAccionError(
-        'No se pudo eliminar: el proyecto todavía tiene datos asociados (unidades, ventas, cobros, etc). Borralos primero o contactá a soporte.'
-      )
-      return
-    }
+    if (error) { setAccionError(error.message); return }
     setConfirmDelete(false)
     refresh()
   }

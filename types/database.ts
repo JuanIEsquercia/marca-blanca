@@ -355,6 +355,35 @@ export interface CertificadoItem {
   contrato_obra_items?: ContratoObraItem
 }
 
+export type EstadoEquipo = 'disponible' | 'asignado' | 'mantenimiento' | 'baja'
+
+export interface Equipo {
+  id: string
+  constructora_id: string
+  nombre: string
+  tipo: string | null
+  marca: string | null
+  modelo: string | null
+  nro_serie: string | null
+  estado: EstadoEquipo
+  notas: string | null
+  created_at: string
+  equipo_asignaciones?: EquipoAsignacion[]
+}
+
+export interface EquipoAsignacion {
+  id: string
+  equipo_id: string
+  obra_id: string
+  constructora_id: string
+  fecha_desde: string
+  fecha_hasta: string | null
+  asignado_por: string | null
+  notas: string | null
+  created_at: string
+  obras?: { id: string; nombre: string }
+}
+
 export interface CobroProyecto {
   id: string
   obra_id: string

@@ -11,6 +11,7 @@ export const MODULOS = [
   { key: 'gastos',      label: 'Gastos',      seccion: 'Operaciones' },
   { key: 'proveedores', label: 'Proveedores', seccion: 'Operaciones' },
   { key: 'presupuestos', label: 'Presupuestos', seccion: 'Operaciones' },
+  { key: 'inventario',  label: 'Inventario',  seccion: 'Operaciones' },
   { key: 'tesoreria',   label: 'Caja',        seccion: 'Finanzas' },
   { key: 'cuentas',     label: 'Cuentas',     seccion: 'Finanzas' },
 ] as const
@@ -22,7 +23,7 @@ export const MAX_OPERADORES = 3
 // Bucket "Empresa": módulos que no cuelgan de ningún proyecto — sus datos
 // no tienen obra_id (proveedores) o son un agregado cruzado (tesoreria).
 // Todo lo demás vive en el árbol por-proyecto (perfil_proyectos).
-export const MODULOS_EMPRESA: ModuloKey[] = ['proveedores', 'tesoreria', 'presupuestos']
+export const MODULOS_EMPRESA: ModuloKey[] = ['proveedores', 'tesoreria', 'presupuestos', 'inventario']
 
 export const MODULOS_PROYECTO = MODULOS.filter(m => !MODULOS_EMPRESA.includes(m.key))
 

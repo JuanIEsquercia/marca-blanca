@@ -37,18 +37,16 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
   function refresh() { startTransition(() => router.refresh()) }
 
   // Cambiar estado y eliminar pasan por /api/admin/proyecto/[obraId] en vez
-  // de llamar a Supabase directo desde el browser (como hacía antes). Motivo
-  // confirmado en vivo (usuario, Firefox, 2026-07-23): la request al browser
-  // de Supabase se corta a mitad de camino solo para escrituras sobre
-  // `obras` — headers de la request verificados correctos (apikey/token/
-  // origin OK), no es un error HTTP ni de autorización, así que no es algo
-  // que la app pueda corregir del lado de la request en sí. Hipótesis: algo
-  // de red del lado del cliente (p.ej. Firefox intentando HTTP/3-QUIC sobre
-  // una red que lo bloquea). En vez de perseguir esa causa puntual, se saca
-  // el fetch del browser: el server de Vercel llama a Supabase por su
-  // cuenta, sin depender de la red del usuario. La ruta usa el cliente
-  // server-side con la sesión del usuario (no el admin/service-role), así
-  // que la autorización real la sigue dando RLS exactamente igual que antes.
+  // de llamar a Supabase directo desde el browser (como hacía antes). No es
+  // por Firefox/CORS (esa fue una hipótesis inicial descartada) — la causa
+  // real era que purgar_obra_completa() escaneaba tablas enteras por faltar
+  // índices (migration_039.sql) y tardaba tanto que el fetch se cortaba del
+  // lado del cliente ANTES de recibir respuesta, aunque el borrado seguía
+  // corriendo solo en el servidor y terminaba completándose igual. Con los
+  // índices puestos esto debería dejar de pasar en la práctica, pero el
+  // manejo de error de acá se hace robusto igual: si el fetch se corta (no
+  // llegó ninguna respuesta), no se sabe si la operación server-side terminó
+  // o no, así que no se puede asumir que falló.
   async function llamarApiProyecto(method: 'PATCH' | 'DELETE', body?: object) {
     try {
       const res = await fetch(`/api/admin/proyecto/${obraId}`, {
@@ -57,9 +55,27 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
         body: body ? JSON.stringify(body) : undefined,
       })
       const data = await res.json()
-      return res.ok ? { ok: true as const } : { ok: false as const, message: data.error ?? 'Error desconocido.' }
+      return res.ok
+        ? { ok: true as const }
+        : { ok: false as const, network: false as const, message: data.error ?? 'Error desconocido.' }
     } catch {
-      return { ok: false as const, message: 'Error de red — no se pudo contactar al servidor.' }
+      // El fetch nunca completó (timeout/conexión cortada) — no es lo mismo
+      // que un error real del servidor: no sabemos si la operación terminó
+      // igual del otro lado.
+      return { ok: false as const, network: true as const, message: 'Error de red — no se pudo contactar al servidor.' }
+    }
+  }
+
+  // Tras un fallo de red (fetch cortado, no una respuesta de error real),
+  // se vuelve a consultar el proyecto antes de mostrar el error: si ya no
+  // existe, es porque el borrado sí se completó del lado del servidor
+  // aunque el cliente no llegó a enterarse.
+  async function seSiguioBorrando(): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/admin/proyecto/${obraId}`)
+      return res.status === 404
+    } catch {
+      return false
     }
   }
 
@@ -77,7 +93,10 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
   async function eliminar() {
     setLoading(true)
     setAccionError(null)
-    const result = await llamarApiProyecto('DELETE')
+    let result = await llamarApiProyecto('DELETE')
+    if (!result.ok && result.network && await seSiguioBorrando()) {
+      result = { ok: true }
+    }
     setLoading(false)
     if (!result.ok) { setAccionError(result.message); return }
     setConfirmDelete(false)

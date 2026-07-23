@@ -1296,11 +1296,15 @@ CREATE INDEX IF NOT EXISTS idx_tipologias_obra             ON tipologias(obra_id
 CREATE INDEX IF NOT EXISTS idx_unidades_obra                ON unidades(obra_id);
 CREATE INDEX IF NOT EXISTS idx_unidades_constructora        ON unidades(constructora_id);
 CREATE INDEX IF NOT EXISTS idx_amenities_obra                ON amenities(obra_id);
+-- migration_039: faltaba, cascada de amenities la escaneaba entera
+CREATE INDEX IF NOT EXISTS idx_amenity_imagenes_amenity      ON amenity_imagenes(amenity_id);
 
 CREATE INDEX IF NOT EXISTS idx_contratos_constructora        ON contratos_venta(constructora_id);
 CREATE INDEX IF NOT EXISTS idx_contratos_venta_obra_id       ON contratos_venta(obra_id);
 CREATE INDEX IF NOT EXISTS idx_reservas_constructora         ON reservas(constructora_id);
 CREATE INDEX IF NOT EXISTS idx_reservas_unidad_estado        ON reservas(unidad_id, estado);
+-- migration_039: faltaba, purgar_obra_completa() escaneaba la tabla entera
+CREATE INDEX IF NOT EXISTS idx_reservas_obra                 ON reservas(obra_id);
 
 -- migration_028: evita dos reservas 'Vigente' simultáneas sobre la misma
 -- unidad (contratos_venta.unidad_id ya era UNIQUE, esto era el hueco).
@@ -1308,11 +1312,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_reservas_unica_vigente
   ON reservas (unidad_id) WHERE estado = 'Vigente';
 CREATE INDEX IF NOT EXISTS idx_cuotas_constructora           ON cuotas(constructora_id);
 CREATE INDEX IF NOT EXISTS idx_cuotas_pendientes_vencimiento ON cuotas(fecha_vencimiento) WHERE estado_pago = 'Pendiente';
+-- migration_039: faltaba, cascada de contratos_venta la escaneaba entera
+CREATE INDEX IF NOT EXISTS idx_cuotas_contrato                ON cuotas(contrato_id);
 
 CREATE INDEX IF NOT EXISTS idx_gastos_constructora           ON gastos(constructora_id);
+-- migration_039: faltaba, purgar_obra_completa() escaneaba la tabla entera
+CREATE INDEX IF NOT EXISTS idx_gastos_obra                   ON gastos(obra_id);
 CREATE INDEX IF NOT EXISTS idx_proveedores_constructora      ON proveedores(constructora_id);
 CREATE INDEX IF NOT EXISTS idx_compradores_constructora      ON compradores(constructora_id);
 CREATE INDEX IF NOT EXISTS idx_cuentas_propias_constructora  ON cuentas_propias(constructora_id);
+-- migration_039: faltaba, SET NULL al borrar la obra escaneaba la tabla entera
+CREATE INDEX IF NOT EXISTS idx_cuentas_propias_obra          ON cuentas_propias(obra_id);
 CREATE INDEX IF NOT EXISTS idx_categorias_constructora       ON categorias_costo(constructora_id);
 
 CREATE INDEX IF NOT EXISTS idx_contratos_obra_constructora   ON contratos_obra(constructora_id);
@@ -1399,6 +1409,9 @@ CREATE TABLE IF NOT EXISTS presupuesto_items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_presupuestos_constructora     ON presupuestos(constructora_id);
+-- migration_039: faltaban, SET NULL al borrar obra/contrato_obra escaneaba la tabla entera
+CREATE INDEX IF NOT EXISTS idx_presupuestos_obra              ON presupuestos(obra_id);
+CREATE INDEX IF NOT EXISTS idx_presupuestos_contrato_obra      ON presupuestos(contrato_obra_id);
 CREATE INDEX IF NOT EXISTS idx_presupuesto_items_presupuesto ON presupuesto_items(presupuesto_id);
 
 ALTER TABLE contratos_obra DROP CONSTRAINT IF EXISTS contratos_obra_presupuesto_id_fkey;

@@ -2,6 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import { getProyectoContext } from '@/lib/tenant'
 import { NextResponse } from 'next/server'
 
+// purgar_obra_completa() (ver DELETE más abajo) puede tardar más que el
+// default de la plataforma en proyectos con mucho historial — margen extra
+// además del fix real (índices faltantes, migration_039.sql).
+export const maxDuration = 60
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ obraId: string }> }

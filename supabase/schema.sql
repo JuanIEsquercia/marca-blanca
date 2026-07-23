@@ -1724,11 +1724,29 @@ ALTER TABLE presupuesto_items   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE contrato_obra_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE certificado_items   ENABLE ROW LEVEL SECURITY;
 
+-- migration_041: separada de FOR ALL — eliminar queda admin-only y solo en
+-- estado 'borrador' (mantener registro histórico una vez enviado/aceptado/
+-- rechazado). Una policy FOR ALL no se puede "restringir" agregando otra
+-- encima (Postgres combina policies permisivas con OR), hay que separar
+-- por comando — mismo patrón que obras_tenant en migration_028.
 DROP POLICY IF EXISTS "presupuestos_tenant" ON presupuestos;
-CREATE POLICY "presupuestos_tenant" ON presupuestos
-  FOR ALL TO authenticated
+
+CREATE POLICY "presupuestos_ve" ON presupuestos
+  FOR SELECT TO authenticated
+  USING (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('presupuestos'));
+
+CREATE POLICY "presupuestos_crea" ON presupuestos
+  FOR INSERT TO authenticated
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('presupuestos'));
+
+CREATE POLICY "presupuestos_actualiza" ON presupuestos
+  FOR UPDATE TO authenticated
   USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('presupuestos'))
   WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('presupuestos'));
+
+CREATE POLICY "presupuestos_admin_elimina" ON presupuestos
+  FOR DELETE TO authenticated
+  USING (constructora_id IN (SELECT mis_constructoras()) AND es_admin() AND estado = 'borrador');
 
 DROP POLICY IF EXISTS "presupuesto_items_tenant" ON presupuesto_items;
 CREATE POLICY "presupuesto_items_tenant" ON presupuesto_items

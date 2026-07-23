@@ -15,6 +15,7 @@ interface Props {
   presupuestos: Presupuesto[]
   obrasDisponibles: ObraDisponible[]
   constructoraId: string
+  esAdmin: boolean
 }
 
 const ESTADO_INFO: Record<EstadoPresupuesto, { label: string; color: string }> = {
@@ -30,7 +31,7 @@ function totalPresupuesto(items: PresupuestoItem[] | undefined) {
   return sumarMontos((items ?? []).map(i => i.subtotal))
 }
 
-export default function PresupuestosManager({ presupuestos, obrasDisponibles, constructoraId }: Props) {
+export default function PresupuestosManager({ presupuestos, obrasDisponibles, constructoraId, esAdmin }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
@@ -237,8 +238,9 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
                         </button>
                       </>
                     )}
-                    {p.estado === 'borrador' && (
+                    {esAdmin && p.estado === 'borrador' && (
                       <button onClick={() => handleDeletePresupuesto(p)}
+                        title="Eliminar presupuesto (solo admin)"
                         className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>
                     )}
                     <svg className={cn('w-4 h-4 text-slate-400 transition-transform', isExpanded && 'rotate-180')} fill="none" viewBox="0 0 24 24" stroke="currentColor">

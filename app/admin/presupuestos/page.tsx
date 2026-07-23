@@ -51,6 +51,7 @@ export default async function PresupuestosPage() {
         presupuestos={(presupuestos ?? []) as unknown as Presupuesto[]}
         obrasDisponibles={obrasDisponibles}
         constructoraId={ctx.constructoraId}
+        esAdmin={ctx.perfilRol === 'admin'}
       />
     </div>
   )

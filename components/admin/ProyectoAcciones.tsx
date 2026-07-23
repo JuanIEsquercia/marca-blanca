@@ -329,9 +329,16 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
               <li>Unidades, tipologías y ventas</li>
               <li>Gastos, equipos asignados y presupuestos vinculados</li>
             </ul>
-            <p className="text-xs text-slate-400 mb-6 -mt-4">
+            <p className="text-xs text-slate-400 mb-4 -mt-4">
               Las cuentas propias específicas del proyecto no se eliminan: pasan a ser cuentas de empresa.
             </p>
+            <button onClick={exportarDatos} disabled={exporting}
+              className="w-full mb-4 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 flex items-center justify-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              {exporting ? 'Descargando...' : 'Descargar Excel antes de eliminar'}
+            </button>
             {accionError && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs">{accionError}</div>
             )}

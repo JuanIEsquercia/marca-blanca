@@ -1910,11 +1910,18 @@ $$;
 -- desde obras). Ver migration_033.sql para el detalle comentado.
 -- ============================================================
 
+-- migration_040: bypass_inmutable agregado — sin esto, purgar_obra_completa()
+-- no podía eliminar un proyecto cerrado (trg_bloquear_cerrado bloqueaba sus
+-- propios DELETE). "Cerrado" protege los datos DE ADENTRO del proyecto;
+-- eliminar el proyecto entero es una acción de capa superior (ya gateada
+-- aparte, solo admin) que debe pasar por encima de esa protección interna.
 CREATE OR REPLACE FUNCTION purgar_obra_completa(p_obra_id UUID)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
+  PERFORM set_config('app.bypass_inmutable', 'true', true);
+
   DELETE FROM contratos_venta   WHERE obra_id = p_obra_id;
   DELETE FROM reservas          WHERE obra_id = p_obra_id;
   DELETE FROM unidades          WHERE obra_id = p_obra_id;

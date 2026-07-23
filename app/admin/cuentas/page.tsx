@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
 import { calcularSaldosDeCuentas } from '@/lib/tesoreria'
+import { puedeAcceder } from '@/lib/permisos'
 import CuentasPropiasManager from '@/components/admin/CuentasPropiasManager'
 import type { Metadata } from 'next'
 
@@ -42,7 +43,7 @@ export default async function CuentasPage() {
         cuentas={cuentas}
         saldos={saldos}
         constructoraId={ctx.constructoraId}
-        readOnly={ctx.perfilRol !== 'admin'}
+        readOnly={!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'cuentas', null)}
       />
     </div>
   )

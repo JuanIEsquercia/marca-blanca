@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
+import { puedeAcceder } from '@/lib/permisos'
 import GastosManager from '@/components/admin/GastosManager'
 import type { Metadata } from 'next'
 
@@ -75,7 +76,7 @@ export default async function GastosPage({ searchParams }: Props) {
         categorias={categorias ?? []}
         cuentasPropias={cuentasPropias ?? []}
         constructoraId={ctx.constructoraId}
-        readOnly={ctx.perfilRol !== 'admin'}
+        readOnly={!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'gastos', null)}
         historialAcotado={!verHistorialCompleto}
       />
     </div>

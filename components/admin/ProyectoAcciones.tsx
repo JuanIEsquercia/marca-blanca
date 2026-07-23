@@ -36,13 +36,39 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
 
   function refresh() { startTransition(() => router.refresh()) }
 
+  // Cambiar estado y eliminar pasan por /api/admin/proyecto/[obraId] en vez
+  // de llamar a Supabase directo desde el browser (como hacía antes). Motivo
+  // confirmado en vivo (usuario, Firefox, 2026-07-23): la request al browser
+  // de Supabase se corta a mitad de camino solo para escrituras sobre
+  // `obras` — headers de la request verificados correctos (apikey/token/
+  // origin OK), no es un error HTTP ni de autorización, así que no es algo
+  // que la app pueda corregir del lado de la request en sí. Hipótesis: algo
+  // de red del lado del cliente (p.ej. Firefox intentando HTTP/3-QUIC sobre
+  // una red que lo bloquea). En vez de perseguir esa causa puntual, se saca
+  // el fetch del browser: el server de Vercel llama a Supabase por su
+  // cuenta, sin depender de la red del usuario. La ruta usa el cliente
+  // server-side con la sesión del usuario (no el admin/service-role), así
+  // que la autorización real la sigue dando RLS exactamente igual que antes.
+  async function llamarApiProyecto(method: 'PATCH' | 'DELETE', body?: object) {
+    try {
+      const res = await fetch(`/api/admin/proyecto/${obraId}`, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      const data = await res.json()
+      return res.ok ? { ok: true as const } : { ok: false as const, message: data.error ?? 'Error desconocido.' }
+    } catch {
+      return { ok: false as const, message: 'Error de red — no se pudo contactar al servidor.' }
+    }
+  }
+
   async function cambiarEstado(nuevoEstado: EstadoObra) {
     setLoading(true)
     setAccionError(null)
-    const supabase = createClient()
-    const { error } = await supabase.from('obras').update({ estado: nuevoEstado }).eq('id', obraId)
+    const result = await llamarApiProyecto('PATCH', { estado: nuevoEstado })
     setLoading(false)
-    if (error) { setAccionError(error.message); return }
+    if (!result.ok) { setAccionError(result.message); return }
     setOpen(false)
     setConfirmCierre(false)
     refresh()
@@ -51,15 +77,9 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
   async function eliminar() {
     setLoading(true)
     setAccionError(null)
-    const supabase = createClient()
-    // purgar_obra_completa borra todos los datos del proyecto en el orden
-    // que exigen las FK reales (RPC, migration_033) — antes esto era un
-    // DELETE FROM obras suelto que dependía de que Postgres lo rechazara
-    // por foreign key, y mostraba un mensaje fijo sin relación con la
-    // tabla que realmente bloqueaba.
-    const { error } = await supabase.rpc('purgar_obra_completa', { p_obra_id: obraId })
+    const result = await llamarApiProyecto('DELETE')
     setLoading(false)
-    if (error) { setAccionError(error.message); return }
+    if (!result.ok) { setAccionError(result.message); return }
     setConfirmDelete(false)
     refresh()
   }

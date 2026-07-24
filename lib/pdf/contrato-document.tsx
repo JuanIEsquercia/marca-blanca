@@ -1,6 +1,25 @@
-import { Document, Page, Text, View, renderToBuffer } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet, renderToBuffer } from '@react-pdf/renderer'
 import { formatCurrency } from '@/lib/utils'
-import { sharedStyles, DocHeader, InfoBox, FirmaBlock, formatDate } from './shared'
+import { sharedStyles, pdfColors, DocHeader, InfoBox, FirmaBlock, formatDate } from './shared'
+
+const styles = StyleSheet.create({
+  table: { marginTop: 4, marginBottom: 18 },
+  tableHeaderRow: { flexDirection: 'row', backgroundColor: pdfColors.indigoSoft, paddingVertical: 8, paddingHorizontal: 10 },
+  tableRow: { flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: pdfColors.border },
+  thNum: { width: 22, fontSize: 8, color: pdfColors.indigo, letterSpacing: 0.5 },
+  thRubro: { flex: 1, fontSize: 8, color: pdfColors.indigo, letterSpacing: 0.5 },
+  thNumeric: { width: 110, fontSize: 8, color: pdfColors.indigo, letterSpacing: 0.5, textAlign: 'right' },
+  tdNum: { width: 22, fontSize: 9, color: pdfColors.grayLight },
+  tdRubro: { flex: 1, fontSize: 9.5, fontFamily: 'Helvetica-Bold', paddingRight: 8 },
+  tdAdicional: { fontSize: 8, fontFamily: 'Helvetica', color: '#b45309', backgroundColor: '#fef3c7', paddingHorizontal: 5, paddingVertical: 1.5, borderRadius: 2 },
+  tdNumeric: { width: 110, fontSize: 9.5, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
+})
+
+export interface ContratoPdfItem {
+  rubro: string
+  montoContratado: number
+  origen: string
+}
 
 export interface ContratoPdfData {
   constructoraNombre: string
@@ -12,6 +31,7 @@ export interface ContratoPdfData {
   fechaInicio: string | null
   fechaFinEstimada: string | null
   descripcion: string | null
+  items: ContratoPdfItem[]
   codigo: string
 }
 
@@ -40,6 +60,26 @@ function ContratoDocument(d: ContratoPdfData) {
         />
 
         <InfoBox items={infoItems} />
+
+        {d.items.length > 0 && (
+          <View style={styles.table}>
+            <View style={styles.tableHeaderRow}>
+              <Text style={styles.thNum}>#</Text>
+              <Text style={styles.thRubro}>RUBRO</Text>
+              <Text style={styles.thNumeric}>MONTO</Text>
+            </View>
+            {d.items.map((item, i) => (
+              <View key={i} style={styles.tableRow} wrap={false}>
+                <Text style={styles.tdNum}>{i + 1}</Text>
+                <Text style={styles.tdRubro}>
+                  {item.rubro}
+                  {item.origen === 'adicional' && <Text style={styles.tdAdicional}>  Adicional  </Text>}
+                </Text>
+                <Text style={styles.tdNumeric}>{formatCurrency(item.montoContratado, d.moneda)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         <View style={sharedStyles.totalRow}>
           <View style={sharedStyles.totalBox}>

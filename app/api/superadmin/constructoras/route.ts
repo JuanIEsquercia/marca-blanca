@@ -1,6 +1,37 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import type { CondicionIva } from '@/types/database'
+
+const CONDICIONES_IVA: CondicionIva[] = ['responsable_inscripto', 'monotributo', 'exento', 'consumidor_final']
+
+// Campos de facturación: todos opcionales, se guardan tal cual (trim, o
+// null si vienen vacíos) — sin validación de formato de CUIT por ahora,
+// es un dato que carga el superadmin a mano, no un form público.
+interface DatosFacturacion {
+  razon_social: string | null
+  cuit: string | null
+  condicion_iva: CondicionIva | null
+  email_facturacion: string | null
+  telefono_contacto: string | null
+  direccion: string | null
+}
+
+function parseDatosFacturacion(body: Record<string, unknown>): DatosFacturacion | { error: NextResponse } {
+  const strOrNull = (v: unknown) => typeof v === 'string' && v.trim() ? v.trim() : null
+  const condicionIva = strOrNull(body.condicionIva)
+  if (condicionIva && !CONDICIONES_IVA.includes(condicionIva as CondicionIva)) {
+    return { error: NextResponse.json({ error: 'condicionIva inválida' }, { status: 400 }) }
+  }
+  return {
+    razon_social: strOrNull(body.razonSocial),
+    cuit: strOrNull(body.cuit),
+    condicion_iva: condicionIva as CondicionIva | null,
+    email_facturacion: strOrNull(body.emailFacturacion),
+    telefono_contacto: strOrNull(body.telefonoContacto),
+    direccion: strOrNull(body.direccion),
+  }
+}
 
 async function verifySuperAdmin() {
   const supabase = await createClient()
@@ -23,7 +54,9 @@ export async function GET() {
     { data: authData },
     { data: numeros },
   ] = await Promise.all([
-    adminClient.from('constructoras').select('id, nombre, owner_id, created_at').order('created_at', { ascending: false }),
+    adminClient.from('constructoras')
+      .select('id, nombre, owner_id, created_at, razon_social, cuit, condicion_iva, email_facturacion, telefono_contacto, direccion')
+      .order('created_at', { ascending: false }),
     adminClient.from('perfiles').select('id, nombre, rol, constructora_id').not('constructora_id', 'is', null),
     adminClient.auth.admin.listUsers(),
     adminClient.from('whatsapp_numeros').select('constructora_id, kapso_phone_id, numero').eq('activo', true),
@@ -43,6 +76,12 @@ export async function GET() {
       usuarios,
       kapsoPhoneId: numero?.kapso_phone_id ?? null,
       numeroWhatsapp: numero?.numero ?? null,
+      razonSocial: c.razon_social,
+      cuit: c.cuit,
+      condicionIva: c.condicion_iva,
+      emailFacturacion: c.email_facturacion,
+      telefonoContacto: c.telefono_contacto,
+      direccion: c.direccion,
     }
   })
 
@@ -53,10 +92,14 @@ export async function POST(request: Request) {
   const caller = await verifySuperAdmin()
   if (!caller) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
 
-  const { nombre, adminEmail, adminPassword, adminNombre } = await request.json()
+  const body = await request.json()
+  const { nombre, adminEmail, adminPassword, adminNombre } = body
   if (!nombre?.trim() || !adminEmail?.trim() || !adminPassword?.trim()) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
   }
+
+  const datosFacturacion = parseDatosFacturacion(body)
+  if ('error' in datosFacturacion) return datosFacturacion.error
 
   const adminClient = createAdminClient()
 
@@ -74,7 +117,7 @@ export async function POST(request: Request) {
 
   const { data: constructora, error: cError } = await adminClient
     .from('constructoras')
-    .insert({ nombre: nombre.trim(), owner_id: userId })
+    .insert({ nombre: nombre.trim(), owner_id: userId, ...datosFacturacion })
     .select('id').single()
 
   if (cError || !constructora) {
@@ -116,7 +159,8 @@ export async function PATCH(request: Request) {
   const caller = await verifySuperAdmin()
   if (!caller) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
 
-  const { constructoraId, nombre, kapsoPhoneId, numeroWhatsapp } = await request.json()
+  const body = await request.json()
+  const { constructoraId, nombre, kapsoPhoneId, numeroWhatsapp, datosFacturacion } = body
   if (!constructoraId) {
     return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
   }
@@ -127,6 +171,18 @@ export async function PATCH(request: Request) {
     const { error } = await adminClient
       .from('constructoras')
       .update({ nombre: nombre.trim() })
+      .eq('id', constructoraId)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (datosFacturacion && typeof datosFacturacion === 'object') {
+    const parsed = parseDatosFacturacion(datosFacturacion)
+    if ('error' in parsed) return parsed.error
+
+    const { error } = await adminClient
+      .from('constructoras')
+      .update(parsed)
       .eq('id', constructoraId)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -17,6 +17,19 @@ interface Constructora {
   usuarios: Usuario[]
   kapsoPhoneId: string | null
   numeroWhatsapp: string | null
+  razonSocial: string | null
+  cuit: string | null
+  condicionIva: string | null
+  emailFacturacion: string | null
+  telefonoContacto: string | null
+  direccion: string | null
+}
+
+const LABEL_CONDICION_IVA: Record<string, string> = {
+  responsable_inscripto: 'Responsable Inscripto',
+  monotributo: 'Monotributo',
+  exento: 'Exento',
+  consumidor_final: 'Consumidor Final',
 }
 
 interface Props {
@@ -45,6 +58,12 @@ export default function ConstructorasManager({ initialData }: Props) {
   const [editingWhatsappId, setEditingWhatsappId] = useState<string | null>(null)
   const [kapsoPhoneIdInput, setKapsoPhoneIdInput] = useState('')
   const [numeroWhatsappInput, setNumeroWhatsappInput] = useState('')
+
+  // Datos de facturación (CUIT, razón social, etc.)
+  const [editingFacturacionId, setEditingFacturacionId] = useState<string | null>(null)
+  const [facturacionForm, setFacturacionForm] = useState({
+    razonSocial: '', cuit: '', condicionIva: '', emailFacturacion: '', telefonoContacto: '', direccion: '',
+  })
 
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -148,6 +167,45 @@ export default function ConstructorasManager({ initialData }: Props) {
     } else {
       const d = await res.json()
       setError(d.error ?? 'Error al guardar el número')
+    }
+    setLoadingId(null)
+  }
+
+  // ── Editar datos de facturación ──────────────────────────────────
+  function startEditFacturacion(c: Constructora) {
+    setEditingFacturacionId(c.id)
+    setFacturacionForm({
+      razonSocial: c.razonSocial ?? '',
+      cuit: c.cuit ?? '',
+      condicionIva: c.condicionIva ?? '',
+      emailFacturacion: c.emailFacturacion ?? '',
+      telefonoContacto: c.telefonoContacto ?? '',
+      direccion: c.direccion ?? '',
+    })
+    setError(null)
+  }
+
+  async function handleGuardarFacturacion(id: string) {
+    setLoadingId(id)
+    const res = await fetch('/api/superadmin/constructoras', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ constructoraId: id, datosFacturacion: facturacionForm }),
+    })
+    if (res.ok) {
+      setLista(prev => prev.map(c => c.id === id ? {
+        ...c,
+        razonSocial: facturacionForm.razonSocial || null,
+        cuit: facturacionForm.cuit || null,
+        condicionIva: facturacionForm.condicionIva || null,
+        emailFacturacion: facturacionForm.emailFacturacion || null,
+        telefonoContacto: facturacionForm.telefonoContacto || null,
+        direccion: facturacionForm.direccion || null,
+      } : c))
+      setEditingFacturacionId(null)
+    } else {
+      const d = await res.json()
+      setError(d.error ?? 'Error al guardar los datos de facturación')
     }
     setLoadingId(null)
   }
@@ -359,6 +417,120 @@ export default function ConstructorasManager({ initialData }: Props) {
                           className="text-slate-500 hover:text-slate-200 text-[10px] underline underline-offset-2 shrink-0"
                         >
                           {c.kapsoPhoneId ? 'Cambiar' : 'Configurar'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Datos de facturación */}
+                  <div className="px-4 py-3 border-b border-slate-800">
+                    {editingFacturacionId === c.id ? (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-[10px] text-slate-500 block mb-1">Razón social</label>
+                          <input
+                            autoFocus
+                            value={facturacionForm.razonSocial}
+                            onChange={e => setFacturacionForm(f => ({ ...f, razonSocial: e.target.value }))}
+                            className="w-full bg-slate-800 border border-indigo-500 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] text-slate-500 block mb-1">CUIT</label>
+                            <input
+                              value={facturacionForm.cuit}
+                              onChange={e => setFacturacionForm(f => ({ ...f, cuit: e.target.value }))}
+                              placeholder="30-12345678-9"
+                              className="w-full bg-slate-800 border border-indigo-500 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-slate-500 block mb-1">Condición IVA</label>
+                            <select
+                              value={facturacionForm.condicionIva}
+                              onChange={e => setFacturacionForm(f => ({ ...f, condicionIva: e.target.value }))}
+                              className="w-full bg-slate-800 border border-indigo-500 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                            >
+                              <option value="">Sin especificar</option>
+                              <option value="responsable_inscripto">Responsable Inscripto</option>
+                              <option value="monotributo">Monotributo</option>
+                              <option value="exento">Exento</option>
+                              <option value="consumidor_final">Consumidor Final</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-500 block mb-1">Email de facturación</label>
+                          <input
+                            type="email"
+                            value={facturacionForm.emailFacturacion}
+                            onChange={e => setFacturacionForm(f => ({ ...f, emailFacturacion: e.target.value }))}
+                            className="w-full bg-slate-800 border border-indigo-500 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] text-slate-500 block mb-1">Teléfono de contacto</label>
+                            <input
+                              value={facturacionForm.telefonoContacto}
+                              onChange={e => setFacturacionForm(f => ({ ...f, telefonoContacto: e.target.value }))}
+                              placeholder="+54 9 11 xxxx-xxxx"
+                              className="w-full bg-slate-800 border border-indigo-500 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-slate-500 block mb-1">Dirección</label>
+                            <input
+                              value={facturacionForm.direccion}
+                              onChange={e => setFacturacionForm(f => ({ ...f, direccion: e.target.value }))}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleGuardarFacturacion(c.id)
+                                if (e.key === 'Escape') setEditingFacturacionId(null)
+                              }}
+                              className="w-full bg-slate-800 border border-indigo-500 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleGuardarFacturacion(c.id)}
+                            disabled={loadingId === c.id}
+                            className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                          >
+                            {loadingId === c.id ? '...' : 'Guardar'}
+                          </button>
+                          <button onClick={() => setEditingFacturacionId(null)} className="px-2 text-xs text-slate-400 hover:text-white">
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-3">
+                        <span className="text-xs text-slate-500 shrink-0 pt-0.5">Facturación</span>
+                        <div className="flex-1 text-xs text-slate-300 space-y-0.5">
+                          {c.cuit || c.razonSocial || c.emailFacturacion || c.telefonoContacto || c.direccion ? (
+                            <>
+                              {c.razonSocial && <p className="font-medium">{c.razonSocial}</p>}
+                              <p className="text-slate-400">
+                                {[
+                                  c.cuit && `CUIT ${c.cuit}`,
+                                  c.condicionIva && LABEL_CONDICION_IVA[c.condicionIva],
+                                ].filter(Boolean).join(' · ') || null}
+                              </p>
+                              {c.emailFacturacion && <p className="text-slate-400">{c.emailFacturacion}</p>}
+                              {c.telefonoContacto && <p className="text-slate-400">{c.telefonoContacto}</p>}
+                              {c.direccion && <p className="text-slate-400">{c.direccion}</p>}
+                            </>
+                          ) : (
+                            <span className="text-slate-600 italic">sin datos de facturación</span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => startEditFacturacion(c)}
+                          className="text-slate-500 hover:text-slate-200 text-[10px] underline underline-offset-2 shrink-0"
+                        >
+                          {c.cuit || c.razonSocial ? 'Editar' : 'Completar'}
                         </button>
                       </div>
                     )}

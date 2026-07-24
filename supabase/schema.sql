@@ -50,6 +50,17 @@ CREATE TABLE IF NOT EXISTS constructoras (
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- migration_045: datos fiscales/de facturación (suscripción de la
+-- plataforma), todos opcionales — el superadmin los carga a mano por
+-- ahora, ver migration_045.sql.
+ALTER TABLE constructoras ADD COLUMN IF NOT EXISTS razon_social TEXT;
+ALTER TABLE constructoras ADD COLUMN IF NOT EXISTS cuit TEXT;
+ALTER TABLE constructoras ADD COLUMN IF NOT EXISTS condicion_iva TEXT
+  CHECK (condicion_iva IS NULL OR condicion_iva IN ('responsable_inscripto', 'monotributo', 'exento', 'consumidor_final'));
+ALTER TABLE constructoras ADD COLUMN IF NOT EXISTS email_facturacion TEXT;
+ALTER TABLE constructoras ADD COLUMN IF NOT EXISTS telefono_contacto TEXT;
+ALTER TABLE constructoras ADD COLUMN IF NOT EXISTS direccion TEXT;
+
 ALTER TABLE perfiles
   ADD COLUMN IF NOT EXISTS constructora_id UUID REFERENCES constructoras(id) ON DELETE SET NULL;
 

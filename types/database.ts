@@ -11,12 +11,20 @@ export type EstadoCobro = 'pendiente' | 'cobrado'
 
 // ── Multi-tenant ──────────────────────────────────────────────
 
+export type CondicionIva = 'responsable_inscripto' | 'monotributo' | 'exento' | 'consumidor_final'
+
 export interface Constructora {
   id: string
   nombre: string
   owner_id: string | null
   activa: boolean
   created_at: string
+  razon_social: string | null
+  cuit: string | null
+  condicion_iva: CondicionIva | null
+  email_facturacion: string | null
+  telefono_contacto: string | null
+  direccion: string | null
 }
 
 export interface Obra {

@@ -14,7 +14,9 @@ export default async function SuperAdminPage() {
     { data: authData },
     { data: numeros },
   ] = await Promise.all([
-    adminClient.from('constructoras').select('id, nombre, owner_id, created_at').order('created_at', { ascending: false }),
+    adminClient.from('constructoras')
+      .select('id, nombre, owner_id, created_at, razon_social, cuit, condicion_iva, email_facturacion, telefono_contacto, direccion')
+      .order('created_at', { ascending: false }),
     adminClient.from('perfiles').select('id, nombre, rol, constructora_id').not('constructora_id', 'is', null),
     adminClient.auth.admin.listUsers(),
     adminClient.from('whatsapp_numeros').select('constructora_id, kapso_phone_id, numero').eq('activo', true),
@@ -31,6 +33,12 @@ export default async function SuperAdminPage() {
       id: c.id, nombre: c.nombre, createdAt: c.created_at, usuarios,
       kapsoPhoneId: numero?.kapso_phone_id ?? null,
       numeroWhatsapp: numero?.numero ?? null,
+      razonSocial: c.razon_social,
+      cuit: c.cuit,
+      condicionIva: c.condicion_iva,
+      emailFacturacion: c.email_facturacion,
+      telefonoContacto: c.telefono_contacto,
+      direccion: c.direccion,
     }
   })
 

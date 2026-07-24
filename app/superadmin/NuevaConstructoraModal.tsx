@@ -19,11 +19,26 @@ export default function NuevaConstructoraModal({ onCreated }: Props = {}) {
   const [adminEmail, setAdminEmail] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
 
+  // Datos de facturación — opcionales, se pueden completar después desde
+  // el listado si no se tienen a mano al momento de crear la constructora.
+  const [razonSocial, setRazonSocial] = useState('')
+  const [cuit, setCuit] = useState('')
+  const [condicionIva, setCondicionIva] = useState('')
+  const [emailFacturacion, setEmailFacturacion] = useState('')
+  const [telefonoContacto, setTelefonoContacto] = useState('')
+  const [direccion, setDireccion] = useState('')
+
   function reset() {
     setNombre('')
     setAdminNombre('')
     setAdminEmail('')
     setAdminPassword('')
+    setRazonSocial('')
+    setCuit('')
+    setCondicionIva('')
+    setEmailFacturacion('')
+    setTelefonoContacto('')
+    setDireccion('')
     setError(null)
     setSuccess(null)
   }
@@ -46,7 +61,10 @@ export default function NuevaConstructoraModal({ onCreated }: Props = {}) {
     const res = await fetch('/api/superadmin/constructoras', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre, adminNombre, adminEmail, adminPassword }),
+      body: JSON.stringify({
+        nombre, adminNombre, adminEmail, adminPassword,
+        razonSocial, cuit, condicionIva, emailFacturacion, telefonoContacto, direccion,
+      }),
     })
 
     const data = await res.json()
@@ -119,6 +137,82 @@ export default function NuevaConstructoraModal({ onCreated }: Props = {}) {
                 autoFocus
                 className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+            </div>
+
+            <div className="border-t border-slate-100 pt-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                Datos de facturación <span className="normal-case font-normal text-slate-400">(opcional, se puede completar después)</span>
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Razón social</label>
+                  <input
+                    type="text"
+                    value={razonSocial}
+                    onChange={e => setRazonSocial(e.target.value)}
+                    placeholder="Si difiere del nombre comercial"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">CUIT</label>
+                    <input
+                      type="text"
+                      value={cuit}
+                      onChange={e => setCuit(e.target.value)}
+                      placeholder="30-12345678-9"
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Condición IVA</label>
+                    <select
+                      value={condicionIva}
+                      onChange={e => setCondicionIva(e.target.value)}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    >
+                      <option value="">Sin especificar</option>
+                      <option value="responsable_inscripto">Responsable Inscripto</option>
+                      <option value="monotributo">Monotributo</option>
+                      <option value="exento">Exento</option>
+                      <option value="consumidor_final">Consumidor Final</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Email de facturación</label>
+                  <input
+                    type="email"
+                    value={emailFacturacion}
+                    onChange={e => setEmailFacturacion(e.target.value)}
+                    placeholder="administracion@constructora.com"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Teléfono de contacto</label>
+                    <input
+                      type="text"
+                      value={telefonoContacto}
+                      onChange={e => setTelefonoContacto(e.target.value)}
+                      placeholder="+54 9 11 xxxx-xxxx"
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Dirección</label>
+                    <input
+                      type="text"
+                      value={direccion}
+                      onChange={e => setDireccion(e.target.value)}
+                      placeholder="Domicilio fiscal"
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="border-t border-slate-100 pt-4">

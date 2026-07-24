@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { cn, formatCurrency, formatDate, redondear2 } from '@/lib/utils'
 import ConfirmModal from './ConfirmModal'
 import ClienteYFechasForm, { EMPTY_DATOS_GENERALES, type DatosGenerales } from './ClienteYFechasForm'
-import ItemsRubroTable, { nuevaFilaItem, subtotalFilaItem, totalFilasItem, type FilaItem } from './ItemsRubroTable'
+import ItemsRubroTable, { nuevaFilaItem, totalFilasItem, type FilaItem } from './ItemsRubroTable'
 import type { ContratoObra, CertificadoAvance, CobroProyecto, CuentaPropia, EstadoCertificado, ContratoObraItem, CertificadoItem } from '@/types/database'
 
 type ConfirmState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
@@ -32,7 +32,6 @@ const ESTADO_CERT: Record<EstadoCertificado, { label: string; color: string; nex
 const EMPTY_CERT = { periodo: '', porcentaje_avance: '', monto_certificado: '', descripcion_avances: '', notas: '' }
 const EMPTY_COBRO = { numero: '', fecha_vencimiento: '', monto: '', moneda: 'ARS', notas: '' }
 const EMPTY_PAGO = { fecha_pago: new Date().toISOString().split('T')[0], cuenta_propia_id: '' }
-const EMPTY_ADICIONAL = { rubro: '', monto: '' }
 
 export default function CertificadosManager({ contrato: contratoInicial, certificados, contratoObraItems = [], cuentasPropias, constructoraId, obraId, readOnly = false }: Props) {
   const router = useRouter()
@@ -66,7 +65,7 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
   const [certForm, setCertForm] = useState(EMPTY_CERT)
   const [itemPcts, setItemPcts] = useState<Record<string, string>>({})
   const [showAdicionalForm, setShowAdicionalForm] = useState(false)
-  const [adicionalForm, setAdicionalForm] = useState(EMPTY_ADICIONAL)
+  const [adicionalFilas, setAdicionalFilas] = useState<FilaItem[]>([nuevaFilaItem()])
 
   // El contrato certifica por ítem (presupuesto aceptado) apenas tiene algún
   // contrato_obra_items — si no tiene ninguno, sigue el flujo viejo de %
@@ -180,7 +179,9 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
           constructora_id: constructoraId,
           orden: i,
           rubro: f.rubro.trim(),
-          monto_contratado: subtotalFilaItem(f),
+          unidad: f.unidad.trim() || null,
+          cantidad: redondear2(parseFloat(f.cantidad) || 1),
+          precio_unitario: redondear2(parseFloat(f.precio_unitario)),
           origen: 'directo',
         }))
       )
@@ -291,21 +292,26 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
 
   async function handleAdicionalSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!contrato || !adicionalForm.rubro.trim() || !adicionalForm.monto) return
+    const filasValidas = adicionalFilas.filter(f => f.rubro.trim() && f.precio_unitario)
+    if (!contrato || filasValidas.length === 0) return
     setError(null)
     setLoading(true)
     const supabase = createClient()
-    const { error: err } = await supabase.from('contrato_obra_items').insert({
-      contrato_obra_id: contrato.id,
-      constructora_id: constructoraId,
-      orden: contratoObraItems.length,
-      rubro: adicionalForm.rubro.trim(),
-      monto_contratado: redondear2(parseFloat(adicionalForm.monto)),
-      origen: 'adicional',
-    })
+    const { error: err } = await supabase.from('contrato_obra_items').insert(
+      filasValidas.map((f, i) => ({
+        contrato_obra_id: contrato.id,
+        constructora_id: constructoraId,
+        orden: contratoObraItems.length + i,
+        rubro: f.rubro.trim(),
+        unidad: f.unidad.trim() || null,
+        cantidad: redondear2(parseFloat(f.cantidad) || 1),
+        precio_unitario: redondear2(parseFloat(f.precio_unitario)),
+        origen: 'adicional',
+      }))
+    )
     setLoading(false)
     if (err) { setError(err.message); return }
-    setAdicionalForm(EMPTY_ADICIONAL)
+    setAdicionalFilas([nuevaFilaItem()])
     setShowAdicionalForm(false)
     refresh()
   }
@@ -536,7 +542,7 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
             </div>
             <div className="flex items-center gap-2">
               {!readOnly && usaItems && (
-                <button onClick={() => { setShowAdicionalForm(true); setAdicionalForm(EMPTY_ADICIONAL); setError(null) }}
+                <button onClick={() => { setShowAdicionalForm(true); setAdicionalFilas([nuevaFilaItem()]); setError(null) }}
                   className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors">
                   + Adicional
                 </button>
@@ -824,7 +830,7 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
       {/* ── MODAL: Adicional de obra ── */}
       {showAdicionalForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-200">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Adicional de obra</h2>
@@ -835,19 +841,8 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
               </button>
             </div>
             <form onSubmit={handleAdicionalSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Rubro *</label>
-                <input required value={adicionalForm.rubro}
-                  onChange={e => setAdicionalForm(f => ({ ...f, rubro: e.target.value }))}
-                  placeholder="Ej: Refuerzo de fundación extra"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Monto *</label>
-                <input required type="number" min="0.01" step="0.01" value={adicionalForm.monto}
-                  onChange={e => setAdicionalForm(f => ({ ...f, monto: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
+              <ItemsRubroTable filas={adicionalFilas} onChange={setAdicionalFilas} moneda={contrato?.moneda ?? 'ARS'} titulo="Ítems adicionales" />
+
               {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setShowAdicionalForm(false)}

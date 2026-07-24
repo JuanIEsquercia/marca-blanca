@@ -339,6 +339,9 @@ export interface ContratoObraItem {
   constructora_id: string
   orden: number
   rubro: string
+  unidad: string | null
+  cantidad: number
+  precio_unitario: number
   monto_contratado: number
   origen: OrigenItemContrato
   notas: string | null

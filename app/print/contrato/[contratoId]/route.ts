@@ -23,7 +23,7 @@ export async function GET(
 
   const { data: contrato } = await admin
     .from('contratos_obra')
-    .select('*, obras(nombre, constructoras(nombre)), compradores(nombre_completo, dni_cuit), contrato_obra_items(rubro, monto_contratado, origen, orden)')
+    .select('*, obras(nombre, constructoras(nombre)), compradores(nombre_completo, dni_cuit), contrato_obra_items(rubro, unidad, cantidad, precio_unitario, monto_contratado, origen, orden)')
     .eq('id', contratoId)
     .maybeSingle()
 
@@ -36,7 +36,7 @@ export async function GET(
   const obraNombre = (contrato.obras as unknown as { nombre: string } | null)?.nombre ?? ''
   const constructoraNombre = (contrato.obras as unknown as { constructoras: { nombre: string } | null } | null)?.constructoras?.nombre ?? 'Constructora'
   const codigo = contrato.id.slice(0, 8).toUpperCase()
-  const items = [...((contrato.contrato_obra_items as unknown as { rubro: string; monto_contratado: number; origen: string; orden: number }[]) ?? [])]
+  const items = [...((contrato.contrato_obra_items as unknown as { rubro: string; unidad: string | null; cantidad: number; precio_unitario: number; monto_contratado: number; origen: string; orden: number }[]) ?? [])]
     .sort((a, b) => a.orden - b.orden)
 
   const buffer = await renderContratoPdf({
@@ -49,7 +49,14 @@ export async function GET(
     fechaInicio: contrato.fecha_inicio,
     fechaFinEstimada: contrato.fecha_fin_estimada,
     descripcion: contrato.descripcion,
-    items: items.map(i => ({ rubro: i.rubro, montoContratado: i.monto_contratado, origen: i.origen })),
+    items: items.map(i => ({
+      rubro: i.rubro,
+      unidad: i.unidad,
+      cantidad: i.cantidad,
+      precioUnitario: i.precio_unitario,
+      montoContratado: i.monto_contratado,
+      origen: i.origen,
+    })),
     codigo,
   })
 

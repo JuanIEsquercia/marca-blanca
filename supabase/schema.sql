@@ -1419,13 +1419,19 @@ ALTER TABLE contratos_obra ADD CONSTRAINT contratos_obra_presupuesto_id_fkey
   FOREIGN KEY (presupuesto_id) REFERENCES presupuestos(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_contratos_obra_presupuesto ON contratos_obra(presupuesto_id);
 
+-- migration_043: unidad/cantidad/precio_unitario agregados, misma
+-- estructura que presupuesto_items — monto_contratado es GENERATED
+-- (cantidad × precio_unitario), ya no se tipea/inserta directo.
 CREATE TABLE IF NOT EXISTS contrato_obra_items (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   contrato_obra_id  UUID NOT NULL REFERENCES contratos_obra(id) ON DELETE CASCADE,
   constructora_id   UUID NOT NULL REFERENCES constructoras(id),
   orden             INTEGER NOT NULL DEFAULT 0,
   rubro             TEXT NOT NULL,
-  monto_contratado  NUMERIC(15,2) NOT NULL CHECK (monto_contratado >= 0),
+  unidad            TEXT,
+  cantidad          NUMERIC(15,2) NOT NULL DEFAULT 1 CHECK (cantidad > 0),
+  precio_unitario   NUMERIC(15,2) NOT NULL CHECK (precio_unitario >= 0),
+  monto_contratado  NUMERIC(15,2) GENERATED ALWAYS AS (cantidad * precio_unitario) STORED,
   origen            TEXT NOT NULL DEFAULT 'presupuesto' CHECK (origen IN ('presupuesto', 'adicional', 'directo')),
   notas             TEXT,
   created_by        UUID REFERENCES auth.users(id),
@@ -1708,8 +1714,8 @@ BEGIN
   VALUES (v_obra_id, v_presupuesto.constructora_id, v_cliente_id, v_monto_total, v_presupuesto.moneda, v_presupuesto.descripcion, p_presupuesto_id, v_presupuesto.fecha_inicio, v_presupuesto.fecha_fin_estimada)
   RETURNING id INTO v_contrato_id;
 
-  INSERT INTO contrato_obra_items (contrato_obra_id, constructora_id, orden, rubro, monto_contratado, origen)
-  SELECT v_contrato_id, constructora_id, orden, rubro, subtotal, 'presupuesto'
+  INSERT INTO contrato_obra_items (contrato_obra_id, constructora_id, orden, rubro, unidad, cantidad, precio_unitario, origen)
+  SELECT v_contrato_id, constructora_id, orden, rubro, unidad, cantidad, precio_unitario, 'presupuesto'
   FROM presupuesto_items WHERE presupuesto_id = p_presupuesto_id;
 
   UPDATE presupuestos SET estado = 'aceptado', obra_id = v_obra_id, contrato_obra_id = v_contrato_id

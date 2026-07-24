@@ -50,8 +50,13 @@ export default async function PrintPresupuestoPage({ params }: { params: Promise
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          @page { size: A4; margin: 20mm 18mm 22mm 18mm; }
+          @page { size: A4; margin: 16mm 16mm 16mm 16mm; }
           body { background: white; }
+          /* @page ya reserva el margen de la hoja — el padding de .doc es
+             solo para simular el marco de página en la vista previa en
+             pantalla. Sin este reset, el margen se aplica DOS veces al
+             imprimir de verdad y el contenido desborda a una 2da hoja. */
+          .doc { padding: 0 !important; max-width: none !important; min-height: 0 !important; }
         }
         body {
           font-family: Georgia, 'Times New Roman', serif;
@@ -84,7 +89,7 @@ export default async function PrintPresupuestoPage({ params }: { params: Promise
         </div>
 
         {/* Datos generales */}
-        <div className="grid grid-cols-2 gap-8 mb-7">
+        <div className="grid grid-cols-2 gap-8 mb-6">
           <div>
             <p className="label mb-2">Cliente</p>
             <p className="text-[15px] font-semibold leading-snug">{presupuesto.cliente_nombre}</p>
@@ -125,7 +130,7 @@ export default async function PrintPresupuestoPage({ params }: { params: Promise
 
         {/* Descripción */}
         {presupuesto.descripcion && (
-          <div className="mb-7 pt-5 border-t border-gray-200">
+          <div className="mb-6 pt-4 border-t border-gray-200">
             <p className="label mb-2">Descripción del trabajo</p>
             <p className="text-[12.5px] leading-relaxed whitespace-pre-wrap">{presupuesto.descripcion}</p>
           </div>
@@ -155,21 +160,21 @@ export default async function PrintPresupuestoPage({ params }: { params: Promise
           </tbody>
         </table>
 
-        <div className="flex justify-end mb-10">
-          <div className="flex items-baseline gap-4 px-5 py-3.5 rounded-sm" style={{ background: '#4338ca' }}>
+        <div className="flex justify-end mb-8">
+          <div className="flex items-baseline gap-4 px-5 py-3 rounded-sm" style={{ background: '#4338ca' }}>
             <p className="sans text-[10px] uppercase tracking-[0.1em] text-indigo-200">Total</p>
             <p className="text-[22px] font-bold text-white num">{formatCurrency(total, presupuesto.moneda)}</p>
           </div>
         </div>
 
         {presupuesto.notas && (
-          <div className="mb-10 pt-5 border-t border-gray-200">
+          <div className="mb-8 pt-4 border-t border-gray-200">
             <p className="label mb-2">Notas</p>
             <p className="text-[12.5px] leading-relaxed whitespace-pre-wrap">{presupuesto.notas}</p>
           </div>
         )}
 
-        <p className="sans text-[10px] text-gray-400 mt-16 pt-4 border-t border-gray-100">
+        <p className="sans text-[10px] text-gray-400 mt-10 pt-3 border-t border-gray-100">
           Presupuesto emitido el {hoy}. Sujeto a aprobación — no válido como factura.
         </p>
 

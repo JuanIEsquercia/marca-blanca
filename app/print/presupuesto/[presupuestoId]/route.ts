@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
+import { puedeAcceder } from '@/lib/permisos'
 import { renderPresupuestoPdf } from '@/lib/pdf/presupuesto-document'
 
 export const dynamic = 'force-dynamic'
@@ -34,6 +35,11 @@ export async function GET(
     .maybeSingle()
 
   if (!presupuesto || presupuesto.constructora_id !== ctx.constructoraId) {
+    return NextResponse.redirect(new URL('/admin/presupuestos', req.url))
+  }
+
+  // presupuestos es módulo de empresa (no cuelga de proyecto), ver MODULOS_EMPRESA
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'presupuestos', null)) {
     return NextResponse.redirect(new URL('/admin/presupuestos', req.url))
   }
 

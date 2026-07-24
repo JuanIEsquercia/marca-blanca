@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
+import { puedeAcceder } from '@/lib/permisos'
 import { renderContratoPdf } from '@/lib/pdf/contrato-document'
 
 export const dynamic = 'force-dynamic'
@@ -28,6 +29,16 @@ export async function GET(
     .maybeSingle()
 
   if (!contrato || contrato.constructora_id !== ctx.constructoraId) {
+    return NextResponse.redirect(new URL('/admin', req.url))
+  }
+
+  // contratos_obra ("Acuerdo de obra") se gestiona en la pantalla de
+  // Certificados (CertificadosManager, bajo /certificados) — el módulo
+  // 'contratos' es Ventas de unidades en Desarrollo (contratos_venta),
+  // una entidad distinta. Usar esa key acá bloquearía a cualquier operador
+  // con permiso real de 'certificados', ya que 'contratos' ni siquiera es
+  // asignable en un proyecto tipo Obra (soloTipo: 'desarrollo').
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'certificados', contrato.obra_id)) {
     return NextResponse.redirect(new URL('/admin', req.url))
   }
 

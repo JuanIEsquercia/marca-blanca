@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
+import { puedeAcceder } from '@/lib/permisos'
 import { renderCertificadoPdf } from '@/lib/pdf/certificado-document'
 
 export const dynamic = 'force-dynamic'
@@ -35,6 +36,10 @@ export async function GET(
     .maybeSingle()
 
   if (!cert || cert.constructora_id !== ctx.constructoraId) {
+    return NextResponse.redirect(new URL('/admin', req.url))
+  }
+
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'certificados', cert.obra_id)) {
     return NextResponse.redirect(new URL('/admin', req.url))
   }
 

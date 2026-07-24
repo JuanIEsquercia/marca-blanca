@@ -57,9 +57,12 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
   const filtrados = presupuestos.filter(p => filtroEstado === 'todos' || p.estado === filtroEstado)
 
   function handleDeletePresupuesto(p: Presupuesto) {
+    const vinculo = p.obras
+      ? ` Ya generó el proyecto "${p.obras.nombre}" — el proyecto y sus datos NO se ven afectados, solo se pierde el registro de este presupuesto original.`
+      : ''
     setConfirmModal({
       title: 'Eliminar presupuesto',
-      message: `¿Eliminar el presupuesto de "${p.cliente_nombre}"? Se eliminarán también sus ítems.`,
+      message: `¿Eliminar el presupuesto de "${p.cliente_nombre}"? Se eliminarán también sus ítems.${vinculo}`,
       confirmLabel: 'Eliminar',
       danger: true,
       onConfirm: async () => {
@@ -238,7 +241,7 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
                         </button>
                       </>
                     )}
-                    {esAdmin && p.estado === 'borrador' && (
+                    {esAdmin && (
                       <button onClick={() => handleDeletePresupuesto(p)}
                         title="Eliminar presupuesto (solo admin)"
                         className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>

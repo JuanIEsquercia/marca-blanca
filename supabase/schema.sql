@@ -1744,9 +1744,13 @@ CREATE POLICY "presupuestos_actualiza" ON presupuestos
   USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('presupuestos'))
   WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('presupuestos'));
 
+-- migration_042: ya no se limita a 'borrador' — no tiene sentido mantener
+-- para siempre presupuestos rechazados/aceptados de años atrás. Seguro en
+-- cualquier estado: contratos_obra.presupuesto_id es ON DELETE SET NULL,
+-- borrar un presupuesto "aceptado" no afecta el contrato/proyecto que generó.
 CREATE POLICY "presupuestos_admin_elimina" ON presupuestos
   FOR DELETE TO authenticated
-  USING (constructora_id IN (SELECT mis_constructoras()) AND es_admin() AND estado = 'borrador');
+  USING (constructora_id IN (SELECT mis_constructoras()) AND es_admin());
 
 DROP POLICY IF EXISTS "presupuesto_items_tenant" ON presupuesto_items;
 CREATE POLICY "presupuesto_items_tenant" ON presupuesto_items

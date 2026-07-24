@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatCurrency, redondear2 } from '@/lib/utils'
@@ -35,6 +35,32 @@ export default function CuentasPropiasManager({ cuentas, saldos, constructoraId,
   const [form, setForm] = useState(EMPTY_FORM)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+  // Optimista: togglear activa no cambia ningún saldo, así que no hace falta
+  // esperar el refresh() completo (que recalcula calcularSaldosDeCuentas
+  // para TODAS las cuentas, historial completo — es lento) para reflejar el
+  // cambio en pantalla. El refresh sigue disparándose en segundo plano para
+  // que el resto de la página (server) quede sincronizado.
+  const [activaOverride, setActivaOverride] = useState<Record<string, boolean>>({})
+
+  // Una vez que el refresh() en segundo plano trae props nuevas del server
+  // que ya coinciden con lo optimista, soltamos el override — así nunca
+  // queda tapando para siempre un valor real distinto (ej. otro admin lo
+  // cambió mientras tanto).
+  useEffect(() => {
+    setActivaOverride(prev => {
+      if (Object.keys(prev).length === 0) return prev
+      const next = { ...prev }
+      let changed = false
+      for (const c of cuentas) {
+        if (c.id in next && next[c.id] === c.activa) {
+          delete next[c.id]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [cuentas])
 
   function refresh() { startTransition(() => router.refresh()) }
 
@@ -78,9 +104,41 @@ export default function CuentasPropiasManager({ cuentas, saldos, constructoraId,
   }
 
   async function handleToggle(c: CuentaPropia) {
+    if (togglingId === c.id) return // ya hay un toggle de esta fila en vuelo
+    setError(null)
+    // Ojo: el valor base es lo que se ve en pantalla (esActiva, que ya
+    // incluye cualquier override optimista pendiente), NO c.activa — c.activa
+    // es el prop del último render del servidor, que puede estar desactualizado
+    // mientras el refresh() anterior todavía está en camino. Calcular a partir
+    // de c.activa acá era el bug: dos toggles rápidos (desactivar → activar)
+    // antes de que el primer refresh terminara mandaban el mismo valor dos
+    // veces, y quedaba pegado en el estado del primer click.
+    const valorPrevio = esActiva(c)
+    const nuevoValor = !valorPrevio
+    setTogglingId(c.id)
+    setActivaOverride(o => ({ ...o, [c.id]: nuevoValor }))
+
     const supabase = createClient()
-    const { error } = await supabase.from('cuentas_propias').update({ activa: !c.activa }).eq('id', c.id)
-    if (error) { setError(error.message); return }
+    // .select().maybeSingle() para poder distinguir "se guardó" de "el UPDATE
+    // no matcheó ninguna fila" (RLS bloqueando en silencio, sin lanzar error) —
+    // antes esto se trataba como éxito y la UI quedaba mostrando un cambio
+    // que nunca llegó a la base.
+    const { data, error } = await supabase
+      .from('cuentas_propias')
+      .update({ activa: nuevoValor })
+      .eq('id', c.id)
+      .select('id, activa')
+      .maybeSingle()
+
+    setTogglingId(null)
+
+    if (error || !data) {
+      setActivaOverride(o => ({ ...o, [c.id]: valorPrevio }))
+      setError(error?.message ?? 'No se pudo actualizar la cuenta — puede que no tengas permiso sobre esta cuenta o ya no exista.')
+      return
+    }
+
+    setActivaOverride(o => ({ ...o, [c.id]: data.activa }))
     refresh()
   }
 
@@ -99,6 +157,7 @@ export default function CuentasPropiasManager({ cuentas, saldos, constructoraId,
     })
   }
 
+  const esActiva = (c: CuentaPropia) => activaOverride[c.id] ?? c.activa
   const fmtSaldoInicial = (c: CuentaPropia) => formatCurrency(c.saldo_inicial, c.moneda)
   const saldoActual = (c: CuentaPropia) => saldos?.[c.id]?.saldo_actual ?? c.saldo_inicial
   const fmtSaldoActual = (c: CuentaPropia) => formatCurrency(saldoActual(c), c.moneda)
@@ -123,7 +182,7 @@ export default function CuentasPropiasManager({ cuentas, saldos, constructoraId,
         {cuentas.map(c => (
           <div key={c.id} className={cn(
             'bg-white border border-slate-200 rounded-xl px-5 py-4 flex items-center gap-4',
-            !c.activa && 'opacity-60'
+            !esActiva(c) && 'opacity-60'
           )}>
             {/* Ícono tipo cuenta */}
             <div className={cn(
@@ -153,7 +212,7 @@ export default function CuentasPropiasManager({ cuentas, saldos, constructoraId,
                   c.moneda === 'USD' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
                 )}>{c.moneda}</span>
                 <span className="text-xs text-slate-400 capitalize">{c.tipo}</span>
-                {!c.activa && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactiva</span>}
+                {!esActiva(c) && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactiva</span>}
                 {c.obra_nombre !== undefined && (
                   c.obra_nombre ? (
                     <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-600">{c.obra_nombre}</span>
@@ -183,9 +242,10 @@ export default function CuentasPropiasManager({ cuentas, saldos, constructoraId,
                   Editar
                 </button>
                 <button onClick={() => handleToggle(c)}
+                  disabled={togglingId === c.id}
                   className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600
-                             hover:border-slate-300 transition-colors">
-                  {c.activa ? 'Desactivar' : 'Activar'}
+                             hover:border-slate-300 transition-colors disabled:opacity-50 disabled:cursor-wait">
+                  {togglingId === c.id ? '...' : esActiva(c) ? 'Desactivar' : 'Activar'}
                 </button>
                 <button onClick={() => handleDelete(c)}
                   className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>

@@ -236,7 +236,7 @@ export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId
             </div>
           )}
 
-          <div className="flex gap-3 pt-1">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-1">
             <button type="button" onClick={onClose}
               className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
               Cancelar

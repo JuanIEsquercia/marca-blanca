@@ -444,7 +444,7 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
                 )}
               </form>
             </div>
-            <div className="p-6 border-t border-slate-100 flex gap-3">
+            <div className="p-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
               <button type="button" onClick={() => setShowForm(false)}
                 className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
                 Cancelar
@@ -490,7 +490,7 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{editError}</div>
               )}
             </div>
-            <div className="p-6 border-t border-slate-100 flex gap-3">
+            <div className="p-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
               <button onClick={() => setEditPermisosPerfil(null)}
                 className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
                 Cancelar

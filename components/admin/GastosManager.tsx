@@ -323,7 +323,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                      focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
         <div className="flex flex-wrap gap-2 shrink-0">
-          <div className="flex rounded-lg border border-slate-300 overflow-hidden text-sm bg-white">
+          <div className="flex rounded-lg border border-slate-300 overflow-x-auto max-w-full text-sm bg-white no-scrollbar">
             {(['todos', 'Pendiente', 'Pagado'] as const).map(e => (
               <button key={e}
                 onClick={() => setFiltroEstado(e)}

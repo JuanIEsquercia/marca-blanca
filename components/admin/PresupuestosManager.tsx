@@ -161,7 +161,7 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
   return (
     <div className="space-y-5">
       <div className="flex flex-col md:flex-row gap-3 justify-between">
-        <div className="flex rounded-lg border border-slate-300 overflow-hidden text-sm bg-white w-fit">
+        <div className="flex rounded-lg border border-slate-300 overflow-x-auto max-w-full text-sm bg-white w-fit no-scrollbar">
           {(['todos', 'borrador', 'enviado', 'aceptado', 'rechazado'] as const).map(e => (
             <button key={e}
               onClick={() => setFiltroEstado(e)}

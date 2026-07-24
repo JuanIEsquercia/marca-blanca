@@ -226,7 +226,7 @@ export default function UnidadForm({ tipologias, unidad, onClose, onSuccess, obr
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
           )}
 
-          <div className="flex gap-3 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2">
             <button type="button" onClick={onClose}
               className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50">
               Cancelar

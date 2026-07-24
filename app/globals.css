@@ -55,6 +55,16 @@ input, select, textarea {
   border-radius: 3px;
 }
 
+/* Barras de filtros con scroll horizontal en mobile — se puede seguir
+   scrolleando, solo se oculta la barra de scroll visible. */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Print styles para lista de precios */
 @media print {
   .no-print { display: none !important; }

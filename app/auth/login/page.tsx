@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useActionState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { loginAction } from '@/app/actions/auth'
@@ -86,12 +87,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-600 mb-4">
-            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10h1v11H4zm15 0h1v11h-1zM9 10h2v4H9zm4 0h2v4h-2z" />
-            </svg>
-          </div>
+          <Image src="/logo.png" alt="" width={56} height={56} priority className="mx-auto mb-4 rounded-2xl" />
           <h1 className="text-2xl font-bold text-white">Panel ERP</h1>
           <p className="text-slate-400 text-sm mt-1">Acceso exclusivo para operadores autorizados</p>
         </div>

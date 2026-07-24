@@ -1,0 +1,316 @@
+/* Landing pública — paleta tomada del logo real (public/logo.png,
+   muestreada en píxeles): navy #2B3548, oro #CF9530, marfil #E8E8EA.
+   Todo bajo .page para no filtrar tokens/clases al resto de la app
+   (el panel admin usa su propia escala de colores en globals.css). */
+
+.page {
+  --ink: #171b26;
+  --navy: #2b3548;
+  --navyDeep: #1a2130;
+  --navyLine: rgba(232, 232, 234, 0.14);
+  --gold: #cf9530;
+  --goldSoft: #e7bd74;
+  --goldDeep: #a8721f;
+  --paper: #ededf0;
+  --paperRaised: #f8f8f9;
+  --ivory: #e8e8ea;
+  --line: rgba(43, 53, 72, 0.16);
+  --radiusSm: 3px;
+  --radius: 7px;
+
+  --fraunces: var(--font-fraunces), Georgia, serif;
+  --publicSans: var(--font-public-sans), -apple-system, "Segoe UI", sans-serif;
+  /* JetBrains Mono ya se carga global en app/layout.tsx (--font-mono en globals.css) */
+  --mono: var(--font-mono), ui-monospace, monospace;
+
+  background: var(--navyDeep);
+  color: var(--ink);
+  font-family: var(--publicSans);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.page * { box-sizing: border-box; }
+
+.page h1, .page h2, .page h3 { font-family: var(--fraunces); margin: 0; text-wrap: balance; }
+.page p { margin: 0; }
+.page img, .page svg { display: block; max-width: 100%; }
+
+.page ::selection { background: var(--gold); color: var(--navyDeep); }
+
+.page a:focus-visible,
+.page button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.wrap {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55em;
+}
+.eyebrow::before {
+  content: "";
+  width: 22px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  padding: 0.82em 1.35em;
+  border-radius: var(--radiusSm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.btn:active { transform: translateY(1px); }
+.btnGold { background: var(--gold); color: var(--navyDeep); }
+.btnGold:hover { background: var(--goldSoft); }
+.btnGhostDark { border-color: var(--navyLine); color: var(--ivory); }
+.btnGhostDark:hover { border-color: var(--goldSoft); color: var(--goldSoft); }
+
+/* ============ NAV ============ */
+.siteNav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(26, 33, 48, 0.82);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--navyLine);
+}
+.navRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  height: 68px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  text-decoration: none;
+}
+.brand svg { width: 26px; height: 26px; }
+.brand span {
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--ivory);
+  text-transform: uppercase;
+}
+.navLinks { display: flex; align-items: center; gap: clamp(1.1rem, 2.5vw, 2rem); }
+.navLinksInline { display: none; gap: inherit; }
+@media (min-width: 860px) { .navLinksInline { display: flex; } }
+.navLink {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--ivory);
+  opacity: 0.8;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.navLink:hover { opacity: 1; color: var(--goldSoft); }
+.navCta { display: none; }
+@media (min-width: 720px) { .navCta { display: inline-flex; } }
+
+/* ============ SECTIONS ============ */
+.secPad { padding: clamp(3.5rem, 8vw, 6.5rem) 0; }
+.onNavy { background: var(--navyDeep); color: var(--ivory); }
+.onNavy .eyebrow { color: var(--goldSoft); }
+.blueprintGrid {
+  background-image:
+    linear-gradient(var(--navyLine) 1px, transparent 1px),
+    linear-gradient(90deg, var(--navyLine) 1px, transparent 1px);
+  background-size: 42px 42px;
+}
+.onPaper { background: var(--paper); color: var(--ink); }
+.onPaper .eyebrow { color: var(--goldDeep); }
+
+.sectionHead { max-width: 640px; margin-bottom: clamp(2rem, 5vw, 3.25rem); }
+.sectionHead .eyebrow { margin-bottom: 1rem; }
+.sectionHead h2 {
+  font-size: clamp(1.8rem, 3.2vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.15;
+  margin-bottom: 0.85rem;
+}
+.sectionHead p { font-size: 1.03rem; opacity: 0.82; max-width: 54ch; }
+
+.ticked { position: relative; }
+.ticked::before, .ticked::after { content: ""; position: absolute; width: 9px; height: 9px; pointer-events: none; }
+.ticked::before { top: -1px; left: -1px; border-top: 1.5px solid var(--gold); border-left: 1.5px solid var(--gold); }
+.ticked::after { bottom: -1px; right: -1px; border-bottom: 1.5px solid var(--gold); border-right: 1.5px solid var(--gold); }
+
+/* ============ HERO ============ */
+.hero { padding-top: clamp(3.5rem, 9vw, 6rem); padding-bottom: clamp(3rem, 8vw, 6rem); }
+.heroGrid { display: grid; grid-template-columns: 1fr; gap: clamp(2.5rem, 6vw, 4rem); align-items: center; }
+@media (min-width: 980px) { .heroGrid { grid-template-columns: 1.05fr 0.95fr; } }
+.heroGrid > * { min-width: 0; }
+.hero h1 {
+  font-size: clamp(2.5rem, 5.6vw, 4rem);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.01em;
+  margin: 1rem 0 1.35rem;
+}
+.hero h1 em { font-style: italic; font-weight: 600; color: var(--goldSoft); }
+.lede { font-size: 1.1rem; max-width: 46ch; color: var(--ivory); opacity: 0.84; margin-bottom: 2.1rem; }
+.heroCtas { display: flex; flex-wrap: wrap; gap: 0.9rem; align-items: center; margin-bottom: 2.6rem; }
+.heroNote { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.03em; color: var(--ivory); opacity: 0.5; }
+
+.certCard {
+  background: var(--navy);
+  border: 1px solid var(--navyLine);
+  border-radius: var(--radius);
+  padding: 1.6rem 1.7rem 1.8rem;
+  max-width: 400px;
+  width: 100%;
+  min-width: 0;
+  margin-inline: auto;
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.55);
+}
+.certCardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px dashed var(--navyLine);
+  margin-bottom: 1.1rem;
+  min-width: 0;
+}
+.certCardHead > div { min-width: 0; }
+.ccLabel { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--goldSoft); opacity: 0.9; }
+.certCardHead h3 { font-size: 1.15rem; color: var(--ivory); margin-top: 0.35rem; font-weight: 600; }
+.ccNum { font-family: var(--mono); font-size: 0.78rem; color: var(--ivory); opacity: 0.55; font-variant-numeric: tabular-nums; }
+.ccRow { margin-bottom: 1rem; min-width: 0; }
+.ccRow:last-child { margin-bottom: 0; }
+.ccRowTop { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; margin-bottom: 0.4rem; font-size: 0.85rem; min-width: 0; }
+.ccRubro { color: var(--ivory); font-weight: 500; min-width: 0; overflow-wrap: break-word; }
+.ccPct { font-family: var(--mono); color: var(--goldSoft); font-variant-numeric: tabular-nums; font-size: 0.82rem; flex-shrink: 0; }
+.ccBar { height: 5px; background: rgba(232, 232, 234, 0.12); border-radius: 3px; overflow: hidden; }
+.ccBar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--goldDeep), var(--gold)); border-radius: 3px; }
+.ccTotal { margin-top: 1.3rem; padding-top: 1rem; border-top: 1px solid var(--navyLine); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0.4rem 0.75rem; min-width: 0; }
+.ccTotalLabel { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ivory); opacity: 0.6; }
+.ccTotalAmt { font-family: var(--mono); font-size: 1.15rem; color: var(--goldSoft); font-variant-numeric: tabular-nums; font-weight: 700; }
+
+/* ============ PAIN CHIPS ============ */
+.painGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1px;
+  background: var(--navyLine);
+  border: 1px solid var(--navyLine);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-top: 2.5rem;
+}
+.painItem { background: var(--navyDeep); padding: 1.5rem 1.6rem; }
+.painItem .eyebrow { color: var(--goldSoft); margin-bottom: 0.7rem; font-size: 0.68rem; }
+.painItem p { color: var(--ivory); opacity: 0.8; font-size: 0.92rem; }
+
+/* ============ CAPABILITY CARDS ============ */
+.capGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.1rem; }
+.capCard { background: var(--paperRaised); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.6rem 1.6rem 1.75rem; }
+.capIndex { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; color: var(--goldDeep); text-transform: uppercase; margin-bottom: 0.9rem; display: block; }
+.capCard h3 { font-size: 1.12rem; font-weight: 600; margin-bottom: 0.55rem; line-height: 1.25; }
+.capCard p { font-size: 0.93rem; color: var(--ink); opacity: 0.74; }
+
+/* ============ WORKFLOW STRIP ============ */
+.flowStrip { margin-top: clamp(2.5rem, 6vw, 3.5rem); background: var(--navyDeep); border-radius: var(--radius); padding: 2rem clamp(1.2rem, 4vw, 2.4rem); }
+.flowStrip .eyebrow { color: var(--goldSoft); margin-bottom: 1.3rem; }
+.flowNodes { display: flex; flex-wrap: wrap; align-items: center; gap: 0; }
+.flowNode { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.3rem 0; }
+.fnLabel { font-family: var(--fraunces); font-weight: 600; font-size: 1.05rem; color: var(--ivory); }
+.fnSub { font-family: var(--mono); font-size: 0.68rem; color: var(--ivory); opacity: 0.5; letter-spacing: 0.03em; }
+.flowArrow { color: var(--gold); font-family: var(--mono); padding: 0 clamp(0.8rem, 2.4vw, 1.8rem); opacity: 0.8; }
+
+/* ============ ROLES TREE ============ */
+.rolesWrap { display: grid; grid-template-columns: 1fr; gap: clamp(2.5rem, 5vw, 3.5rem); align-items: start; }
+@media (min-width: 980px) { .rolesWrap { grid-template-columns: 0.95fr 1.05fr; } }
+.tree { background: var(--navy); border: 1px solid var(--navyLine); border-radius: var(--radius); padding: clamp(1.6rem, 3vw, 2.4rem); }
+.treeAdmin {
+  display: inline-flex; align-items: center; gap: 0.6rem;
+  font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.05em;
+  color: var(--navyDeep); background: var(--gold);
+  padding: 0.55rem 1rem; border-radius: var(--radiusSm); margin-bottom: 1.6rem;
+}
+.treeProjects { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1.1rem; }
+.treeProject { border: 1px dashed var(--navyLine); border-radius: var(--radiusSm); padding: 1rem 1.05rem 1.15rem; position: relative; }
+.treeProject::before { content: ""; position: absolute; top: -1.1rem; left: 1.4rem; width: 1px; height: 1.1rem; background: var(--navyLine); }
+.tpName { font-family: var(--fraunces); font-weight: 600; font-size: 0.98rem; color: var(--ivory); margin-bottom: 0.15rem; }
+.tpType { font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--goldSoft); opacity: 0.85; display: block; margin-bottom: 0.8rem; }
+.tpModules { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.tpMod { font-family: var(--mono); font-size: 0.68rem; color: var(--ivory); background: rgba(232, 232, 234, 0.08); border: 1px solid var(--navyLine); padding: 0.28rem 0.55rem; border-radius: 20px; opacity: 0.85; }
+
+.rolesCopy .sectionHead { margin-bottom: 1.6rem; }
+.rolesList { display: flex; flex-direction: column; gap: 1.15rem; padding: 0; margin: 0; }
+.rolesList li { list-style: none; padding-left: 1.15rem; border-left: 2px solid var(--line); }
+.rlTitle { font-weight: 600; font-size: 0.98rem; display: block; margin-bottom: 0.2rem; }
+.rlDesc { font-size: 0.9rem; opacity: 0.72; }
+
+/* ============ EXCEL COMPARE ============ */
+.compare { display: grid; grid-template-columns: 1fr; gap: 0.9rem; }
+.compareRow {
+  display: grid; grid-template-columns: 1fr; gap: 0.7rem;
+  border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+  background: var(--paperRaised);
+}
+@media (min-width: 760px) { .compareRow { grid-template-columns: 1fr 1fr; gap: 0; } }
+.compareCell { padding: 1.15rem 1.4rem; }
+.compareBefore { background: repeating-linear-gradient(135deg, var(--ivory), var(--ivory) 8px, var(--paper) 8px, var(--paper) 9px); }
+@media (min-width: 760px) { .compareBefore { border-right: 1px solid var(--line); } }
+.compareTag { font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-bottom: 0.4rem; }
+.compareBefore .compareTag { color: var(--goldDeep); opacity: 0.8; }
+.compareAfter .compareTag { color: var(--goldDeep); }
+.compareCell p { font-size: 0.92rem; }
+.compareBefore p { opacity: 0.68; text-decoration: line-through; text-decoration-color: rgba(23, 27, 38, 0.3); text-decoration-thickness: 1px; }
+.compareAfter p { font-weight: 500; }
+
+/* ============ CLOSING CTA ============ */
+.closingInner { display: flex; flex-direction: column; align-items: flex-start; gap: 1.6rem; }
+@media (min-width: 760px) { .closingInner { flex-direction: row; align-items: center; justify-content: space-between; } }
+.closing h2 { font-size: clamp(1.9rem, 4vw, 2.7rem); font-weight: 700; color: var(--ivory); max-width: 16ch; }
+.closing p { color: var(--ivory); opacity: 0.75; margin-top: 0.7rem; max-width: 42ch; }
+.closingCtas { display: flex; flex-direction: column; gap: 0.9rem; align-items: flex-start; }
+
+/* ============ FOOTER ============ */
+.siteFooter { background: var(--navyDeep); border-top: 1px solid var(--navyLine); padding: 2rem 0; }
+.footerRow { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
+.footerRow .brand span { opacity: 0.7; font-size: 0.8rem; }
+.footerRow .brand svg { width: 20px; height: 20px; opacity: 0.8; }
+.footerMeta { font-family: var(--mono); font-size: 0.7rem; color: var(--ivory); opacity: 0.4; letter-spacing: 0.03em; }
+
+/* ============ REVEAL ON SCROLL ============
+   Sin estado oculto por defecto — el contenido es visible de entrada
+   (SSR / sin JS). .revealPre lo agrega JS solo si, al montar, el
+   elemento ya está fuera de pantalla; recién ahí tiene sentido animarlo
+   al entrar con .revealIn. Ver components/landing/ScrollReveal.tsx. */
+.revealPre { opacity: 0; transform: translateY(14px); }
+.revealIn { opacity: 1; transform: translateY(0); transition: opacity 0.7s ease, transform 0.7s ease; }

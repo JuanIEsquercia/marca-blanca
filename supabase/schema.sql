@@ -1857,6 +1857,12 @@ BEGIN
     RAISE EXCEPTION 'No se puede asignar un equipo dado de baja';
   END IF;
 
+  -- migration_044: p_obra_id sin validar contra el tenant del equipo era
+  -- una violación de integridad tenant (ver migration_044.sql).
+  IF NOT EXISTS (SELECT 1 FROM obras WHERE id = p_obra_id AND constructora_id = v_equipo.constructora_id) THEN
+    RAISE EXCEPTION 'Proyecto no encontrado';
+  END IF;
+
   SELECT obra_id INTO v_obra_actual FROM equipo_asignaciones
   WHERE equipo_id = p_equipo_id AND fecha_hasta IS NULL;
 
@@ -2088,6 +2094,11 @@ BEGIN
     RAISE EXCEPTION 'No se puede asignar a una persona dada de baja';
   END IF;
 
+  -- migration_044: mismo fix que asignar_equipo.
+  IF NOT EXISTS (SELECT 1 FROM obras WHERE id = p_obra_id AND constructora_id = v_personal.constructora_id) THEN
+    RAISE EXCEPTION 'Proyecto no encontrado';
+  END IF;
+
   SELECT obra_id INTO v_obra_actual FROM personal_asignaciones
   WHERE personal_id = p_personal_id AND fecha_hasta IS NULL;
 
@@ -2126,10 +2137,22 @@ RETURNS INTEGER
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  v_persona     RECORD;
-  v_obra_actual UUID;
-  v_count       INTEGER := 0;
+  v_persona          RECORD;
+  v_obra_actual      UUID;
+  v_count            INTEGER := 0;
+  v_constructora_id  UUID;
 BEGIN
+  -- migration_044: mismo fix que asignar_equipo/asignar_personal — validar
+  -- que p_obra_id sea del tenant de la cuadrilla antes de tocar nada.
+  SELECT constructora_id INTO v_constructora_id FROM cuadrillas WHERE id = p_cuadrilla_id;
+  IF v_constructora_id IS NULL THEN
+    RAISE EXCEPTION 'Cuadrilla no encontrada';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM obras WHERE id = p_obra_id AND constructora_id = v_constructora_id) THEN
+    RAISE EXCEPTION 'Proyecto no encontrado';
+  END IF;
+
   FOR v_persona IN SELECT id, constructora_id FROM personal WHERE cuadrilla_id = p_cuadrilla_id AND estado != 'baja' LOOP
     SELECT obra_id INTO v_obra_actual FROM personal_asignaciones
     WHERE personal_id = v_persona.id AND fecha_hasta IS NULL;

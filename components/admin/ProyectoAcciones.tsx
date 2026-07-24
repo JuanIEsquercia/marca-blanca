@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { EstadoObra, TipoProyecto } from '@/types/database'
@@ -288,10 +289,15 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
         )}
       </div>
 
-      {/* Modal: confirmar cierre */}
-      {confirmCierre && (
+      {/* Modal: confirmar cierre — en portal, fuera del <Link> de la tarjeta.
+          Aunque sea position:fixed, en el DOM seguía siendo descendiente del
+          <a> de la tarjeta; confiar en stopPropagation() para que un click
+          acá adentro no dispare la navegación del Link resultó frágil en
+          producción (el usuario terminaba "entrando" al proyecto en vez de
+          eliminarlo). El portal saca el modal del árbol del Link del todo. */}
+      {confirmCierre && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-          onClick={e => e.preventDefault()}>
+          onClick={e => { e.preventDefault(); e.stopPropagation() }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-slate-900 mb-2">Cerrar proyecto</h2>
             <p className="text-sm text-slate-600 mb-6">
@@ -302,23 +308,24 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs">{accionError}</div>
             )}
             <div className="flex gap-3">
-              <button onClick={() => setConfirmCierre(false)}
+              <button onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmCierre(false) }}
                 className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
                 Cancelar
               </button>
-              <button onClick={() => cambiarEstado('finalizada')} disabled={loading}
+              <button onClick={e => { e.preventDefault(); e.stopPropagation(); cambiarEstado('finalizada') }} disabled={loading}
                 className="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                 {loading ? 'Cerrando...' : 'Cerrar proyecto'}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Modal: confirmar eliminación */}
-      {confirmDelete && (
+      {/* Modal: confirmar eliminación — mismo motivo, en portal */}
+      {confirmDelete && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-          onClick={e => e.preventDefault()}>
+          onClick={e => { e.preventDefault(); e.stopPropagation() }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-slate-900 mb-2">Eliminar proyecto</h2>
             <p className="text-sm text-slate-600 mb-1">
@@ -332,7 +339,7 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
             <p className="text-xs text-slate-400 mb-4 -mt-4">
               Las cuentas propias específicas del proyecto no se eliminan: pasan a ser cuentas de empresa.
             </p>
-            <button onClick={exportarDatos} disabled={exporting}
+            <button onClick={e => { e.preventDefault(); e.stopPropagation(); exportarDatos(e) }} disabled={exporting}
               className="w-full mb-4 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 flex items-center justify-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
@@ -343,17 +350,18 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs">{accionError}</div>
             )}
             <div className="flex gap-3">
-              <button onClick={() => setConfirmDelete(false)}
+              <button onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmDelete(false) }}
                 className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
                 Cancelar
               </button>
-              <button onClick={eliminar} disabled={loading}
+              <button onClick={e => { e.preventDefault(); e.stopPropagation(); eliminar() }} disabled={loading}
                 className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                 {loading ? 'Eliminando...' : 'Eliminar definitivamente'}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )

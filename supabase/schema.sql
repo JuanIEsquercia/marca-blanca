@@ -2231,3 +2231,87 @@ BEGIN
   DELETE FROM constructoras     WHERE id = p_constructora_id;
 END;
 $$;
+
+-- ============================================================
+-- MIGRATION 046 — Catálogo de rubros por constructora (estandariza
+-- los nombres cargados en presupuesto_items/contrato_obra_items).
+-- Ver migration_046.sql para el detalle comentado de cada decisión.
+-- ============================================================
+
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
+CREATE TABLE IF NOT EXISTS rubros (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  constructora_id     UUID NOT NULL REFERENCES constructoras(id),
+  nombre              TEXT NOT NULL,
+  nombre_normalizado  TEXT NOT NULL,
+  created_at          TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (constructora_id, nombre_normalizado)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rubros_constructora ON rubros(constructora_id);
+
+ALTER TABLE rubros ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "rubros_tenant" ON rubros;
+CREATE POLICY "rubros_tenant" ON rubros
+  FOR ALL TO authenticated
+  USING (
+    constructora_id IN (SELECT mis_constructoras())
+    AND (tiene_permiso('presupuestos') OR tiene_permiso_en_algun_proyecto('certificados'))
+  )
+  WITH CHECK (
+    constructora_id IN (SELECT mis_constructoras())
+    AND (tiene_permiso('presupuestos') OR tiene_permiso_en_algun_proyecto('certificados'))
+  );
+
+CREATE OR REPLACE FUNCTION obtener_o_crear_rubro(p_constructora_id UUID, p_nombre TEXT)
+RETURNS TABLE(id UUID, nombre TEXT)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_nombre_limpio       TEXT;
+  v_nombre_normalizado  TEXT;
+BEGIN
+  v_nombre_limpio := btrim(regexp_replace(p_nombre, '\s+', ' ', 'g'));
+  IF v_nombre_limpio = '' THEN
+    RAISE EXCEPTION 'El nombre del rubro no puede estar vacío';
+  END IF;
+  v_nombre_normalizado := lower(unaccent(v_nombre_limpio));
+
+  RETURN QUERY
+  INSERT INTO rubros (constructora_id, nombre, nombre_normalizado)
+  VALUES (p_constructora_id, v_nombre_limpio, v_nombre_normalizado)
+  ON CONFLICT (constructora_id, nombre_normalizado)
+  DO UPDATE SET nombre = rubros.nombre
+  RETURNING rubros.id, rubros.nombre;
+END;
+$$;
+
+-- Reemplaza la versión de más arriba: suma rubros.
+CREATE OR REPLACE FUNCTION purgar_constructora_completa(p_constructora_id UUID)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM set_config('app.bypass_inmutable', 'true', true);
+
+  DELETE FROM cobros_proyecto   WHERE constructora_id = p_constructora_id;
+  DELETE FROM contratos_obra    WHERE constructora_id = p_constructora_id;
+  DELETE FROM presupuestos      WHERE constructora_id = p_constructora_id;
+  DELETE FROM equipos           WHERE constructora_id = p_constructora_id;
+  DELETE FROM personal          WHERE constructora_id = p_constructora_id;
+  DELETE FROM cuadrillas        WHERE constructora_id = p_constructora_id;
+  DELETE FROM rubros            WHERE constructora_id = p_constructora_id;
+  DELETE FROM contratos_venta   WHERE constructora_id = p_constructora_id;
+  DELETE FROM reservas          WHERE constructora_id = p_constructora_id;
+  DELETE FROM gastos            WHERE constructora_id = p_constructora_id;
+  DELETE FROM compradores       WHERE constructora_id = p_constructora_id;
+  DELETE FROM unidades          WHERE constructora_id = p_constructora_id;
+  DELETE FROM proveedores       WHERE constructora_id = p_constructora_id;
+  DELETE FROM categorias_costo  WHERE constructora_id = p_constructora_id;
+  DELETE FROM cuentas_propias   WHERE constructora_id = p_constructora_id;
+  DELETE FROM tipologias        WHERE constructora_id = p_constructora_id;
+  DELETE FROM amenities         WHERE constructora_id = p_constructora_id;
+  DELETE FROM auditoria         WHERE constructora_id = p_constructora_id;
+  DELETE FROM constructoras     WHERE id = p_constructora_id;
+END;
+$$;

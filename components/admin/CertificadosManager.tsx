@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatCurrency, formatDate, redondear2 } from '@/lib/utils'
+import { obtenerOCrearRubro } from '@/lib/rubros'
 import ConfirmModal from './ConfirmModal'
 import ClienteYFechasForm, { EMPTY_DATOS_GENERALES, type DatosGenerales } from './ClienteYFechasForm'
 import ItemsRubroTable, { nuevaFilaItem, totalFilasItem, type FilaItem } from './ItemsRubroTable'
@@ -21,6 +22,7 @@ interface Props {
   constructoraId: string
   obraId: string
   readOnly?: boolean
+  rubros?: string[]
 }
 
 const ESTADO_CERT: Record<EstadoCertificado, { label: string; color: string; next: EstadoCertificado | null; nextLabel: string | null }> = {
@@ -33,7 +35,7 @@ const EMPTY_CERT = { periodo: '', porcentaje_avance: '', monto_certificado: '', 
 const EMPTY_COBRO = { numero: '', fecha_vencimiento: '', monto: '', moneda: 'ARS', notas: '' }
 const EMPTY_PAGO = { fecha_pago: new Date().toISOString().split('T')[0], cuenta_propia_id: '' }
 
-export default function CertificadosManager({ contrato: contratoInicial, certificados, contratoObraItems = [], cuentasPropias, constructoraId, obraId, readOnly = false }: Props) {
+export default function CertificadosManager({ contrato: contratoInicial, certificados, contratoObraItems = [], cuentasPropias, constructoraId, obraId, readOnly = false, rubros = [] }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
@@ -173,12 +175,15 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
 
     const filasValidas = contratoFilas.filter(f => f.rubro.trim() && f.precio_unitario)
     if (filasValidas.length > 0) {
+      const rubrosCanonicos = await Promise.all(
+        filasValidas.map(f => obtenerOCrearRubro(supabase, constructoraId, f.rubro))
+      )
       const { error: errItems } = await supabase.from('contrato_obra_items').insert(
         filasValidas.map((f, i) => ({
           contrato_obra_id: data.id,
           constructora_id: constructoraId,
           orden: i,
-          rubro: f.rubro.trim(),
+          rubro: rubrosCanonicos[i],
           unidad: f.unidad.trim() || null,
           cantidad: redondear2(parseFloat(f.cantidad) || 1),
           precio_unitario: redondear2(parseFloat(f.precio_unitario)),
@@ -297,12 +302,15 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
     setError(null)
     setLoading(true)
     const supabase = createClient()
+    const rubrosCanonicos = await Promise.all(
+      filasValidas.map(f => obtenerOCrearRubro(supabase, constructoraId, f.rubro))
+    )
     const { error: err } = await supabase.from('contrato_obra_items').insert(
       filasValidas.map((f, i) => ({
         contrato_obra_id: contrato.id,
         constructora_id: constructoraId,
         orden: contratoObraItems.length + i,
-        rubro: f.rubro.trim(),
+        rubro: rubrosCanonicos[i],
         unidad: f.unidad.trim() || null,
         cantidad: redondear2(parseFloat(f.cantidad) || 1),
         precio_unitario: redondear2(parseFloat(f.precio_unitario)),
@@ -460,7 +468,7 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
           <form onSubmit={handleContratoSubmit} className="p-6 space-y-4">
             <ClienteYFechasForm form={contratoForm} onChange={setContratoForm} descripcionLabel="Descripción del objeto del contrato" />
 
-            <ItemsRubroTable filas={contratoFilas} onChange={setContratoFilas} moneda={contratoForm.moneda} titulo="Ítems del contrato" />
+            <ItemsRubroTable filas={contratoFilas} onChange={setContratoFilas} moneda={contratoForm.moneda} titulo="Ítems del contrato" rubros={rubros} />
 
             {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
             <div className="flex justify-end">
@@ -841,7 +849,7 @@ export default function CertificadosManager({ contrato: contratoInicial, certifi
               </button>
             </div>
             <form onSubmit={handleAdicionalSubmit} className="p-6 space-y-4">
-              <ItemsRubroTable filas={adicionalFilas} onChange={setAdicionalFilas} moneda={contrato?.moneda ?? 'ARS'} titulo="Ítems adicionales" />
+              <ItemsRubroTable filas={adicionalFilas} onChange={setAdicionalFilas} moneda={contrato?.moneda ?? 'ARS'} titulo="Ítems adicionales" rubros={rubros} />
 
               {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">

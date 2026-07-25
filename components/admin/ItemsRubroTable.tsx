@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import { formatCurrency, redondear2, sumarMontos } from '@/lib/utils'
 
 // Componente único para cargar ítems (rubro/unidad/cantidad/precio) —
@@ -28,9 +29,14 @@ interface Props {
   onChange: (filas: FilaItem[]) => void
   moneda: string
   titulo?: string
+  // Rubros ya usados por la constructora — alimenta el autocomplete del
+  // campo Rubro (datalist, no fuerza a elegir de la lista).
+  rubros?: string[]
 }
 
-export default function ItemsRubroTable({ filas, onChange, moneda, titulo = 'Ítems' }: Props) {
+export default function ItemsRubroTable({ filas, onChange, moneda, titulo = 'Ítems', rubros = [] }: Props) {
+  const datalistId = useId()
+
   function actualizar(key: number, cambios: Partial<FilaItem>) {
     onChange(filas.map(f => (f.key === key ? { ...f, ...cambios } : f)))
   }
@@ -75,6 +81,8 @@ export default function ItemsRubroTable({ filas, onChange, moneda, titulo = 'Ít
                 <td className="py-2 pl-3 pr-2 text-slate-400 text-xs">{i + 1}</td>
                 <td className="py-2 pr-2">
                   <input value={f.rubro} onChange={e => actualizar(f.key, { rubro: e.target.value })}
+                    list={datalistId}
+                    autoComplete="off"
                     placeholder="Ej: Movimiento de suelos"
                     className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </td>
@@ -107,6 +115,10 @@ export default function ItemsRubroTable({ filas, onChange, moneda, titulo = 'Ít
       </div>
 
       <p className="text-sm font-semibold text-slate-900 text-right mt-2">Total: {formatCurrency(total, moneda)}</p>
+
+      <datalist id={datalistId}>
+        {rubros.map(r => <option key={r} value={r} />)}
+      </datalist>
     </div>
   )
 }

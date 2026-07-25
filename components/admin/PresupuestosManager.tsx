@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useId, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
+import { obtenerOCrearRubro } from '@/lib/rubros'
 import ConfirmModal from './ConfirmModal'
 import type { Presupuesto, PresupuestoItem, EstadoPresupuesto } from '@/types/database'
 
@@ -16,6 +17,7 @@ interface Props {
   obrasDisponibles: ObraDisponible[]
   constructoraId: string
   esAdmin: boolean
+  rubros?: string[]
 }
 
 const ESTADO_INFO: Record<EstadoPresupuesto, { label: string; color: string }> = {
@@ -31,8 +33,9 @@ function totalPresupuesto(items: PresupuestoItem[] | undefined) {
   return sumarMontos((items ?? []).map(i => i.subtotal))
 }
 
-export default function PresupuestosManager({ presupuestos, obrasDisponibles, constructoraId, esAdmin }: Props) {
+export default function PresupuestosManager({ presupuestos, obrasDisponibles, constructoraId, esAdmin, rubros = [] }: Props) {
   const router = useRouter()
+  const datalistId = useId()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
   const [loading, setLoading] = useState(false)
@@ -91,11 +94,12 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
     setLoading(true)
     setError(null)
     const supabase = createClient()
+    const rubroCanonico = await obtenerOCrearRubro(supabase, constructoraId, itemForm.rubro)
     const { error: err } = await supabase.from('presupuesto_items').insert({
       presupuesto_id: presupuestoId,
       constructora_id: constructoraId,
       orden,
-      rubro: itemForm.rubro.trim(),
+      rubro: rubroCanonico,
       unidad: itemForm.unidad.trim() || null,
       cantidad: redondear2(parseFloat(itemForm.cantidad) || 1),
       precio_unitario: redondear2(parseFloat(itemForm.precio_unitario)),
@@ -293,8 +297,13 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
                     {addingItemTo === p.id && (
                       <form onSubmit={e => handleAddItem(e, p.id, items.length)} className="bg-white border border-indigo-200 rounded-xl p-3 space-y-2">
                         <input required value={itemForm.rubro} onChange={e => setItemForm(f => ({ ...f, rubro: e.target.value }))}
+                          list={datalistId}
+                          autoComplete="off"
                           placeholder="Rubro (ej: Movimiento de suelos)"
                           className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                        <datalist id={datalistId}>
+                          {rubros.map(r => <option key={r} value={r} />)}
+                        </datalist>
                         <div className="grid grid-cols-3 gap-2">
                           <input value={itemForm.unidad} onChange={e => setItemForm(f => ({ ...f, unidad: e.target.value }))}
                             placeholder="Unidad (m², gl...)"

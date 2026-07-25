@@ -5,14 +5,16 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { redondear2 } from '@/lib/utils'
+import { obtenerOCrearRubro } from '@/lib/rubros'
 import ClienteYFechasForm, { EMPTY_DATOS_GENERALES, type DatosGenerales } from './ClienteYFechasForm'
 import ItemsRubroTable, { nuevaFilaItem, type FilaItem } from './ItemsRubroTable'
 
 interface Props {
   constructoraId: string
+  rubros?: string[]
 }
 
-export default function NuevoPresupuestoForm({ constructoraId }: Props) {
+export default function NuevoPresupuestoForm({ constructoraId, rubros = [] }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,12 +50,17 @@ export default function NuevoPresupuestoForm({ constructoraId }: Props) {
 
     const filasValidas = filas.filter(f => f.rubro.trim() && f.precio_unitario)
     if (filasValidas.length > 0) {
+      // Estandariza cada rubro contra el catálogo de la constructora antes
+      // de guardar — ver lib/rubros.ts.
+      const rubrosCanonicos = await Promise.all(
+        filasValidas.map(f => obtenerOCrearRubro(supabase, constructoraId, f.rubro))
+      )
       const { error: errItems } = await supabase.from('presupuesto_items').insert(
         filasValidas.map((f, i) => ({
           presupuesto_id: nuevo.id,
           constructora_id: constructoraId,
           orden: i,
-          rubro: f.rubro.trim(),
+          rubro: rubrosCanonicos[i],
           unidad: f.unidad.trim() || null,
           cantidad: redondear2(parseFloat(f.cantidad) || 1),
           precio_unitario: redondear2(parseFloat(f.precio_unitario)),
@@ -80,7 +87,7 @@ export default function NuevoPresupuestoForm({ constructoraId }: Props) {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl p-6">
-        <ItemsRubroTable filas={filas} onChange={setFilas} moneda={form.moneda} titulo="Ítems del presupuesto" />
+        <ItemsRubroTable filas={filas} onChange={setFilas} moneda={form.moneda} titulo="Ítems del presupuesto" rubros={rubros} />
       </div>
 
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}

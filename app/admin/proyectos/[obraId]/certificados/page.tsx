@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getProyectoContext } from '@/lib/tenant'
+import { obtenerRubros } from '@/lib/rubros'
 import CertificadosManager from '@/components/admin/CertificadosManager'
 import type { Metadata } from 'next'
 
@@ -18,6 +19,7 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
     { data: contratos },
     { data: certificados },
     { data: cuentasPropias },
+    rubros,
   ] = await Promise.all([
     supabase
       .from('contratos_obra')
@@ -41,6 +43,7 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
           .is('obra_id', null)
           .eq('activa', true)
           .order('nombre'),
+    obtenerRubros(supabase, ctx.constructoraId),
   ])
 
   const contrato = contratos?.[0] ?? null
@@ -65,6 +68,7 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
         constructoraId={ctx.constructoraId}
         obraId={obraId}
         readOnly={ctx.obraEstado === 'finalizada'}
+        rubros={rubros}
       />
     </div>
   )

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
+import { obtenerRubros } from '@/lib/rubros'
 import PresupuestosManager from '@/components/admin/PresupuestosManager'
 import type { Metadata } from 'next'
 import type { Presupuesto } from '@/types/database'
@@ -14,7 +15,7 @@ export default async function PresupuestosPage() {
 
   const supabase = await createClient()
 
-  const [{ data: presupuestos }, { data: obras }, { data: contratosExistentes }] = await Promise.all([
+  const [{ data: presupuestos }, { data: obras }, { data: contratosExistentes }, rubros] = await Promise.all([
     supabase
       .from('presupuestos')
       .select('*, presupuesto_items(*), obras(id, nombre)')
@@ -30,6 +31,7 @@ export default async function PresupuestosPage() {
       .from('contratos_obra')
       .select('obra_id')
       .eq('constructora_id', ctx.constructoraId),
+    obtenerRubros(supabase, ctx.constructoraId),
   ])
 
   // Solo se puede vincular un presupuesto aceptado a un proyecto tipo Obra
@@ -52,6 +54,7 @@ export default async function PresupuestosPage() {
         obrasDisponibles={obrasDisponibles}
         constructoraId={ctx.constructoraId}
         esAdmin={ctx.perfilRol === 'admin'}
+        rubros={rubros}
       />
     </div>
   )

@@ -135,7 +135,7 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
         supabase.from('tipologias').select('*').eq('obra_id', obraId).order('nombre'),
         supabase.from('amenities').select('*, amenity_imagenes(id)').eq('obra_id', obraId).order('orden'),
         supabase.from('reservas').select('*, compradores(*), unidades(piso, numero, letra)').eq('obra_id', obraId).order('fecha_reserva', { ascending: false }),
-        supabase.from('contratos_venta').select('*, compradores(*), unidades(piso, numero, letra), cuotas(*)').eq('obra_id', obraId).order('fecha_firma', { ascending: false }),
+        supabase.from('contratos_venta').select('*, compradores(*), unidades(piso, numero, letra), cuotas(*, cuentas_propias(nombre))').eq('obra_id', obraId).order('fecha_firma', { ascending: false }),
       ])
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -174,6 +174,7 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
       const cuotas = (contratos ?? []).flatMap((c: any) => (c.cuotas ?? []).map((q: any) => ({
         Comprador: c.compradores?.nombre_completo ?? '', Unidad: labelUnidad(c.unidades),
         'N° cuota': q.numero_cuota, 'Monto base': q.monto_base, 'Monto cobrado': q.monto_cobrado ?? '',
+        'Cobrado en': q.cuentas_propias?.nombre ?? '',
         'Fecha vencimiento': q.fecha_vencimiento, Estado: q.estado_pago, 'Fecha pago': q.fecha_pago ?? '',
       })))
       addSheet('Cuotas', cuotas)
@@ -185,7 +186,7 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
       ] = await Promise.all([
         supabase.from('contratos_obra').select('*, compradores(*), proveedores(razon_social)').eq('obra_id', obraId),
         supabase.from('certificados_avance').select('*').eq('obra_id', obraId).order('numero'),
-        supabase.from('cobros_proyecto').select('*, certificados_avance(numero, periodo)').eq('obra_id', obraId).order('numero'),
+        supabase.from('cobros_proyecto').select('*, certificados_avance(numero, periodo), cuentas_propias(nombre)').eq('obra_id', obraId).order('numero'),
       ])
 
       // migration_047: puede haber más de un contrato (cliente +
@@ -208,13 +209,13 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       addSheet('Cobros', (cobros ?? []).map((c: any) => ({
         'N°': c.numero ?? '', Certificado: c.certificados_avance ? `N°${c.certificados_avance.numero} - ${c.certificados_avance.periodo}` : '',
-        Monto: c.monto, Moneda: c.moneda, Estado: c.estado,
+        Monto: c.monto, Moneda: c.moneda, Estado: c.estado, 'Cobrado en': c.cuentas_propias?.nombre ?? '',
         'Fecha vencimiento': c.fecha_vencimiento ?? '', 'Fecha pago': c.fecha_pago ?? '', Notas: c.notas ?? '',
       })))
     }
 
     const [{ data: gastos }, { data: cuentas }] = await Promise.all([
-      supabase.from('gastos').select('*, proveedores(razon_social), categorias_costo(nombre)').eq('obra_id', obraId).order('fecha_vencimiento', { ascending: false }),
+      supabase.from('gastos').select('*, proveedores(razon_social), categorias_costo(nombre), cuentas_propias(nombre)').eq('obra_id', obraId).order('fecha_vencimiento', { ascending: false }),
       supabase.from('cuentas_propias').select('*').eq('obra_id', obraId).order('nombre'),
     ])
 
@@ -222,6 +223,7 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
     addSheet('Gastos', (gastos ?? []).map((g: any) => ({
       Descripción: g.descripcion, Monto: g.monto, Moneda: g.moneda,
       Proveedor: g.proveedores?.razon_social ?? '', Categoría: g.categorias_costo?.nombre ?? '',
+      'Pagado desde': g.cuentas_propias?.nombre ?? '',
       'Fecha vencimiento': g.fecha_vencimiento, 'Fecha pago': g.fecha_pago ?? '', Estado: g.estado,
     })))
 

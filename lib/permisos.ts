@@ -15,6 +15,7 @@ export const MODULOS = [
   { key: 'personal',    label: 'Personal',    seccion: 'Operaciones' },
   { key: 'tesoreria',   label: 'Caja',        seccion: 'Finanzas' },
   { key: 'cuentas',     label: 'Cuentas',     seccion: 'Finanzas' },
+  { key: 'ingresos',    label: 'Ingresos',    seccion: 'Finanzas' },
 ] as const
 
 export type ModuloKey = typeof MODULOS[number]['key']
@@ -24,7 +25,7 @@ export const MAX_OPERADORES = 3
 // Bucket "Empresa": módulos que no cuelgan de ningún proyecto — sus datos
 // no tienen obra_id (proveedores) o son un agregado cruzado (tesoreria).
 // Todo lo demás vive en el árbol por-proyecto (perfil_proyectos).
-export const MODULOS_EMPRESA: ModuloKey[] = ['proveedores', 'tesoreria', 'presupuestos', 'inventario', 'personal']
+export const MODULOS_EMPRESA: ModuloKey[] = ['proveedores', 'tesoreria', 'presupuestos', 'inventario', 'personal', 'ingresos']
 
 export const MODULOS_PROYECTO = MODULOS.filter(m => !MODULOS_EMPRESA.includes(m.key))
 

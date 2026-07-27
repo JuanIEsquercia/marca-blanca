@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
 import { calcularCajaEmpresa } from '@/lib/tesoreria'
+import { obtenerIngresos } from '@/lib/ingresos'
 import TesoreriaView, { type MovimientoFlujo } from '@/components/admin/TesoreriaView'
 import type { Metadata } from 'next'
 
@@ -46,6 +47,7 @@ export default async function TesoreriaPage() {
     { data: gastosPendientesRaw },
     { data: cobrosProyecto },
     cuentasConSaldo,
+    ingresosConsolidados,
   ] = await Promise.all([
     supabase.from('obras').select('id, nombre').eq('constructora_id', ctx.constructoraId).order('nombre'),
     supabase.from('cuotas')
@@ -60,6 +62,10 @@ export default async function TesoreriaPage() {
     supabase.from('cobros_proyecto').select('monto, moneda, fecha_pago, fecha, obra_id')
       .eq('constructora_id', ctx.constructoraId).eq('estado', 'cobrado').gte('fecha', ventanaInicio),
     calcularCajaEmpresa(supabase, ctx.constructoraId),
+    // Los pendientes de cobro (cuotas + cobros de obra) SIEMPRE se traen
+    // completos acá, sin recortar por ventana — igual criterio que los
+    // gastos pendientes de abajo: una deuda vieja sigue siendo relevante.
+    obtenerIngresos(supabase, ctx.constructoraId, true),
   ])
 
   const gastos = [...(gastosPagados ?? []), ...(gastosPendientesRaw ?? [])]
@@ -104,6 +110,18 @@ export default async function TesoreriaPage() {
       obraId: g.obra_id,
     }))
 
+  const ingresosPendientes = ingresosConsolidados
+    .filter(i => !i.pagado)
+    .sort((a, b) => (a.fechaVencimiento ?? '').localeCompare(b.fechaVencimiento ?? ''))
+    .map(i => ({
+      id: i.id,
+      descripcion: i.clienteNombre ? `${i.descripcion} — ${i.clienteNombre}` : i.descripcion,
+      monto: i.monto,
+      moneda: i.moneda,
+      fecha_vencimiento: i.fechaVencimiento,
+      obraId: i.obraId,
+    }))
+
   return (
     <div>
       <div className="mb-6">
@@ -116,6 +134,7 @@ export default async function TesoreriaPage() {
         meses={meses}
         proyectos={obras ?? []}
         gastosPendientes={gastosPendientes}
+        ingresosPendientes={ingresosPendientes}
       />
     </div>
   )

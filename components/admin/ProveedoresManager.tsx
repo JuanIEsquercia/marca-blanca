@@ -1,28 +1,70 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { cn } from '@/lib/utils'
-import type { Proveedor, CuentaProveedor } from '@/types/database'
+import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import type { Proveedor, CuentaProveedor, GastoCuentaCorriente } from '@/types/database'
 import ConfirmModal from './ConfirmModal'
 
 type ConfirmModalState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
 
 interface Props {
   proveedores: Proveedor[]
+  gastos: GastoCuentaCorriente[]
   constructoraId: string
+  puedeVerGastos: boolean
+  historialAcotado: boolean
 }
 
 const EMPTY_PROV = { razon_social: '', cuit: '', email: '', telefono: '', direccion: '', notas: '' }
 const EMPTY_CTA = { tipo: 'CBU', denominacion: '', numero: '', moneda: 'ARS' }
 const TIPOS_CTA = ['CBU', 'Alias', 'Efectivo', 'Cheque', 'Otro']
 
-export default function ProveedoresManager({ proveedores, constructoraId }: Props) {
+// Suma por moneda — nunca se mezclan ARS y USD en un solo número (mismo
+// criterio que lib/tesoreria.ts).
+function sumarPorMoneda(gastos: GastoCuentaCorriente[]): Record<string, number> {
+  const acc: Record<string, number> = {}
+  for (const g of gastos) acc[g.moneda] = (acc[g.moneda] ?? 0) + g.monto
+  return acc
+}
+
+function MontosPorMoneda({ montos, vacio, className }: { montos: Record<string, number>; vacio: string; className?: string }) {
+  const entradas = Object.entries(montos).filter(([, v]) => v > 0)
+  if (entradas.length === 0) return <span className={className}>{vacio}</span>
+  return (
+    <span className={className}>
+      {entradas.map(([moneda, v]) => formatCurrency(v, moneda)).join(' · ')}
+    </span>
+  )
+}
+
+export default function ProveedoresManager({ proveedores, gastos, constructoraId, puedeVerGastos, historialAcotado }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [soloConDeuda, setSoloConDeuda] = useState(false)
+  const [verPagadosDe, setVerPagadosDe] = useState<string | null>(null) // proveedor_id
+
+  const gastosPorProveedor = useMemo(() => {
+    const map = new Map<string, GastoCuentaCorriente[]>()
+    for (const g of gastos) {
+      const lista = map.get(g.proveedor_id) ?? []
+      lista.push(g)
+      map.set(g.proveedor_id, lista)
+    }
+    return map
+  }, [gastos])
+
+  const proveedoresFiltrados = useMemo(() => {
+    if (!soloConDeuda) return proveedores
+    return proveedores.filter(p => {
+      const pendientes = (gastosPorProveedor.get(p.id) ?? []).filter(g => g.estado === 'Pendiente')
+      return pendientes.length > 0
+    })
+  }, [proveedores, gastosPorProveedor, soloConDeuda])
   const [showProv, setShowProv] = useState(false)
   const [editingProv, setEditingProv] = useState<Proveedor | null>(null)
   const [formProv, setFormProv] = useState(EMPTY_PROV)
@@ -159,8 +201,16 @@ export default function ProveedoresManager({ proveedores, constructoraId }: Prop
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-5">
-        <p className="text-slate-500 text-sm">{proveedores.length} proveedor(es)</p>
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
+        <div className="flex items-center gap-4">
+          <p className="text-slate-500 text-sm">{proveedoresFiltrados.length} de {proveedores.length} proveedor(es)</p>
+          {puedeVerGastos && (
+            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+              <input type="checkbox" checked={soloConDeuda} onChange={e => setSoloConDeuda(e.target.checked)} />
+              Solo con saldo pendiente
+            </label>
+          )}
+        </div>
         <button onClick={openNewProv}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
                      text-white rounded-lg text-sm font-medium transition-colors">
@@ -171,8 +221,22 @@ export default function ProveedoresManager({ proveedores, constructoraId }: Prop
         </button>
       </div>
 
+      {!puedeVerGastos && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+          No tenés el módulo Gastos habilitado en ningún proyecto — la cuenta corriente (pendiente/pagado) no se puede calcular sin eso.
+        </p>
+      )}
+
       <div className="space-y-2">
-        {proveedores.map(p => (
+        {proveedoresFiltrados.map(p => {
+          const gastosDelProveedor = gastosPorProveedor.get(p.id) ?? []
+          const pendientes = gastosDelProveedor.filter(g => g.estado === 'Pendiente')
+          const pagados = gastosDelProveedor.filter(g => g.estado === 'Pagado')
+          const totalPendiente = sumarPorMoneda(pendientes)
+          const totalPagado = sumarPorMoneda(pagados)
+          const tieneDeuda = Object.values(totalPendiente).some(v => v > 0)
+
+          return (
           <div key={p.id} className={cn(
             'bg-white border border-slate-200 rounded-xl overflow-hidden',
             !p.activo && 'opacity-60'
@@ -183,10 +247,15 @@ export default function ProveedoresManager({ proveedores, constructoraId }: Prop
                 onClick={() => setExpanded(expanded === p.id ? null : p.id)}
                 className="flex-1 text-left min-w-0"
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-slate-900">{p.razon_social}</p>
                   {!p.activo && (
                     <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactivo</span>
+                  )}
+                  {puedeVerGastos && tieneDeuda && (
+                    <span className="text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                      Debe <MontosPorMoneda montos={totalPendiente} vacio="" />
+                    </span>
                   )}
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -218,9 +287,75 @@ export default function ProveedoresManager({ proveedores, constructoraId }: Prop
               </div>
             </div>
 
-            {/* Cuentas de cobro (expandible) */}
+            {/* Cuenta corriente + cuentas de cobro (expandible) */}
             {expanded === p.id && (
-              <div className="border-t border-slate-100 bg-slate-50 px-5 py-4">
+              <div className="border-t border-slate-100 bg-slate-50 px-5 py-4 space-y-5">
+                {puedeVerGastos && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Cuenta corriente</p>
+                    <div className="flex flex-wrap gap-4 mb-3">
+                      <div className="bg-white border border-slate-200 rounded-lg px-4 py-2.5">
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">Pendiente</p>
+                        <MontosPorMoneda montos={totalPendiente} vacio="$0" className="text-sm font-bold text-amber-700" />
+                      </div>
+                      <div className="bg-white border border-slate-200 rounded-lg px-4 py-2.5">
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">
+                          Pagado{historialAcotado ? ' (últimos 12 meses)' : ''}
+                        </p>
+                        <MontosPorMoneda montos={totalPagado} vacio="$0" className="text-sm font-bold text-slate-700" />
+                      </div>
+                    </div>
+
+                    {pendientes.length === 0 && pagados.length === 0 ? (
+                      <p className="text-xs text-slate-400">Sin gastos registrados a este proveedor.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {pendientes.length === 0 && (
+                          <p className="text-xs text-slate-400">Sin pendientes.</p>
+                        )}
+                        {pendientes.map(g => (
+                          <div key={g.id} className="flex items-center justify-between bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs">
+                            <div className="min-w-0">
+                              <p className="text-slate-700 truncate">{g.descripcion}</p>
+                              <p className="text-slate-400">
+                                Vence {formatDate(g.fecha_vencimiento)} {g.obras ? `· ${g.obras.nombre}` : '· Empresa'}
+                              </p>
+                            </div>
+                            <span className="font-semibold text-amber-700 shrink-0 ml-3">{formatCurrency(g.monto, g.moneda)}</span>
+                          </div>
+                        ))}
+
+                        {pagados.length > 0 && (
+                          verPagadosDe === p.id ? (
+                            <>
+                              {pagados.map(g => (
+                                <div key={g.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs opacity-70">
+                                  <div className="min-w-0">
+                                    <p className="text-slate-700 truncate">{g.descripcion}</p>
+                                    <p className="text-slate-400">
+                                      Pagado {g.fecha_pago ? formatDate(g.fecha_pago) : '—'} {g.obras ? `· ${g.obras.nombre}` : '· Empresa'}
+                                    </p>
+                                  </div>
+                                  <span className="font-medium text-slate-500 shrink-0 ml-3">{formatCurrency(g.monto, g.moneda)}</span>
+                                </div>
+                              ))}
+                              {historialAcotado && (
+                                <Link href="/admin/proveedores?historial=todo" className="text-xs text-indigo-500 hover:underline block pt-1">
+                                  Ver historial de pagos completo
+                                </Link>
+                              )}
+                            </>
+                          ) : (
+                            <button onClick={() => setVerPagadosDe(p.id)} className="text-xs text-indigo-500 hover:underline pt-1">
+                              Ver {pagados.length} pagado(s){historialAcotado ? ' (últimos 12 meses)' : ''}
+                            </button>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex justify-between items-center mb-3">
                   <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Cuentas de cobro</p>
                   <button onClick={() => openNewCta(p.id)}
@@ -269,15 +404,20 @@ export default function ProveedoresManager({ proveedores, constructoraId }: Prop
               </div>
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
 
-      {proveedores.length === 0 && (
+      {proveedores.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
           <p className="mb-2">No hay proveedores cargados aún.</p>
           <button onClick={openNewProv} className="text-indigo-500 text-sm hover:text-indigo-700">
             Crear el primero
           </button>
+        </div>
+      ) : proveedoresFiltrados.length === 0 && (
+        <div className="text-center py-16 text-slate-400">
+          <p>Ningún proveedor tiene saldo pendiente ahora mismo.</p>
         </div>
       )}
 

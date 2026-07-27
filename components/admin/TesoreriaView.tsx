@@ -52,12 +52,22 @@ interface GastoPendiente {
   obraId: string | null
 }
 
+interface IngresoPendiente {
+  id: string
+  descripcion: string
+  monto: number
+  moneda: string
+  fecha_vencimiento: string | null
+  obraId: string | null
+}
+
 interface Props {
   cuentas: CuentaConSaldo[]
   movimientos: MovimientoFlujo[]
   meses: Mes[]
   proyectos: Proyecto[]
   gastosPendientes: GastoPendiente[]
+  ingresosPendientes: IngresoPendiente[]
 }
 
 function formatARS(n: number) {
@@ -70,8 +80,8 @@ function formatUSD(n: number) {
 const FILTRO_TODOS = 'todos'
 const FILTRO_EMPRESA = 'empresa'
 
-export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, gastosPendientes }: Props) {
-  const [tab, setTab] = useState<'flujo' | 'pendientes'>('flujo')
+export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, gastosPendientes, ingresosPendientes }: Props) {
+  const [tab, setTab] = useState<'flujo' | 'porCobrar' | 'porPagar'>('flujo')
   const [proyectoFiltro, setProyectoFiltro] = useState<string>(FILTRO_TODOS)
 
   const cuentasARS = cuentas.filter(c => c.moneda === 'ARS')
@@ -118,6 +128,15 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
   const totalPendienteARS = sumarMontos(gastosPendientesFiltrados.filter(g => g.moneda === 'ARS').map(g => g.monto))
   const totalPendienteUSD = sumarMontos(gastosPendientesFiltrados.filter(g => g.moneda === 'USD').map(g => g.monto))
 
+  const ingresosPendientesFiltrados = proyectoFiltro === FILTRO_TODOS
+    ? ingresosPendientes
+    : proyectoFiltro === FILTRO_EMPRESA
+      ? ingresosPendientes.filter(i => i.obraId === null)
+      : ingresosPendientes.filter(i => i.obraId === proyectoFiltro)
+
+  const totalPorCobrarARS = sumarMontos(ingresosPendientesFiltrados.filter(i => i.moneda === 'ARS').map(i => i.monto))
+  const totalPorCobrarUSD = sumarMontos(ingresosPendientesFiltrados.filter(i => i.moneda === 'USD').map(i => i.monto))
+
   return (
     <div className="space-y-6">
       {/* Saldos por cuenta */}
@@ -163,12 +182,25 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
               Flujo mensual
             </button>
             <button
-              onClick={() => setTab('pendientes')}
+              onClick={() => setTab('porCobrar')}
               className={cn(
                 'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
-                tab === 'pendientes' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+                tab === 'porCobrar' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
               )}>
-              Comprometido pendiente
+              Por cobrar
+              {ingresosPendientesFiltrados.length > 0 && (
+                <span className="bg-amber-100 text-amber-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+                  {ingresosPendientesFiltrados.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setTab('porPagar')}
+              className={cn(
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                tab === 'porPagar' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+              )}>
+              Por pagar
               {gastosPendientesFiltrados.length > 0 && (
                 <span className="bg-orange-100 text-orange-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
                   {gastosPendientesFiltrados.length}
@@ -257,7 +289,61 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
           </div>
         )}
 
-        {tab === 'pendientes' && (
+        {tab === 'porCobrar' && (
+          <div>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <p className="text-xs text-amber-600 font-medium mb-1">Total por cobrar ARS</p>
+                <p className="text-2xl font-bold text-amber-700">{formatARS(totalPorCobrarARS)}</p>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <p className="text-xs text-blue-600 font-medium mb-1">Total por cobrar USD</p>
+                <p className="text-2xl font-bold text-blue-700">{formatUSD(totalPorCobrarUSD)}</p>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Descripción</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Proyecto</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600">Monto</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Vencimiento</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {ingresosPendientesFiltrados.map(i => (
+                      <tr key={i.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 font-medium text-slate-900">{i.descripcion}</td>
+                        <td className="px-4 py-3">
+                          <span className={cn(
+                            'text-xs px-2 py-0.5 rounded-full font-medium',
+                            i.obraId ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'
+                          )}>{nombreProyecto(i.obraId)}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                          {i.moneda === 'USD' ? formatUSD(i.monto) : formatARS(i.monto)}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {i.fecha_vencimiento
+                            ? new Date(i.fecha_vencimiento).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {ingresosPendientesFiltrados.length === 0 && (
+                <div className="text-center py-12 text-slate-400 text-sm">No hay cobros pendientes.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {tab === 'porPagar' && (
           <div>
             {/* Totales */}
             <div className="grid grid-cols-2 gap-4 mb-4">

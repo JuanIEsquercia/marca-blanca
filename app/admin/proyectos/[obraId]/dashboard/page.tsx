@@ -38,13 +38,33 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
       .order('fecha_inicio', { ascending: true, nullsFirst: false })
 
     const contratoIds = (contratos ?? []).map(c => c.id)
-    const [{ data: certificados }, { data: cobros }] = await Promise.all([
+
+    // Contratos con SUBCONTRATISTAS de la misma obra — plata que sale, no
+    // que entra, por eso se muestran en una sección aparte con otra
+    // paleta (rojo en vez de verde) en vez de mezclarse con las cards de
+    // arriba. Certifican hacia `gastos` (certificado_id), no hacia
+    // cobros_proyecto.
+    const { data: contratosSub } = await supabase
+      .from('contratos_obra')
+      .select('*, proveedores(razon_social)')
+      .eq('obra_id', obraId)
+      .eq('tipo', 'subcontratista')
+      .order('fecha_inicio', { ascending: true, nullsFirst: false })
+    const contratoIdsSub = (contratosSub ?? []).map(c => c.id)
+
+    const [{ data: certificados }, { data: cobros }, { data: certificadosSub }, { data: pagos }] = await Promise.all([
       contratoIds.length > 0
         ? supabase.from('certificados_avance').select('*').in('contrato_obra_id', contratoIds).order('numero', { ascending: false })
         : Promise.resolve({ data: [] as { id: string; contrato_obra_id: string; numero: number; periodo: string; porcentaje_avance: number; monto_certificado: number; estado: string }[] }),
       contratoIds.length > 0
         ? supabase.from('cobros_proyecto').select('monto, moneda, contrato_obra_id').eq('estado', 'cobrado').in('contrato_obra_id', contratoIds)
         : Promise.resolve({ data: [] as { monto: number; moneda: string; contrato_obra_id: string | null }[] }),
+      contratoIdsSub.length > 0
+        ? supabase.from('certificados_avance').select('*').in('contrato_obra_id', contratoIdsSub).order('numero', { ascending: false })
+        : Promise.resolve({ data: [] as { id: string; contrato_obra_id: string; numero: number; periodo: string; porcentaje_avance: number; monto_certificado: number; estado: string }[] }),
+      contratoIdsSub.length > 0
+        ? supabase.from('gastos').select('monto, moneda, certificado_id, certificados_avance!inner(contrato_obra_id)').eq('estado', 'Pagado').in('certificados_avance.contrato_obra_id', contratoIdsSub)
+        : Promise.resolve({ data: [] as { monto: number; moneda: string; certificado_id: string | null; certificados_avance: { contrato_obra_id: string } | null }[] }),
     ])
 
     return (
@@ -110,6 +130,81 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
                       )}
                       <p className="text-xs text-slate-400 mt-1">
                         Pendiente: {formatCurrency(redondear2(totalCertificados - (totalCobradoPorMoneda[contrato.moneda] ?? 0)), contrato.moneda)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {ultimoCertif && (
+                    <div className="bg-white border border-slate-200 rounded-xl p-5">
+                      <p className="text-sm font-semibold text-slate-700 mb-3">Último certificado</p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-slate-900">N°{ultimoCertif.numero} — {ultimoCertif.periodo}</p>
+                          <p className="text-sm text-slate-500 mt-0.5">{ultimoCertif.porcentaje_avance}% de avance</p>
+                        </div>
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                          ultimoCertif.estado === 'aprobado' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                          ultimoCertif.estado === 'presentado' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-slate-50 text-slate-600 border-slate-200'
+                        }`}>
+                          {ultimoCertif.estado.charAt(0).toUpperCase() + ultimoCertif.estado.slice(1)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {contratosSub && contratosSub.length > 0 && (
+          <div className="space-y-5 pt-2 border-t border-slate-100">
+            <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-red-400" />
+              Subcontratistas
+            </p>
+            {contratosSub.map(contrato => {
+              const certifDelContrato = (certificadosSub ?? []).filter(c => c.contrato_obra_id === contrato.id)
+              const pagosDelContrato = (pagos ?? []).filter(g => (g.certificados_avance as any)?.contrato_obra_id === contrato.id)
+              const totalPagadoPorMoneda = pagosDelContrato.reduce<Record<string, number>>((acc, g) => {
+                acc[g.moneda] = redondear2((acc[g.moneda] ?? 0) + Number(g.monto))
+                return acc
+              }, {})
+              const ultimoCertif = certifDelContrato[0] ?? null
+              const totalCertificados = redondear2(certifDelContrato.reduce((s, c) => s + Number(c.monto_certificado), 0))
+
+              return (
+                <div key={contrato.id} className="space-y-3">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    {contrato.proveedores?.razon_social}{contrato.descripcion ? ` — ${contrato.descripcion}` : ''}
+                  </p>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="bg-white border border-slate-200 rounded-xl p-5">
+                      <p className="text-xs font-medium text-slate-500 mb-1">Monto del contrato</p>
+                      <p className="text-2xl font-bold text-slate-900">{formatCurrency(contrato.monto_total, contrato.moneda)}</p>
+                      <p className="text-xs text-slate-400 mt-1">{contrato.proveedores?.razon_social}</p>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-xl p-5">
+                      <p className="text-xs font-medium text-slate-500 mb-1">Total certificado</p>
+                      <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalCertificados, contrato.moneda)}</p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {contrato.monto_total > 0
+                          ? `${Math.round((totalCertificados / contrato.monto_total) * 100)}% del contrato`
+                          : '—'}
+                      </p>
+                    </div>
+                    <div className="bg-white border border-red-100 rounded-xl p-5">
+                      <p className="text-xs font-medium text-slate-500 mb-1">Total pagado</p>
+                      {Object.keys(totalPagadoPorMoneda).length === 0 ? (
+                        <p className="text-2xl font-bold text-red-700">{formatCurrency(0, contrato.moneda)}</p>
+                      ) : (
+                        Object.entries(totalPagadoPorMoneda).map(([moneda, monto]) => (
+                          <p key={moneda} className="text-2xl font-bold text-red-700">{formatCurrency(monto, moneda)}</p>
+                        ))
+                      )}
+                      <p className="text-xs text-slate-400 mt-1">
+                        Pendiente: {formatCurrency(redondear2(totalCertificados - (totalPagadoPorMoneda[contrato.moneda] ?? 0)), contrato.moneda)}
                       </p>
                     </div>
                   </div>

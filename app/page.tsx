@@ -298,7 +298,7 @@ export default async function RootPage() {
                 <p>Te mostramos el sistema funcionando con un caso real en 20 minutos — sin compromiso.</p>
               </div>
               <div className={styles.closingCtas}>
-                <a className={`${styles.btn} ${styles.btnGold}`} href="mailto:hola@tudominio.com?subject=Quiero%20una%20demo">Pedir una demo</a>
+                <a className={`${styles.btn} ${styles.btnGold}`} href="https://wa.me/5493794267780?text=Hola%2C%20quiero%20pedir%20una%20demo%20del%20sistema" target="_blank" rel="noopener noreferrer">Pedir una demo</a>
                 <span className={styles.heroNote}>Respondemos en el día</span>
               </div>
             </div>

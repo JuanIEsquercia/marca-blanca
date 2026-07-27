@@ -2348,3 +2348,67 @@ BEGIN
   DELETE FROM constructoras     WHERE id = p_constructora_id;
 END;
 $$;
+
+
+-- ============================================================
+-- MIGRATION 049: linter de seguridad detectó que purgar_constructora_
+-- completa() y seed_constructora_defaults() (SECURITY DEFINER, sin
+-- chequeo interno de quién llama) eran ejecutables directo vía
+-- /rest/v1/rpc/... por cualquier authenticated/anon. Ya se habían
+-- revocado en migration_016/018/019, pero el grant volvió a estar
+-- abierto en la base viva (un DROP FUNCTION + recreate en el medio
+-- resetea los grants a los defaults, a diferencia de CREATE OR REPLACE).
+-- Re-aplicado acá para que quede documentado en el estado final.
+-- ============================================================
+
+REVOKE EXECUTE ON FUNCTION purgar_constructora_completa(UUID) FROM PUBLIC, authenticated, anon;
+REVOKE EXECUTE ON FUNCTION seed_constructora_defaults(UUID) FROM PUBLIC, authenticated, anon;
+
+-- ============================================================
+-- MIGRATION 050: hardening de search_path (linter, function_search_
+-- path_mutable) en todas las funciones que no lo tenían fijado — ver
+-- migration_050.sql para el detalle comentado. También limpia un
+-- overload viejo de aceptar_presupuesto (4 parámetros, de antes de
+-- migration_034) que quedó huérfano en la base porque CREATE OR REPLACE
+-- no reemplaza una función cuando cambia la firma.
+-- ============================================================
+
+DROP FUNCTION IF EXISTS aceptar_presupuesto(UUID, UUID, TEXT, TEXT);
+
+ALTER FUNCTION update_updated_at() SET search_path = public;
+ALTER FUNCTION generar_cuotas_contrato() SET search_path = public;
+ALTER FUNCTION marcar_cuotas_vencidas() SET search_path = public;
+ALTER FUNCTION set_contrato_tenant() SET search_path = public;
+ALTER FUNCTION set_reserva_tenant() SET search_path = public;
+ALTER FUNCTION set_cuenta_proveedor_tenant() SET search_path = public;
+ALTER FUNCTION set_auditoria_campos() SET search_path = public;
+ALTER FUNCTION proteger_registro_financiero_terminal() SET search_path = public;
+ALTER FUNCTION proteger_saldo_inicial() SET search_path = public;
+ALTER FUNCTION proteger_cuota_pagada() SET search_path = public;
+ALTER FUNCTION proteger_contrato_con_cobros() SET search_path = public;
+ALTER FUNCTION proteger_columnas_sensibles_perfil() SET search_path = public;
+ALTER FUNCTION bloquear_escritura_proyecto_cerrado() SET search_path = public;
+ALTER FUNCTION bloquear_escritura_proyecto_cerrado_amenity() SET search_path = public;
+ALTER FUNCTION bloquear_escritura_proyecto_cerrado_cuota() SET search_path = public;
+ALTER FUNCTION asignar_numero_certificado() SET search_path = public;
+ALTER FUNCTION asignar_numero_cobro_proyecto() SET search_path = public;
+ALTER FUNCTION validar_monto_certificado() SET search_path = public;
+ALTER FUNCTION validar_monto_certificado_item() SET search_path = public;
+ALTER FUNCTION recalcular_monto_certificado() SET search_path = public;
+ALTER FUNCTION proteger_contrato_obra_item() SET search_path = public;
+ALTER FUNCTION proteger_certificado_item() SET search_path = public;
+ALTER FUNCTION bloquear_escritura_proyecto_cerrado_contrato_item() SET search_path = public;
+ALTER FUNCTION bloquear_escritura_proyecto_cerrado_certificado_item() SET search_path = public;
+ALTER FUNCTION recalcular_monto_total_contrato() SET search_path = public;
+
+ALTER FUNCTION seed_constructora_defaults(UUID) SET search_path = public;
+ALTER FUNCTION sync_perfil_proyectos(UUID, UUID, JSONB) SET search_path = public;
+ALTER FUNCTION resumen_unidades_por_obra(UUID[]) SET search_path = public;
+ALTER FUNCTION aceptar_presupuesto(UUID, UUID, TEXT, TEXT, TEXT, BOOLEAN) SET search_path = public;
+ALTER FUNCTION asignar_equipo(UUID, UUID) SET search_path = public;
+ALTER FUNCTION liberar_equipo(UUID, TEXT) SET search_path = public;
+ALTER FUNCTION asignar_personal(UUID, UUID) SET search_path = public;
+ALTER FUNCTION liberar_personal(UUID, TEXT) SET search_path = public;
+ALTER FUNCTION asignar_cuadrilla(UUID, UUID) SET search_path = public;
+ALTER FUNCTION obtener_o_crear_rubro(UUID, TEXT) SET search_path = public;
+ALTER FUNCTION purgar_obra_completa(UUID) SET search_path = public;

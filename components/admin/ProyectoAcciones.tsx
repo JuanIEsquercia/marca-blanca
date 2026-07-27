@@ -225,6 +225,8 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
       Proveedor: g.proveedores?.razon_social ?? '', Categoría: g.categorias_costo?.nombre ?? '',
       'Pagado desde': g.cuentas_propias?.nombre ?? '',
       'Fecha vencimiento': g.fecha_vencimiento, 'Fecha pago': g.fecha_pago ?? '', Estado: g.estado,
+      'N° comprobante': g.numero_comprobante ?? '', Neto: g.monto_neto ?? '', IVA: g.iva ?? '', Percepciones: g.percepciones ?? '',
+      Notas: g.notas ?? '',
     })))
 
     addSheet('Cuentas', (cuentas ?? []).map(c => ({

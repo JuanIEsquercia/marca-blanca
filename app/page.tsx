@@ -52,7 +52,7 @@ export default async function RootPage() {
               <a className={styles.navLink} href="#roles">Roles y permisos</a>
               <a className={styles.navLink} href="#excel">Por qué dejar el Excel</a>
             </div>
-            <a className={`${styles.btn} ${styles.btnGold} ${styles.navCta}`} href="#cta">Pedir una demo</a>
+            <a className={`${styles.btn} ${styles.btnGold} ${styles.navCta}`} href="https://wa.me/5493794267780?text=Hola%2C%20quiero%20pedir%20una%20demo%20del%20sistema" target="_blank" rel="noopener noreferrer">Pedir una demo</a>
           </nav>
         </div>
       </header>
@@ -69,7 +69,7 @@ export default async function RootPage() {
                 cada rubro, cada peso, al día. Se terminó perseguir la planilla que alguien no actualizó.
               </p>
               <div className={styles.heroCtas}>
-                <a className={`${styles.btn} ${styles.btnGold}`} href="#cta">Pedir una demo</a>
+                <a className={`${styles.btn} ${styles.btnGold}`} href="https://wa.me/5493794267780?text=Hola%2C%20quiero%20pedir%20una%20demo%20del%20sistema" target="_blank" rel="noopener noreferrer">Pedir una demo</a>
                 <a className={`${styles.btn} ${styles.btnGhostDark}`} href="#como-funciona">Ver cómo funciona ↓</a>
               </div>
               <p className={styles.heroNote}>Multi-proyecto · Multi-moneda (ARS / USD) · Roles y permisos por proyecto</p>

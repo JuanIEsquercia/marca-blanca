@@ -27,37 +27,45 @@ interface Props {
   form: DatosGenerales
   onChange: (form: DatosGenerales) => void
   descripcionLabel?: string
+  // Reemplaza el bloque cliente_nombre/cuit/email/telefono por otra cosa
+  // (ej. un selector de proveedor, para un contrato de subcontratista) —
+  // moneda/fechas/descripción se muestran siempre, son comunes a los dos casos.
+  identidad?: React.ReactNode
 }
 
-export default function ClienteYFechasForm({ form, onChange, descripcionLabel = 'Descripción' }: Props) {
+export default function ClienteYFechasForm({ form, onChange, descripcionLabel = 'Descripción', identidad }: Props) {
   function set<K extends keyof DatosGenerales>(campo: K, valor: DatosGenerales[K]) {
     onChange({ ...form, [campo]: valor })
   }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="md:col-span-2">
-        <label className="block text-xs font-medium text-slate-600 mb-1">Cliente *</label>
-        <input required value={form.cliente_nombre} onChange={e => set('cliente_nombre', e.target.value)}
-          placeholder="Razón social o nombre"
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">CUIT</label>
-        <input value={form.cliente_cuit} onChange={e => set('cliente_cuit', e.target.value)}
-          placeholder="20-12345678-9"
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
-        <input type="email" value={form.cliente_email} onChange={e => set('cliente_email', e.target.value)}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono</label>
-        <input value={form.cliente_telefono} onChange={e => set('cliente_telefono', e.target.value)}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-      </div>
+      {identidad ?? (
+        <>
+          <div className="md:col-span-2">
+            <label className="block text-xs font-medium text-slate-600 mb-1">Cliente *</label>
+            <input required value={form.cliente_nombre} onChange={e => set('cliente_nombre', e.target.value)}
+              placeholder="Razón social o nombre"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">CUIT</label>
+            <input value={form.cliente_cuit} onChange={e => set('cliente_cuit', e.target.value)}
+              placeholder="20-12345678-9"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+            <input type="email" value={form.cliente_email} onChange={e => set('cliente_email', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono</label>
+            <input value={form.cliente_telefono} onChange={e => set('cliente_telefono', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        </>
+      )}
       <div>
         <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
         <select value={form.moneda} onChange={e => set('moneda', e.target.value)}

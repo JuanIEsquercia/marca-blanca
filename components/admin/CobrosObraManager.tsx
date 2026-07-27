@@ -13,32 +13,39 @@ type CobroConCertificado = CobroProyecto & {
   cuentas_propias: CuentaPropia | null
 }
 
-type CertificadoRef = { id: string; numero: number; periodo: string; monto_certificado: number }
+type CertificadoRef = { id: string; numero: number; periodo: string; monto_certificado: number; contrato_obra_id: string }
+type ContratoRef = { id: string; moneda: string; descripcion: string | null; fecha_inicio: string | null; compradores: { nombre_completo: string } | null }
 
 interface Props {
   cobros: CobroConCertificado[]
   cuentasPropias: CuentaPropia[]
   certificados: CertificadoRef[]
+  contratos: ContratoRef[]
   obraId: string
   constructoraId: string
-  moneda: string
   readOnly?: boolean
 }
 
-const EMPTY_PAGO   = { fecha_pago: new Date().toISOString().split('T')[0], cuenta_propia_id: '' }
-const mkEmptyCobro = (moneda: string) => ({ monto: '', fecha_vencimiento: '', certificado_id: '', moneda, notas: '' })
+const EMPTY_PAGO = { fecha_pago: new Date().toISOString().split('T')[0], cuenta_propia_id: '' }
+const mkEmptyCobro = (contratoId: string, moneda: string) => ({ monto: '', fecha_vencimiento: '', certificado_id: '', contrato_obra_id: contratoId, moneda, notas: '' })
 
-export default function CobrosObraManager({ cobros, cuentasPropias, certificados, obraId, constructoraId, moneda, readOnly = false }: Props) {
+export default function CobrosObraManager({ cobros, cuentasPropias, certificados, contratos, obraId, constructoraId, readOnly = false }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [filtro, setFiltro] = useState<FiltroCobro>('todos')
   const [pagoTarget, setPagoTarget]       = useState<CobroConCertificado | null>(null)
   const [pagoForm, setPagoForm]           = useState(EMPTY_PAGO)
   const [showNuevo, setShowNuevo]         = useState(false)
-  const [nuevoForm, setNuevoForm]         = useState(() => mkEmptyCobro(moneda))
+  const [nuevoForm, setNuevoForm]         = useState(() => mkEmptyCobro(contratos[0]?.id ?? '', contratos[0]?.moneda ?? 'ARS'))
   const [deleteTarget, setDeleteTarget]   = useState<CobroConCertificado | null>(null)
   const [loading, setLoading]             = useState(false)
   const [error, setError]                 = useState<string | null>(null)
+
+  const nombreContrato = (c: ContratoRef) => c.compradores?.nombre_completo
+    ? `${c.compradores.nombre_completo}${c.descripcion ? ` — ${c.descripcion}` : ''}`
+    : c.descripcion ?? 'Contrato sin descripción'
+
+  const certificadosDelContrato = certificados.filter(c => c.contrato_obra_id === nuevoForm.contrato_obra_id)
 
   function refresh() { startTransition(() => router.refresh()) }
 
@@ -56,7 +63,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
   // selector de "Nuevo cobro" lo permite) — se agrupa por moneda en vez de
   // sumar todo junto para no mostrar un total que mezcle ARS y USD.
   const monedasPresentes = Array.from(new Set(cobros.map(c => c.moneda)))
-  const monedasKpi = monedasPresentes.length > 0 ? monedasPresentes : [moneda]
+  const monedasKpi = monedasPresentes.length > 0 ? monedasPresentes : [contratos[0]?.moneda ?? 'ARS']
   const totalesPorMoneda = Object.fromEntries(monedasKpi.map(m => [m, {
     cobrado: sumarMontos(cobrados.filter(c => c.moneda === m).map(c => c.monto)),
     pendiente: sumarMontos(pendientes.filter(c => c.moneda === m).map(c => c.monto)),
@@ -113,6 +120,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
 
   async function handleNuevoSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!nuevoForm.contrato_obra_id) { setError('Elegí a qué contrato pertenece este cobro'); return }
     setLoading(true)
     setError(null)
     const supabase = createClient()
@@ -121,6 +129,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
       .insert({
         obra_id:           obraId,
         constructora_id:   constructoraId,
+        contrato_obra_id:  nuevoForm.contrato_obra_id,
         certificado_id:    nuevoForm.certificado_id || null,
         monto:             redondear2(parseFloat(nuevoForm.monto)),
         moneda:            nuevoForm.moneda,
@@ -132,7 +141,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
     setLoading(false)
     if (err) { setError(err.message); return }
     setShowNuevo(false)
-    setNuevoForm(mkEmptyCobro(moneda))
+    setNuevoForm(mkEmptyCobro(contratos[0]?.id ?? '', contratos[0]?.moneda ?? 'ARS'))
     refresh()
   }
 
@@ -197,8 +206,9 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
           ))}
         </div>
         {!readOnly && <button
-          onClick={() => { setShowNuevo(true); setNuevoForm(mkEmptyCobro(moneda)); setError(null) }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors">
+          onClick={() => { setShowNuevo(true); setNuevoForm(mkEmptyCobro(contratos[0]?.id ?? '', contratos[0]?.moneda ?? 'ARS')); setError(null) }}
+          disabled={contratos.length === 0}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors">
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
@@ -228,6 +238,11 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-slate-900">{formatCurrency(cobro.monto, cobro.moneda)}</p>
+                      {contratos.length > 1 && contratos.find(c => c.id === cobro.contrato_obra_id) && (
+                        <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                          {nombreContrato(contratos.find(c => c.id === cobro.contrato_obra_id)!)}
+                        </span>
+                      )}
                       {cobro.certificados_avance && (
                         <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
                           Cert. #{cobro.certificados_avance.numero} — {cobro.certificados_avance.periodo}
@@ -330,6 +345,21 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
               </button>
             </div>
             <form onSubmit={handleNuevoSubmit} className="p-6 space-y-4">
+              {contratos.length > 1 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Contrato *</label>
+                  <select required value={nuevoForm.contrato_obra_id}
+                    onChange={e => {
+                      const contratoId = e.target.value
+                      const c = contratos.find(x => x.id === contratoId)
+                      setNuevoForm(f => ({ ...f, contrato_obra_id: contratoId, moneda: c?.moneda ?? f.moneda, certificado_id: '' }))
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Elegir contrato...</option>
+                    {contratos.map(c => <option key={c.id} value={c.id}>{nombreContrato(c)}</option>)}
+                  </select>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Monto *</label>
@@ -354,14 +384,14 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
                   onChange={e => setNuevoForm(f => ({ ...f, fecha_vencimiento: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              {certificados.length > 0 && (
+              {certificadosDelContrato.length > 0 && (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Certificado (opcional)</label>
                   <select value={nuevoForm.certificado_id}
                     onChange={e => setNuevoForm(f => ({ ...f, certificado_id: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">— Sin certificado —</option>
-                    {certificados.map(c => (
+                    {certificadosDelContrato.map(c => (
                       <option key={c.id} value={c.id}>
                         #{c.numero} — {c.periodo} ({formatCurrency(c.monto_certificado, nuevoForm.moneda)})
                       </option>

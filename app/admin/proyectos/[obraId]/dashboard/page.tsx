@@ -25,36 +25,27 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
   const en7Dias = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   if (ctx.obraTipo === 'obra') {
-    // Dashboard para OBRA de construcción
-    const [{ data: contrato }, { data: certificados }, { data: cobros }] = await Promise.all([
-      supabase
-        .from('contratos_obra')
-        .select('*, compradores(*)')
-        .eq('obra_id', obraId)
-        .maybeSingle(),
-      supabase
-        .from('certificados_avance')
-        .select('*')
-        .eq('obra_id', obraId)
-        .order('numero', { ascending: false }),
-      supabase
-        .from('cobros_proyecto')
-        .select('monto, moneda')
-        .eq('obra_id', obraId)
-        .eq('estado', 'cobrado'),
-    ])
+    // Dashboard para OBRA de construcción — muestra los contratos con el
+    // CLIENTE (migration_048: puede haber más de uno, ej. una etapa cada
+    // uno — los de subcontratistas no son lo que este resumen mide, esos
+    // se ven como gastos). Una card por contrato, no un total agregado:
+    // certificar/cobrar es independiente por contrato.
+    const { data: contratos } = await supabase
+      .from('contratos_obra')
+      .select('*, compradores(*)')
+      .eq('obra_id', obraId)
+      .eq('tipo', 'cliente')
+      .order('fecha_inicio', { ascending: true, nullsFirst: false })
 
-    // cobros_proyecto declara su propia moneda (puede en teoría diferir del
-    // contrato) — se agrupa por moneda en vez de sumar todo junto para no
-    // mezclar ARS/USD en "Total cobrado".
-    const totalCobradoPorMoneda = (cobros ?? []).reduce<Record<string, number>>((acc, c) => {
-      acc[c.moneda] = redondear2((acc[c.moneda] ?? 0) + Number(c.monto))
-      return acc
-    }, {})
-    const ultimoCertif = certificados?.[0] ?? null
-    // Los certificados no tienen columna moneda propia: son un % del
-    // contrato, siempre en contrato.moneda.
-    const totalCertificados = redondear2((certificados ?? []).reduce((s, c) => s + Number(c.monto_certificado), 0))
+    const contratoIds = (contratos ?? []).map(c => c.id)
+    const [{ data: certificados }, { data: cobros }] = await Promise.all([
+      contratoIds.length > 0
+        ? supabase.from('certificados_avance').select('*').in('contrato_obra_id', contratoIds).order('numero', { ascending: false })
+        : Promise.resolve({ data: [] as { id: string; contrato_obra_id: string; numero: number; periodo: string; porcentaje_avance: number; monto_certificado: number; estado: string }[] }),
+      contratoIds.length > 0
+        ? supabase.from('cobros_proyecto').select('monto, moneda, contrato_obra_id').eq('estado', 'cobrado').in('contrato_obra_id', contratoIds)
+        : Promise.resolve({ data: [] as { monto: number; moneda: string; contrato_obra_id: string | null }[] }),
+    ])
 
     return (
       <div className="space-y-6">
@@ -63,64 +54,87 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
           <p className="text-slate-500 text-sm mt-1">{ctx.obraNombre} — Obra de construcción</p>
         </div>
 
-        {!contrato ? (
+        {!contratos || contratos.length === 0 ? (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
             <p className="text-amber-800 font-medium">Sin contrato de obra cargado</p>
             {puede('certificados') && (
               <p className="text-amber-600 text-sm mt-1">
-                Ingresá a <Link href={`/admin/proyectos/${obraId}/certificados`} className="underline">Certificados</Link> para comenzar.
+                Ingresá a <Link href={`/admin/proyectos/${obraId}/certificados`} className="underline">Contratos</Link> para comenzar.
               </p>
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
-              <p className="text-xs font-medium text-slate-500 mb-1">Monto del contrato</p>
-              <p className="text-2xl font-bold text-slate-900">{formatCurrency(contrato.monto_total, contrato.moneda)}</p>
-              <p className="text-xs text-slate-400 mt-1">{contrato.compradores?.nombre_completo}</p>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
-              <p className="text-xs font-medium text-slate-500 mb-1">Total certificado</p>
-              <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalCertificados, contrato.moneda)}</p>
-              <p className="text-xs text-slate-400 mt-1">
-                {contrato.monto_total > 0
-                  ? `${Math.round((totalCertificados / contrato.monto_total) * 100)}% del contrato`
-                  : '—'}
-              </p>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
-              <p className="text-xs font-medium text-slate-500 mb-1">Total cobrado</p>
-              {Object.keys(totalCobradoPorMoneda).length === 0 ? (
-                <p className="text-2xl font-bold text-emerald-700">{formatCurrency(0, contrato.moneda)}</p>
-              ) : (
-                Object.entries(totalCobradoPorMoneda).map(([moneda, monto]) => (
-                  <p key={moneda} className="text-2xl font-bold text-emerald-700">{formatCurrency(monto, moneda)}</p>
-                ))
-              )}
-              <p className="text-xs text-slate-400 mt-1">
-                Pendiente: {formatCurrency(redondear2(totalCertificados - (totalCobradoPorMoneda[contrato.moneda] ?? 0)), contrato.moneda)}
-              </p>
-            </div>
-          </div>
-        )}
+          <div className="space-y-5">
+            {contratos.map(contrato => {
+              const certifDelContrato = (certificados ?? []).filter(c => c.contrato_obra_id === contrato.id)
+              const cobrosDelContrato = (cobros ?? []).filter(c => c.contrato_obra_id === contrato.id)
+              const totalCobradoPorMoneda = cobrosDelContrato.reduce<Record<string, number>>((acc, c) => {
+                acc[c.moneda] = redondear2((acc[c.moneda] ?? 0) + Number(c.monto))
+                return acc
+              }, {})
+              const ultimoCertif = certifDelContrato[0] ?? null
+              // Los certificados no tienen columna moneda propia: son un %
+              // del contrato, siempre en contrato.moneda.
+              const totalCertificados = redondear2(certifDelContrato.reduce((s, c) => s + Number(c.monto_certificado), 0))
 
-        {ultimoCertif && (
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
-            <p className="text-sm font-semibold text-slate-700 mb-3">Último certificado</p>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-slate-900">N°{ultimoCertif.numero} — {ultimoCertif.periodo}</p>
-                <p className="text-sm text-slate-500 mt-0.5">{ultimoCertif.porcentaje_avance}% de avance</p>
-              </div>
-              <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
-                ultimoCertif.estado === 'cobrado' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                ultimoCertif.estado === 'aprobado' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                ultimoCertif.estado === 'presentado' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                'bg-slate-50 text-slate-600 border-slate-200'
-              }`}>
-                {ultimoCertif.estado.charAt(0).toUpperCase() + ultimoCertif.estado.slice(1)}
-              </span>
-            </div>
+              return (
+                <div key={contrato.id} className="space-y-3">
+                  {contratos.length > 1 && (
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                      {contrato.compradores?.nombre_completo}{contrato.descripcion ? ` — ${contrato.descripcion}` : ''}
+                    </p>
+                  )}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="bg-white border border-slate-200 rounded-xl p-5">
+                      <p className="text-xs font-medium text-slate-500 mb-1">Monto del contrato</p>
+                      <p className="text-2xl font-bold text-slate-900">{formatCurrency(contrato.monto_total, contrato.moneda)}</p>
+                      <p className="text-xs text-slate-400 mt-1">{contrato.compradores?.nombre_completo}</p>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-xl p-5">
+                      <p className="text-xs font-medium text-slate-500 mb-1">Total certificado</p>
+                      <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalCertificados, contrato.moneda)}</p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {contrato.monto_total > 0
+                          ? `${Math.round((totalCertificados / contrato.monto_total) * 100)}% del contrato`
+                          : '—'}
+                      </p>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-xl p-5">
+                      <p className="text-xs font-medium text-slate-500 mb-1">Total cobrado</p>
+                      {Object.keys(totalCobradoPorMoneda).length === 0 ? (
+                        <p className="text-2xl font-bold text-emerald-700">{formatCurrency(0, contrato.moneda)}</p>
+                      ) : (
+                        Object.entries(totalCobradoPorMoneda).map(([moneda, monto]) => (
+                          <p key={moneda} className="text-2xl font-bold text-emerald-700">{formatCurrency(monto, moneda)}</p>
+                        ))
+                      )}
+                      <p className="text-xs text-slate-400 mt-1">
+                        Pendiente: {formatCurrency(redondear2(totalCertificados - (totalCobradoPorMoneda[contrato.moneda] ?? 0)), contrato.moneda)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {ultimoCertif && (
+                    <div className="bg-white border border-slate-200 rounded-xl p-5">
+                      <p className="text-sm font-semibold text-slate-700 mb-3">Último certificado</p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-slate-900">N°{ultimoCertif.numero} — {ultimoCertif.periodo}</p>
+                          <p className="text-sm text-slate-500 mt-0.5">{ultimoCertif.porcentaje_avance}% de avance</p>
+                        </div>
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                          ultimoCertif.estado === 'aprobado' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                          ultimoCertif.estado === 'presentado' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-slate-50 text-slate-600 border-slate-200'
+                        }`}>
+                          {ultimoCertif.estado.charAt(0).toUpperCase() + ultimoCertif.estado.slice(1)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

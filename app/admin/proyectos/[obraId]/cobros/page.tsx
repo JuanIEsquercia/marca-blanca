@@ -17,7 +17,7 @@ export default async function CobrosPage({ params }: { params: Promise<{ obraId:
   const [
     { data: cobros },
     { data: cuentasPropias },
-    { data: contrato },
+    { data: contratos },
     { data: certificados },
   ] = await Promise.all([
     supabase
@@ -36,20 +36,23 @@ export default async function CobrosPage({ params }: { params: Promise<{ obraId:
           .is('obra_id', null)
           .eq('activa', true)
           .order('nombre'),
+    // migration_048: una obra puede tener más de un contrato con el
+    // cliente (etapas firmadas por separado) — los cobros (a diferencia
+    // de los pagos a subcontratistas) son siempre de UN contrato cliente,
+    // que hay que elegir si hay más de uno.
     supabase
       .from('contratos_obra')
-      .select('id, moneda')
+      .select('id, moneda, descripcion, fecha_inicio, compradores(nombre_completo)')
       .eq('obra_id', obraId)
-      .limit(1)
-      .maybeSingle(),
+      .eq('tipo', 'cliente')
+      .order('fecha_inicio', { ascending: true, nullsFirst: false }),
     supabase
       .from('certificados_avance')
-      .select('id, numero, periodo, monto_certificado')
+      .select('id, numero, periodo, monto_certificado, contrato_obra_id, contratos_obra!inner(tipo)')
       .eq('obra_id', obraId)
+      .eq('contratos_obra.tipo', 'cliente')
       .order('numero'),
   ])
-
-  const moneda = contrato?.moneda ?? 'ARS'
 
   return (
     <div>
@@ -63,9 +66,9 @@ export default async function CobrosPage({ params }: { params: Promise<{ obraId:
         cobros={(cobros ?? []) as any}
         cuentasPropias={cuentasPropias ?? []}
         certificados={(certificados ?? []) as any}
+        contratos={(contratos ?? []) as any}
         obraId={obraId}
         constructoraId={ctx.constructoraId}
-        moneda={moneda}
         readOnly={ctx.obraEstado === 'finalizada'}
       />
     </div>

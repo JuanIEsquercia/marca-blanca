@@ -196,6 +196,7 @@ export interface Gasto {
   cuenta_proveedor_id: string | null
   categoria_id: string | null
   cuenta_propia_id: string | null
+  certificado_id: string | null
   descripcion: string
   monto: number
   moneda: string
@@ -213,6 +214,21 @@ export interface Gasto {
   cuentas_proveedor?: CuentaProveedor
   categorias_costo?: CategoriaCosto
   cuentas_propias?: CuentaPropia
+}
+
+// Proyección liviana de Gasto para la cuenta corriente por proveedor
+// (app/admin/proveedores) — solo los campos que necesita, con el nombre
+// de la obra ya resuelto en vez de la fila completa.
+export interface GastoCuentaCorriente {
+  id: string
+  proveedor_id: string
+  descripcion: string
+  monto: number
+  moneda: string
+  estado: 'Pendiente' | 'Pagado'
+  fecha_vencimiento: string
+  fecha_pago: string | null
+  obras: { nombre: string } | null
 }
 
 export interface Perfil {
@@ -269,11 +285,15 @@ export const ORIENTACIONES = [
 
 // ── Obra de construcción ─────────────────────────────────────
 
+export type TipoContratoObra = 'cliente' | 'subcontratista'
+
 export interface ContratoObra {
   id: string
   obra_id: string
   constructora_id: string
-  cliente_id: string
+  tipo: TipoContratoObra
+  cliente_id: string | null
+  proveedor_id: string | null
   monto_total: number
   moneda: string
   fecha_inicio: string | null
@@ -283,6 +303,7 @@ export interface ContratoObra {
   presupuesto_id: string | null
   created_at: string
   compradores?: Comprador
+  proveedores?: Proveedor
 }
 
 export interface CertificadoAvance {
@@ -449,6 +470,7 @@ export interface CobroProyecto {
   id: string
   obra_id: string
   constructora_id: string
+  contrato_obra_id: string | null
   certificado_id: string | null
   /** @deprecated usar fecha_vencimiento + fecha_pago */
   fecha: string

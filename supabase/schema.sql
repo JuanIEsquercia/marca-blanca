@@ -340,7 +340,7 @@ CREATE TABLE IF NOT EXISTS contratos_obra (
   id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   obra_id            UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
   constructora_id    UUID NOT NULL REFERENCES constructoras(id),
-  cliente_id         UUID NOT NULL REFERENCES compradores(id),
+  cliente_id         UUID REFERENCES compradores(id),  -- migration_047: nullable, ver tipo/proveedor_id abajo
   monto_total        NUMERIC(15,2) NOT NULL,
   moneda             TEXT NOT NULL DEFAULT 'ARS',
   fecha_inicio       DATE,
@@ -354,6 +354,23 @@ CREATE TABLE IF NOT EXISTS contratos_obra (
   updated_at         TIMESTAMPTZ,
   created_at         TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- migration_047: una obra admite más de un contrato — 'cliente' (entra
+-- plata, certifica hacia cobros_proyecto, comportamiento de siempre) o
+-- 'subcontratista' (sale plata, certifica hacia gastos). Pensado para
+-- constructoras que actúan como comitente/gerenciadoras y subcontratan
+-- cada rubro a un tercero distinto, en moneda distinta. Ver
+-- migration_047.sql para el detalle comentado.
+ALTER TABLE contratos_obra ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'cliente'
+  CHECK (tipo IN ('cliente', 'subcontratista'));
+ALTER TABLE contratos_obra ADD COLUMN IF NOT EXISTS proveedor_id UUID REFERENCES proveedores(id);
+ALTER TABLE contratos_obra DROP CONSTRAINT IF EXISTS contratos_obra_parte_check;
+ALTER TABLE contratos_obra ADD CONSTRAINT contratos_obra_parte_check CHECK (
+  (tipo = 'cliente' AND cliente_id IS NOT NULL AND proveedor_id IS NULL)
+  OR (tipo = 'subcontratista' AND proveedor_id IS NOT NULL AND cliente_id IS NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_contratos_obra_proveedor ON contratos_obra(proveedor_id);
+CREATE INDEX IF NOT EXISTS idx_contratos_obra_tipo ON contratos_obra(obra_id, tipo);
 
 CREATE TABLE IF NOT EXISTS certificados_avance (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -377,6 +394,15 @@ CREATE TABLE IF NOT EXISTS certificados_avance (
   UNIQUE (contrato_obra_id, numero)
 );
 
+-- migration_047: trazabilidad de qué certificado de un subcontratista
+-- generó este gasto — ON DELETE SET NULL, no CASCADE (mismo criterio
+-- que cobros_proyecto.certificado_id, borrar el certificado no borra
+-- el gasto ya registrado). Va acá (no junto a la tabla gastos, más
+-- arriba en el archivo) porque certificados_avance recién se define
+-- en este punto.
+ALTER TABLE gastos ADD COLUMN IF NOT EXISTS certificado_id UUID REFERENCES certificados_avance(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_gastos_certificado ON gastos(certificado_id);
+
 CREATE TABLE IF NOT EXISTS cobros_proyecto (
   id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   obra_id            UUID NOT NULL REFERENCES obras(id),
@@ -396,6 +422,14 @@ CREATE TABLE IF NOT EXISTS cobros_proyecto (
   updated_at         TIMESTAMPTZ,
   created_at         TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- migration_048: una obra puede tener más de un contrato con el
+-- cliente (etapas firmadas por separado) — cobros_proyecto necesita
+-- saber a cuál pertenece de forma directa, no solo vía certificado_id
+-- (nullable, un cobro "sin certificado" quedaría ambiguo con varios
+-- contratos cliente). Nullable a propósito, ver migration_048.sql.
+ALTER TABLE cobros_proyecto ADD COLUMN IF NOT EXISTS contrato_obra_id UUID REFERENCES contratos_obra(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_cobros_proyecto_contrato ON cobros_proyecto(contrato_obra_id);
 
 -- ============================================================
 -- AUDITORÍA — historial completo (antes/después) de cambios en
@@ -1691,9 +1725,8 @@ BEGIN
     IF v_obra_tipo != 'obra' THEN
       RAISE EXCEPTION 'Solo se puede vincular a un proyecto tipo Obra';
     END IF;
-    IF EXISTS (SELECT 1 FROM contratos_obra WHERE obra_id = p_obra_id) THEN
-      RAISE EXCEPTION 'Ese proyecto ya tiene un contrato de obra cargado';
-    END IF;
+    -- migration_048: ya no bloquea si la obra ya tiene contrato(s) con
+    -- el cliente — puede sumar otro (ej. una nueva etapa firmada aparte).
     v_obra_id := p_obra_id;
   ELSE
     IF p_nueva_obra_nombre IS NULL OR btrim(p_nueva_obra_nombre) = '' THEN
@@ -1721,8 +1754,8 @@ BEGIN
     RETURNING id INTO v_cliente_id;
   END IF;
 
-  INSERT INTO contratos_obra (obra_id, constructora_id, cliente_id, monto_total, moneda, descripcion, presupuesto_id, fecha_inicio, fecha_fin_estimada)
-  VALUES (v_obra_id, v_presupuesto.constructora_id, v_cliente_id, v_monto_total, v_presupuesto.moneda, v_presupuesto.descripcion, p_presupuesto_id, v_presupuesto.fecha_inicio, v_presupuesto.fecha_fin_estimada)
+  INSERT INTO contratos_obra (obra_id, constructora_id, tipo, cliente_id, monto_total, moneda, descripcion, presupuesto_id, fecha_inicio, fecha_fin_estimada)
+  VALUES (v_obra_id, v_presupuesto.constructora_id, 'cliente', v_cliente_id, v_monto_total, v_presupuesto.moneda, v_presupuesto.descripcion, p_presupuesto_id, v_presupuesto.fecha_inicio, v_presupuesto.fecha_fin_estimada)
   RETURNING id INTO v_contrato_id;
 
   INSERT INTO contrato_obra_items (contrato_obra_id, constructora_id, orden, rubro, unidad, cantidad, precio_unitario, origen)

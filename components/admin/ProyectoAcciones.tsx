@@ -183,14 +183,17 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
         { data: certificados },
         { data: cobros },
       ] = await Promise.all([
-        supabase.from('contratos_obra').select('*, compradores(*)').eq('obra_id', obraId),
+        supabase.from('contratos_obra').select('*, compradores(*), proveedores(razon_social)').eq('obra_id', obraId),
         supabase.from('certificados_avance').select('*').eq('obra_id', obraId).order('numero'),
         supabase.from('cobros_proyecto').select('*, certificados_avance(numero, periodo)').eq('obra_id', obraId).order('numero'),
       ])
 
+      // migration_047: puede haber más de un contrato (cliente +
+      // subcontratistas) — se listan todos, con quién es cada uno.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       addSheet('Contrato de obra', (contratoObra ?? []).map((c: any) => ({
-        Cliente: c.compradores?.nombre_completo ?? '', 'Monto total': c.monto_total, Moneda: c.moneda,
+        Tipo: c.tipo === 'subcontratista' ? 'Subcontratista' : 'Cliente',
+        'Cliente/Proveedor': c.compradores?.nombre_completo ?? c.proveedores?.razon_social ?? '', 'Monto total': c.monto_total, Moneda: c.moneda,
         'Fecha inicio': c.fecha_inicio ?? '', 'Fecha fin estimada': c.fecha_fin_estimada ?? '',
         Estado: c.estado, Descripción: c.descripcion ?? '',
       })))

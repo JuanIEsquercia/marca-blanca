@@ -11,6 +11,13 @@ import ConfirmModal from './ConfirmModal'
 
 type ConfirmModalState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
 
+interface ContratoSubcontratistaRef {
+  id: string
+  proveedor_id: string
+  descripcion: string | null
+  certificados_avance: { id: string; numero: number; periodo: string }[]
+}
+
 interface Props {
   gastos: Gasto[]
   proveedores: Proveedor[]
@@ -24,12 +31,19 @@ interface Props {
   // carga — ver app/admin/gastos/page.tsx). Los Pendientes SIEMPRE vienen
   // completos sin importar este flag.
   historialAcotado?: boolean
+  // Contratos de subcontratista de ESTE proyecto, con sus certificados —
+  // permite imputar un gasto a un certificado puntual sin tener que
+  // cargarlo desde "Agregar pago" en Contratos. Solo se pasa en la vista
+  // por proyecto (acá no tiene sentido en la vista de empresa, no hay
+  // una obra en contexto).
+  contratosSubcontratista?: ContratoSubcontratistaRef[]
 }
 
 const EMPTY_FORM = {
   proveedor_id: '',
   cuenta_proveedor_id: '',
   categoria_id: '',
+  certificado_id: '',
   descripcion: '',
   monto: '',
   moneda: 'ARS',
@@ -41,7 +55,7 @@ const EMPTY_FORM = {
   percepciones: '',
 }
 
-export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias, constructoraId, obraId, readOnly, historialAcotado }: Props) {
+export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias, constructoraId, obraId, readOnly, historialAcotado, contratosSubcontratista = [] }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [, startTransition] = useTransition()
@@ -73,6 +87,16 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
     ? (proveedores.find(p => p.id === form.proveedor_id)?.cuentas_proveedor ?? [])
     : []
 
+  // Certificados de los contratos de subcontratista que el proveedor
+  // elegido tiene en ESTE proyecto (puede tener más de uno) — se listan
+  // juntos, con el nombre del contrato para distinguirlos si hace falta.
+  const contratosDelProveedor = form.proveedor_id
+    ? contratosSubcontratista.filter(c => c.proveedor_id === form.proveedor_id)
+    : []
+  const certificadosDelProveedor = contratosDelProveedor.flatMap(c =>
+    (c.certificados_avance ?? []).map(cert => ({ ...cert, contratoDescripcion: c.descripcion }))
+  )
+
   const gastosFiltrados = gastos
     .filter(g => filtroEstado === 'todos' || g.estado === filtroEstado)
     .filter(g => !busqueda || g.descripcion.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -93,6 +117,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       proveedor_id: g.proveedor_id ?? '',
       cuenta_proveedor_id: g.cuenta_proveedor_id ?? '',
       categoria_id: g.categoria_id ?? '',
+      certificado_id: g.certificado_id ?? '',
       descripcion: g.descripcion,
       monto: String(g.monto),
       moneda: g.moneda,
@@ -118,6 +143,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       proveedor_id: form.proveedor_id || null,
       cuenta_proveedor_id: form.cuenta_proveedor_id || null,
       categoria_id: form.categoria_id || null,
+      certificado_id: form.certificado_id || null,
       descripcion: form.descripcion.trim(),
       monto: redondear2(parseFloat(form.monto)),
       moneda: form.moneda,
@@ -584,7 +610,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Proveedor</label>
                 <select value={form.proveedor_id}
-                  onChange={e => setForm(f => ({ ...f, proveedor_id: e.target.value, cuenta_proveedor_id: '' }))}
+                  onChange={e => setForm(f => ({ ...f, proveedor_id: e.target.value, cuenta_proveedor_id: '', certificado_id: '' }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="">Sin proveedor</option>
                   {proveedores.filter(p => p.activo).map(p => (
@@ -592,6 +618,28 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   ))}
                 </select>
               </div>
+
+              {form.proveedor_id && certificadosDelProveedor.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Certificado de subcontratista (opcional)
+                  </label>
+                  <select value={form.certificado_id}
+                    onChange={e => setForm(f => ({ ...f, certificado_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Sin imputar a un certificado</option>
+                    {certificadosDelProveedor.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {contratosDelProveedor.length > 1 && c.contratoDescripcion ? `${c.contratoDescripcion} — ` : ''}
+                        N°{c.numero} — {c.periodo}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Este proveedor tiene contrato de subcontratista en este proyecto — si este gasto corresponde a un certificado de avance suyo, elegilo acá.
+                  </p>
+                </div>
+              )}
 
               {form.proveedor_id && ctasProveedor.length > 0 && (
                 <div>

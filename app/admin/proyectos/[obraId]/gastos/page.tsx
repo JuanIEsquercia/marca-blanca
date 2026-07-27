@@ -14,7 +14,7 @@ export default async function GastosProyectoPage({ params }: { params: Promise<{
 
   const supabase = await createClient()
 
-  const [{ data: gastos }, { data: proveedores }, { data: categorias }, { data: cuentasPropias }] =
+  const [{ data: gastos }, { data: proveedores }, { data: categorias }, { data: cuentasPropias }, { data: contratosSubcontratista }] =
     await Promise.all([
       supabase
         .from('gastos')
@@ -43,6 +43,13 @@ export default async function GastosProyectoPage({ params }: { params: Promise<{
             .is('obra_id', null)
             .eq('activa', true)
             .order('nombre'),
+      // Para poder imputar un gasto a un certificado de subcontratista
+      // directo desde acá, no solo desde "Agregar pago" en Contratos.
+      supabase
+        .from('contratos_obra')
+        .select('id, proveedor_id, descripcion, certificados_avance(id, numero, periodo)')
+        .eq('obra_id', obraId)
+        .eq('tipo', 'subcontratista'),
     ])
 
   return (
@@ -59,6 +66,7 @@ export default async function GastosProyectoPage({ params }: { params: Promise<{
         constructoraId={ctx.constructoraId}
         obraId={obraId}
         readOnly={ctx.obraEstado === 'finalizada'}
+        contratosSubcontratista={(contratosSubcontratista ?? []) as any}
       />
     </div>
   )

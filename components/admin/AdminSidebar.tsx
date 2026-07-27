@@ -110,13 +110,9 @@ function buildConstructoraNav(): NavSection[] {
           roles: ['admin'],
           icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
         },
-        {
-          href: '/admin/whatsapp',
-          label: 'WhatsApp',
-          permiso: null,
-          roles: ['admin'],
-          icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 21l1.65-4.95A7.5 7.5 0 1112 19.5a7.46 7.46 0 01-3.05-.65L3 21z" /></svg>,
-        },
+        // WhatsApp oculto del sidebar a propósito: se retoma más adelante,
+        // una vez que el resto de los módulos esté pulido. La ruta
+        // /admin/whatsapp sigue funcionando, solo no se linkea acá.
       ],
     },
   ]

@@ -68,22 +68,33 @@ function PermisosCheckboxes({
               {sec}
             </button>
             <div className="ml-2 space-y-1">
-              {mods.map(m => (
-                <label key={m.key} className="flex items-center gap-2 cursor-pointer group">
-                  <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
-                    ${value.includes(m.key) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 group-hover:border-indigo-400'}`}
-                    onClick={() => toggle(m.key)}>
-                    {value.includes(m.key) && (
-                      <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                      </svg>
+              {mods.map(m => {
+                const aviso = 'avisoAgregado' in m ? m.avisoAgregado : undefined
+                return (
+                  <label key={m.key} className="flex items-center gap-2 cursor-pointer group" title={m.descripcion}>
+                    <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
+                      ${value.includes(m.key) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 group-hover:border-indigo-400'}`}
+                      onClick={() => toggle(m.key)}>
+                      {value.includes(m.key) && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </span>
+                    <span className="text-sm text-slate-700 select-none" onClick={() => toggle(m.key)}>
+                      {m.label}
+                    </span>
+                    {aviso && (
+                      <span
+                        className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-bold shrink-0"
+                        title={aviso}
+                      >
+                        i
+                      </span>
                     )}
-                  </span>
-                  <span className="text-sm text-slate-700 select-none" onClick={() => toggle(m.key)}>
-                    {m.label}
-                  </span>
-                </label>
-              ))}
+                  </label>
+                )
+              })}
             </div>
           </div>
         )
@@ -166,11 +177,18 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
   const [nombre, setNombre] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [passwordConfirm, setPasswordConfirm] = useState('')
+  const [copiarDeId, setCopiarDeId] = useState('')
   const [proyectos, setProyectos] = useState<ProyectoAsignado[]>([])
   const [permisosEmpresa, setPermisosEmpresa] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+
+  // Búsqueda en la tabla — por nombre/email o por proyecto/módulo al que
+  // tiene acceso (antes no había forma de responder "¿quién ve Tesorería?"
+  // sin abrir operador por operador).
+  const [busqueda, setBusqueda] = useState('')
 
   // Edición de permisos
   const [editPermisosPerfil, setEditPermisosPerfil] = useState<PerfilConEmail | null>(null)
@@ -185,17 +203,45 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
   const nombreDeObra = (id: string) => obras.find(o => o.id === id)?.nombre ?? 'Proyecto eliminado'
   const moduloLabel = (key: string) => MODULOS.find(m => m.key === key)?.label ?? key
 
+  const perfilesFiltrados = perfiles.filter(p => {
+    const q = busqueda.trim().toLowerCase()
+    if (!q) return true
+    if (p.nombre.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)) return true
+    if ((p.permisos ?? []).some(k => moduloLabel(k).toLowerCase().includes(q))) return true
+    return p.proyectos.some(proy =>
+      nombreDeObra(proy.obraId).toLowerCase().includes(q) ||
+      proy.permisos.some(k => moduloLabel(k).toLowerCase().includes(q))
+    )
+  })
+
   function refresh() { startTransition(() => router.refresh()) }
 
   function openCreate() {
-    setNombre(''); setEmail(''); setPassword('')
+    setNombre(''); setEmail(''); setPassword(''); setPasswordConfirm(''); setCopiarDeId('')
     setProyectos([]); setPermisosEmpresa([]); setError(null); setSuccess(false)
     setShowForm(true)
+  }
+
+  // Prellena proyectos/módulos con los de un operador existente — el caso
+  // típico de "el nuevo arquitecto necesita lo mismo que Juan" antes exigía
+  // tildar cada proyecto y cada módulo de cero.
+  function aplicarPlantilla(idOrigen: string) {
+    setCopiarDeId(idOrigen)
+    const origen = operadores.find(o => o.id === idOrigen)
+    if (!origen) return
+    setProyectos(origen.proyectos.map(p => ({ obraId: p.obraId, permisos: [...p.permisos] })))
+    setPermisosEmpresa([...(origen.permisos ?? [])])
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    if (password !== passwordConfirm) {
+      setError('Las contraseñas no coinciden.')
+      return
+    }
+
     setLoading(true)
 
     const res = await fetch('/api/admin/usuarios', {
@@ -290,6 +336,21 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
         </div>
       )}
 
+      {perfiles.length > 0 && (
+        <div className="mb-4 relative">
+          <svg className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 10.5A6.5 6.5 0 114 10.5a6.5 6.5 0 0113 0z" />
+          </svg>
+          <input
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            placeholder="Buscar por nombre, email, proyecto o módulo (ej. &quot;Tesorería&quot;)..."
+            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm
+                       focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+      )}
+
       {/* Tabla */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
@@ -304,7 +365,14 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {perfiles.map(p => (
+              {perfilesFiltrados.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-400">
+                    Ningún usuario coincide con &quot;{busqueda}&quot;.
+                  </td>
+                </tr>
+              )}
+              {perfilesFiltrados.map(p => (
                 <tr key={p.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium text-slate-900 align-top">
                     {p.nombre}
@@ -411,7 +479,7 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
                                  focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
-                  <div className="col-span-2">
+                  <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Contraseña *</label>
                     <input required type="password" minLength={8} value={password}
                       onChange={e => setPassword(e.target.value)}
@@ -419,7 +487,30 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
                                  focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Repetir contraseña *</label>
+                    <input required type="password" minLength={8} value={passwordConfirm}
+                      onChange={e => setPasswordConfirm(e.target.value)}
+                      placeholder="Repetí la contraseña"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
                 </div>
+
+                {operadores.length > 0 && (
+                  <div className="border-t border-slate-100 pt-4">
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Copiar permisos de (opcional)</label>
+                    <select value={copiarDeId} onChange={e => aplicarPlantilla(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white
+                                 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">— Empezar en blanco —</option>
+                      {operadores.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Prellena proyectos y módulos con los mismos que tiene ese operador — después podés ajustarlos abajo.
+                    </p>
+                  </div>
+                )}
 
                 <div className="border-t border-slate-100 pt-4">
                   <p className="text-xs font-semibold text-slate-700 mb-1">Proyectos y módulos</p>

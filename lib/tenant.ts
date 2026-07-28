@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { ProyectoAsignado } from '@/lib/permisos'
 
 export interface ConstructoraContext {
+  userId: string
   constructoraId: string
   constructoraNombre: string
   perfilNombre: string
@@ -11,6 +12,16 @@ export interface ConstructoraContext {
   perfilPermisos: string[]
   perfilProyectos: ProyectoAsignado[]
 }
+
+// Cacheado por request con React cache(): sin esto, cada layout/página que
+// necesita el usuario autenticado dispara su propio round-trip a Supabase
+// Auth. Con esto, todos los llamados dentro del mismo render comparten 1 sola
+// llamada real a getUser().
+export const getAuthUser = cache(async () => {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
+})
 
 export interface ProyectoContext extends ConstructoraContext {
   obraId: string
@@ -21,9 +32,7 @@ export interface ProyectoContext extends ConstructoraContext {
 }
 
 const resolveConstructora = cache(async (): Promise<ConstructoraContext | null> => {
-  // Verificar autenticación con cliente normal
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getAuthUser()
   if (!user) return null
 
   // Usar admin client para bypassear RLS en la resolución del tenant.
@@ -60,6 +69,7 @@ const resolveConstructora = cache(async (): Promise<ConstructoraContext | null> 
   const rol = ((perfil as any)?.rol ?? 'operador') as 'admin' | 'operador'
 
   return {
+    userId: user.id,
     constructoraId,
     constructoraNombre: constructora?.nombre ?? 'Constructora',
     perfilNombre: (perfil as any)?.nombre ?? '',
@@ -95,6 +105,7 @@ export const getProyectoContext = cache(async (obraId: string): Promise<Proyecto
   if (!obra) return null
 
   return {
+    userId: resolved.userId,
     constructoraId: resolved.constructoraId,
     constructoraNombre: resolved.constructoraNombre,
     perfilNombre: resolved.perfilNombre,

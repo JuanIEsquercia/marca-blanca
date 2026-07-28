@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createAdminClient, listarTodosLosUsuarios, traducirErrorAuth } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import type { CondicionIva } from '@/types/database'
@@ -51,21 +51,21 @@ export async function GET() {
   const [
     { data: constructoras },
     { data: perfiles },
-    { data: authData },
+    authUsers,
     { data: numeros },
   ] = await Promise.all([
     adminClient.from('constructoras')
       .select('id, nombre, owner_id, created_at, razon_social, cuit, condicion_iva, email_facturacion, telefono_contacto, direccion')
       .order('created_at', { ascending: false }),
     adminClient.from('perfiles').select('id, nombre, rol, constructora_id').not('constructora_id', 'is', null),
-    adminClient.auth.admin.listUsers(),
+    listarTodosLosUsuarios(adminClient),
     adminClient.from('whatsapp_numeros').select('constructora_id, kapso_phone_id, numero').eq('activo', true),
   ])
 
   const result = (constructoras ?? []).map(c => {
     const perfilesDeEsta = (perfiles ?? []).filter(p => p.constructora_id === c.id)
     const usuarios = perfilesDeEsta.map(p => {
-      const authUser = authData?.users.find(u => u.id === p.id)
+      const authUser = authUsers.find(u => u.id === p.id)
       return { id: p.id, nombre: p.nombre, email: authUser?.email ?? null, rol: p.rol }
     })
     const numero = (numeros ?? []).find(n => n.constructora_id === c.id)
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
   })
 
   if (authError || !newUser.user) {
-    return NextResponse.json({ error: authError?.message ?? 'Error al crear el usuario' }, { status: 500 })
+    return NextResponse.json({ error: authError ? traducirErrorAuth(authError.message) : 'Error al crear el usuario' }, { status: 500 })
   }
 
   const userId = newUser.user.id
@@ -274,9 +274,7 @@ export async function DELETE(request: Request) {
   // explícitamente junto con los usuarios de auth.
   await adminClient.from('perfiles').delete().in('id', (perfilesDeEsta ?? []).map(p => p.id))
 
-  for (const p of perfilesDeEsta ?? []) {
-    await adminClient.auth.admin.deleteUser(p.id)
-  }
+  await Promise.all((perfilesDeEsta ?? []).map(p => adminClient.auth.admin.deleteUser(p.id)))
 
   return NextResponse.json({ ok: true })
 }

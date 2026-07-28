@@ -291,14 +291,14 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
 
         {tab === 'porCobrar' && (
           <div>
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                 <p className="text-xs text-amber-600 font-medium mb-1">Total por cobrar ARS</p>
-                <p className="text-2xl font-bold text-amber-700">{formatARS(totalPorCobrarARS)}</p>
+                <p className="text-xl sm:text-2xl font-bold text-amber-700 truncate" title={formatARS(totalPorCobrarARS)}>{formatARS(totalPorCobrarARS)}</p>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                 <p className="text-xs text-blue-600 font-medium mb-1">Total por cobrar USD</p>
-                <p className="text-2xl font-bold text-blue-700">{formatUSD(totalPorCobrarUSD)}</p>
+                <p className="text-xl sm:text-2xl font-bold text-blue-700 truncate" title={formatUSD(totalPorCobrarUSD)}>{formatUSD(totalPorCobrarUSD)}</p>
               </div>
             </div>
 
@@ -346,14 +346,14 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
         {tab === 'porPagar' && (
           <div>
             {/* Totales */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
                 <p className="text-xs text-orange-600 font-medium mb-1">Total pendiente ARS</p>
-                <p className="text-2xl font-bold text-orange-700">{formatARS(totalPendienteARS)}</p>
+                <p className="text-xl sm:text-2xl font-bold text-orange-700 truncate" title={formatARS(totalPendienteARS)}>{formatARS(totalPendienteARS)}</p>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                 <p className="text-xs text-blue-600 font-medium mb-1">Total pendiente USD</p>
-                <p className="text-2xl font-bold text-blue-700">{formatUSD(totalPendienteUSD)}</p>
+                <p className="text-xl sm:text-2xl font-bold text-blue-700 truncate" title={formatUSD(totalPendienteUSD)}>{formatUSD(totalPendienteUSD)}</p>
               </div>
             </div>
 
@@ -416,40 +416,43 @@ function CuentaCard({ cuenta }: { cuenta: CuentaConSaldo }) {
   const fmt = (n: number) => cuenta.moneda === 'USD' ? formatUSD(n) : formatARS(n)
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-5">
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <p className="font-semibold text-slate-900 text-sm">{cuenta.nombre}</p>
+    <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-slate-900 text-sm truncate" title={cuenta.nombre}>{cuenta.nombre}</p>
           <p className="text-xs text-slate-400 mt-0.5">
             {cuenta.tipo === 'banco' ? 'Banco' : 'Caja'} · {cuenta.moneda}
           </p>
           <p className="text-xs mt-1">
             {cuenta.obra_nombre ? (
-              <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium">{cuenta.obra_nombre}</span>
+              <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium truncate max-w-full" title={cuenta.obra_nombre}>{cuenta.obra_nombre}</span>
             ) : (
               <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">Empresa</span>
             )}
           </p>
         </div>
-        <span className={cn(
-          'text-xs px-2 py-0.5 rounded-full font-medium',
-          esPositivo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-        )}>
+        <span
+          className={cn(
+            'text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap truncate max-w-full',
+            esPositivo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+          )}
+          title={`${esPositivo ? '+' : ''}${fmt(cuenta.saldo_actual)}`}
+        >
           {esPositivo ? '+' : ''}{fmt(cuenta.saldo_actual)}
         </span>
       </div>
       <div className="space-y-1.5 pt-3 border-t border-slate-100 text-xs">
-        <div className="flex justify-between text-slate-500">
-          <span>Saldo inicial</span>
-          <span>{fmt(cuenta.saldo_inicial)}</span>
+        <div className="flex justify-between items-baseline gap-2 flex-wrap text-slate-500">
+          <span className="shrink-0">Saldo inicial</span>
+          <span className="font-medium text-slate-700 text-right truncate max-w-[150px]" title={fmt(cuenta.saldo_inicial)}>{fmt(cuenta.saldo_inicial)}</span>
         </div>
-        <div className="flex justify-between text-blue-600">
-          <span>+ Ingresos cobrados</span>
-          <span>{fmt(cuenta.ingresos_ventas)}</span>
+        <div className="flex justify-between items-baseline gap-2 flex-wrap text-blue-600">
+          <span className="shrink-0">+ Ingresos cobrados</span>
+          <span className="font-medium text-right truncate max-w-[150px]" title={fmt(cuenta.ingresos_ventas)}>{fmt(cuenta.ingresos_ventas)}</span>
         </div>
-        <div className="flex justify-between text-red-500">
-          <span>− Egresos pagados</span>
-          <span>{fmt(cuenta.egresos_gastos)}</span>
+        <div className="flex justify-between items-baseline gap-2 flex-wrap text-red-500">
+          <span className="shrink-0">− Egresos pagados</span>
+          <span className="font-medium text-right truncate max-w-[150px]" title={fmt(cuenta.egresos_gastos)}>{fmt(cuenta.egresos_gastos)}</span>
         </div>
       </div>
     </div>

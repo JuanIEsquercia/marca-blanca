@@ -1,12 +1,14 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getProyectoContext } from '@/lib/tenant'
-import { calcularCajaProyecto } from '@/lib/tesoreria'
+import { calcularTotalesYSaldos, type MovimientoConCuenta } from '@/lib/tesoreria'
 import { cn, formatCurrency as fmt } from '@/lib/utils'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Caja del proyecto' }
 export const dynamic = 'force-dynamic'
+
+type IngresoDisplay = Omit<MovimientoConCuenta, 'moneda'> & { moneda: string; fecha: string; descripcion: string; tipo: string }
 
 export default async function CajaProyectoPage({ params }: { params: Promise<{ obraId: string }> }) {
   const { obraId } = await params
@@ -15,62 +17,72 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
 
   const supabase = await createClient()
 
-  // Gastos imputados a este proyecto
-  const { data: gastos } = await supabase
+  // Gastos imputados a este proyecto (mismas filas que usa calcularTotalesYSaldos
+  // más abajo — antes se volvían a pedir adentro de calcularCajaProyecto).
+  const gastosQuery = supabase
     .from('gastos')
     .select('*, categorias_costo(nombre, color), proveedores(razon_social)')
     .eq('constructora_id', ctx.constructoraId)
     .eq('obra_id', obraId)
     .order('fecha_vencimiento', { ascending: false })
 
-  let ingresos: { fecha: string; descripcion: string; monto: number; moneda: string; tipo: string }[] = []
+  const cuentasQuery = supabase.from('cuentas_propias').select('*')
+    .eq('constructora_id', ctx.constructoraId)
+    .eq('activa', true)
+    .order('nombre')
+  const cuentasQueryScoped = ctx.obraModo === 'especificas' ? cuentasQuery.eq('obra_id', obraId) : cuentasQuery.is('obra_id', null)
 
-  if (ctx.obraTipo === 'desarrollo') {
-    const { data: cuotas } = await supabase
-      .from('cuotas')
-      .select('monto_base, monto_cobrado, fecha_pago, cuenta_propia_id, contratos_venta!inner(unidades!inner(obra_id))')
-      .eq('estado_pago', 'Pagado')
-      .eq('contratos_venta.unidades.obra_id', obraId)
+  // Ventas de unidades son siempre USD (precio_lista/cuotas no tienen
+  // columna moneda propia — convención del negocio, ver lib/tesoreria.ts).
+  const obtenerIngresos = async (): Promise<IngresoDisplay[]> => {
+    if (ctx.obraTipo === 'desarrollo') {
+      const [{ data: cuotas }, { data: contratos }, { data: reservasVigentes }] = await Promise.all([
+        supabase
+          .from('cuotas')
+          .select('monto_base, monto_cobrado, fecha_pago, cuenta_propia_id, contratos_venta!inner(unidades!inner(obra_id))')
+          .eq('estado_pago', 'Pagado')
+          .eq('contratos_venta.unidades.obra_id', obraId),
+        supabase
+          .from('contratos_venta')
+          .select('entrega_efectiva, fecha_firma, cuenta_propia_id, unidades!inner(obra_id)')
+          .eq('unidades.obra_id', obraId)
+          .not('entrega_efectiva', 'is', null),
+        supabase
+          .from('reservas')
+          .select('monto_sena, fecha_reserva, cuenta_propia_id')
+          .eq('obra_id', obraId)
+          .eq('estado', 'Vigente')
+          .not('monto_sena', 'is', null),
+      ])
 
-    const { data: contratos } = await supabase
-      .from('contratos_venta')
-      .select('entrega_efectiva, fecha_firma, cuenta_propia_id, unidades!inner(obra_id)')
-      .eq('unidades.obra_id', obraId)
-      .not('entrega_efectiva', 'is', null)
+      return [
+        ...(cuotas ?? []).map(c => ({
+          fecha: c.fecha_pago ?? '',
+          descripcion: 'Cuota cobrada',
+          monto: c.monto_cobrado ?? c.monto_base ?? 0,
+          moneda: 'USD',
+          tipo: 'cuota',
+          cuenta_propia_id: c.cuenta_propia_id ?? null,
+        })),
+        ...(contratos ?? []).filter(c => (c.entrega_efectiva ?? 0) > 0).map(c => ({
+          fecha: c.fecha_firma ?? '',
+          descripcion: 'Entrega inicial',
+          monto: c.entrega_efectiva ?? 0,
+          moneda: 'USD',
+          tipo: 'entrega',
+          cuenta_propia_id: c.cuenta_propia_id ?? null,
+        })),
+        ...(reservasVigentes ?? []).map(r => ({
+          fecha: r.fecha_reserva ?? '',
+          descripcion: 'Seña de reserva',
+          monto: r.monto_sena ?? 0,
+          moneda: 'USD',
+          tipo: 'sena',
+          cuenta_propia_id: r.cuenta_propia_id ?? null,
+        })),
+      ].sort((a, b) => b.fecha.localeCompare(a.fecha))
+    }
 
-    const { data: reservasVigentes } = await supabase
-      .from('reservas')
-      .select('monto_sena, fecha_reserva, cuenta_propia_id')
-      .eq('obra_id', obraId)
-      .eq('estado', 'Vigente')
-      .not('monto_sena', 'is', null)
-
-    // Ventas de unidades son siempre USD (precio_lista/cuotas no tienen
-    // columna moneda propia — convención del negocio, ver lib/tesoreria.ts).
-    ingresos = [
-      ...(cuotas ?? []).map(c => ({
-        fecha: c.fecha_pago ?? '',
-        descripcion: 'Cuota cobrada',
-        monto: c.monto_cobrado ?? c.monto_base ?? 0,
-        moneda: 'USD',
-        tipo: 'cuota',
-      })),
-      ...(contratos ?? []).filter(c => (c.entrega_efectiva ?? 0) > 0).map(c => ({
-        fecha: c.fecha_firma ?? '',
-        descripcion: 'Entrega inicial',
-        monto: c.entrega_efectiva ?? 0,
-        moneda: 'USD',
-        tipo: 'entrega',
-      })),
-      ...(reservasVigentes ?? []).map(r => ({
-        fecha: r.fecha_reserva ?? '',
-        descripcion: 'Seña de reserva',
-        monto: r.monto_sena ?? 0,
-        moneda: 'USD',
-        tipo: 'sena',
-      })),
-    ].sort((a, b) => b.fecha.localeCompare(a.fecha))
-  } else {
     const { data: cobros } = await supabase
       .from('cobros_proyecto')
       .select('*')
@@ -78,21 +90,25 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
       .eq('estado', 'cobrado')
       .order('fecha_pago', { ascending: false })
 
-    ingresos = (cobros ?? []).map(c => ({
+    return (cobros ?? []).map(c => ({
       fecha: c.fecha_pago ?? c.fecha,
       descripcion: c.notas ?? 'Cobro de proyecto',
       monto: c.monto,
       moneda: c.moneda,
       tipo: 'cobro',
+      cuenta_propia_id: c.cuenta_propia_id ?? null,
     }))
   }
 
-  const { cuentasConSaldo, totalesPorMoneda } = await calcularCajaProyecto(supabase, {
-    constructoraId: ctx.constructoraId,
-    obraId,
-    obraTipo: ctx.obraTipo,
-    obraModo: ctx.obraModo,
-  })
+  const [{ data: gastos }, { data: cuentas }, ingresos] = await Promise.all([
+    gastosQuery,
+    cuentasQueryScoped,
+    obtenerIngresos(),
+  ])
+
+  // Misma función pura que usa el webhook de WhatsApp (lib/tesoreria.ts) —
+  // acá recibe los datos que esta página ya trajo arriba, sin volver a pedirlos.
+  const { cuentasConSaldo, totalesPorMoneda } = calcularTotalesYSaldos(cuentas ?? [], gastos ?? [], ingresos)
   const monedasConMovimiento = Object.keys(totalesPorMoneda)
 
   return (

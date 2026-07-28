@@ -1,5 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient, traducirErrorAuth } from '@/lib/supabase/admin'
 import { getConstructoraContext } from '@/lib/tenant'
 import { NextResponse } from 'next/server'
 import { MAX_OPERADORES, MODULOS_EMPRESA, modulosDisponibles, type TipoProyecto } from '@/lib/permisos'
@@ -9,7 +8,8 @@ interface ProyectoInput {
   permisos: string[]
 }
 
-// Valida cada proyecto recibido (pertenece a la constructora) y filtra sus
+// Valida que cada proyecto recibido pertenezca a la constructora (una sola
+// query con .in() para todos, en vez de una por proyecto) y filtra sus
 // permisos server-side según el tipo real del proyecto — no confía en que
 // el checklist del cliente ya lo hizo. Devuelve un NextResponse de error si
 // algún obraId no es válido.
@@ -18,69 +18,44 @@ async function validarYFiltrarProyectos(
   constructoraId: string,
   proyectos: ProyectoInput[]
 ): Promise<{ proyectos: ProyectoInput[] } | { error: NextResponse }> {
-  const filtrados: ProyectoInput[] = []
-  for (const p of proyectos) {
-    const validada = await validarObra(adminClient, constructoraId, p.obraId)
-    if ('error' in validada) return validada
-    filtrados.push({
-      obraId: p.obraId,
-      permisos: Array.isArray(p.permisos)
-        ? p.permisos.filter(m => modulosDisponibles(validada.tipo).some(mod => mod.key === m))
-        : [],
-    })
-  }
-  return { proyectos: filtrados }
-}
+  const obraIds = [...new Set(proyectos.map(p => p.obraId))]
+  if (obraIds.length === 0) return { proyectos: [] }
 
-async function verificarAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const { data: perfil } = await supabase
-    .from('perfiles')
-    .select('rol, constructora_id')
-    .eq('id', user.id)
-    .single()
-
-  if (perfil?.rol !== 'admin' || !perfil.constructora_id) return null
-  return { user, constructoraId: perfil.constructora_id as string }
-}
-
-// Si se pasa obraId, valida que pertenezca a la constructora del admin y
-// devuelve su tipo. Devuelve undefined (sin error) para obraId=null
-// ("operador de toda la empresa"). Devuelve un NextResponse de error si
-// el obraId no es válido — el caller debe chequear el resultado.
-async function validarObra(
-  adminClient: ReturnType<typeof createAdminClient>,
-  constructoraId: string,
-  obraId: string | null
-): Promise<{ tipo: TipoProyecto | null } | { error: NextResponse }> {
-  if (!obraId) return { tipo: null }
-
-  const { data: obra } = await adminClient
+  const { data: obras } = await adminClient
     .from('obras')
-    .select('tipo')
-    .eq('id', obraId)
+    .select('id, tipo')
     .eq('constructora_id', constructoraId)
-    .maybeSingle()
+    .in('id', obraIds)
 
-  if (!obra) {
+  const tipoPorObra = new Map((obras ?? []).map(o => [o.id, o.tipo as TipoProyecto]))
+
+  if (obraIds.some(id => !tipoPorObra.has(id))) {
     return { error: NextResponse.json({ error: 'El proyecto no pertenece a tu constructora' }, { status: 400 }) }
   }
 
-  return { tipo: obra.tipo as TipoProyecto }
+  return {
+    proyectos: proyectos.map(p => ({
+      obraId: p.obraId,
+      permisos: Array.isArray(p.permisos)
+        ? p.permisos.filter(m => modulosDisponibles(tipoPorObra.get(p.obraId)!).some(mod => mod.key === m))
+        : [],
+    })),
+  }
+}
+
+// Cachea (React cache(), vía getConstructoraContext) en vez de hacer su
+// propio getUser()+query a 'perfiles' — antes esto duplicaba la resolución
+// de auth/tenant que ya hace el resto del panel en la misma request.
+async function verificarAdmin() {
+  const ctx = await getConstructoraContext()
+  if (!ctx || ctx.perfilRol !== 'admin') return null
+  return ctx
 }
 
 export async function POST(request: Request) {
-  const adminUser = await verificarAdmin()
-  if (!adminUser) {
-    return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  }
-
-  const ctx = await getConstructoraContext()
+  const ctx = await verificarAdmin()
   if (!ctx) {
-    return NextResponse.json({ error: 'Sin constructora' }, { status: 403 })
+    return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
   }
 
   const { nombre, email, password, proyectos, permisosEmpresa } = await request.json()
@@ -123,7 +98,7 @@ export async function POST(request: Request) {
   })
 
   if (authError || !newUser.user) {
-    return NextResponse.json({ error: authError?.message ?? 'Error al crear usuario' }, { status: 500 })
+    return NextResponse.json({ error: authError ? traducirErrorAuth(authError.message) : 'Error al crear usuario' }, { status: 500 })
   }
 
   // Upsert del perfil con nombre, permisos (bucket Empresa) y constructora_id
@@ -169,8 +144,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const adminUser = await verificarAdmin()
-  if (!adminUser) {
+  const ctx = await verificarAdmin()
+  if (!ctx) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
   }
 
@@ -188,11 +163,11 @@ export async function PATCH(request: Request) {
     .eq('id', userId)
     .single()
 
-  if (!targetPerfil || targetPerfil.constructora_id !== adminUser.constructoraId) {
+  if (!targetPerfil || targetPerfil.constructora_id !== ctx.constructoraId) {
     return NextResponse.json({ error: 'Usuario no pertenece a tu constructora' }, { status: 403 })
   }
 
-  const proyectosValidados = await validarYFiltrarProyectos(adminClient, adminUser.constructoraId, proyectos)
+  const proyectosValidados = await validarYFiltrarProyectos(adminClient, ctx.constructoraId, proyectos)
   if ('error' in proyectosValidados) return proyectosValidados.error
 
   const permisosEmpresaFiltrados = Array.isArray(permisosEmpresa)
@@ -204,7 +179,7 @@ export async function PATCH(request: Request) {
     .update({ permisos: permisosEmpresaFiltrados })
     .eq('id', userId)
     .eq('rol', 'operador')
-    .eq('constructora_id', adminUser.constructoraId)
+    .eq('constructora_id', ctx.constructoraId)
 
   if (perfilError) {
     return NextResponse.json({ error: perfilError.message }, { status: 500 })
@@ -214,7 +189,7 @@ export async function PATCH(request: Request) {
   // al operador sin proyectos si dos llamadas JS separadas fallaran a mitad.
   const { error: syncError } = await adminClient.rpc('sync_perfil_proyectos', {
     p_perfil_id: userId,
-    p_constructora_id: adminUser.constructoraId,
+    p_constructora_id: ctx.constructoraId,
     p_rows: proyectosValidados.proyectos.map(p => ({ obraId: p.obraId, permisos: p.permisos })),
   })
 
@@ -226,14 +201,14 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const adminUser = await verificarAdmin()
-  if (!adminUser) {
+  const ctx = await verificarAdmin()
+  if (!ctx) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
   }
 
   const { userId } = await request.json()
 
-  if (userId === adminUser.user.id) {
+  if (userId === ctx.userId) {
     return NextResponse.json({ error: 'No podés eliminarte a vos mismo' }, { status: 400 })
   }
 
@@ -245,7 +220,7 @@ export async function DELETE(request: Request) {
     .eq('id', userId)
     .single()
 
-  if (!targetPerfil || targetPerfil.constructora_id !== adminUser.constructoraId) {
+  if (!targetPerfil || targetPerfil.constructora_id !== ctx.constructoraId) {
     return NextResponse.json({ error: 'Usuario no pertenece a tu constructora' }, { status: 403 })
   }
 

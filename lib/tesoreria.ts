@@ -15,10 +15,17 @@ import { formatCurrency, redondear2, sumarMontos } from '@/lib/utils'
 // la de la cuenta — así un dato mal cargado (cobro en USD asignado por error
 // a una cuenta ARS) no contamina el saldo en vez de sumar/restar sin sentido.
 
-interface MovimientoConCuenta {
+export interface MovimientoConCuenta {
   monto: number
   cuenta_propia_id: string | null
   moneda: string | null // null = sin moneda propia, se asume USD (ver nota arriba)
+}
+
+export interface GastoParaCaja {
+  estado: string | null
+  moneda: string
+  monto: number | null
+  cuenta_propia_id: string | null
 }
 
 function perteneceACuenta(mov: MovimientoConCuenta, cuenta: { id: string; moneda: string }): boolean {
@@ -130,6 +137,82 @@ export interface CajaProyecto {
 
 const MONEDAS = ['ARS', 'USD'] as const
 
+// Parte pura del cálculo (sin queries) — separada para que páginas que ya
+// tienen gastos/cuentas/ingresos cargados en memoria (ej. la de Caja del
+// proyecto, que los necesita igual para la tabla de detalle) puedan
+// reusarlos en vez de volver a pedirlos, como pasaba antes acá mismo.
+export function calcularTotalesYSaldos(
+  cuentas: Pick<CuentaPropia, 'id' | 'nombre' | 'tipo' | 'moneda' | 'saldo_inicial'>[],
+  gastos: GastoParaCaja[],
+  ingresos: MovimientoConCuenta[]
+): CajaProyecto {
+  const totalesPorMoneda: Record<string, TotalesMoneda> = {}
+  for (const moneda of MONEDAS) {
+    const ingresosMoneda = sumarMontos(ingresos.filter(i => (i.moneda ?? 'USD') === moneda).map(i => i.monto))
+    const egresosPagados = sumarMontos(gastos.filter(g => g.estado === 'Pagado' && g.moneda === moneda).map(g => g.monto ?? 0))
+    const egresosPendientes = sumarMontos(gastos.filter(g => g.estado === 'Pendiente' && g.moneda === moneda).map(g => g.monto ?? 0))
+    if (ingresosMoneda !== 0 || egresosPagados !== 0 || egresosPendientes !== 0) {
+      totalesPorMoneda[moneda] = { ingresos: ingresosMoneda, egresosPagados, egresosPendientes }
+    }
+  }
+
+  const cuentasConSaldo = cuentas.map(cuenta => {
+    const ingresosCuenta = sumarMontos(ingresos.filter(i => perteneceACuenta(i, cuenta)).map(i => i.monto))
+    const egresosCuenta = sumarMontos(
+      gastos.filter(g => g.cuenta_propia_id === cuenta.id && g.estado === 'Pagado' && g.moneda === cuenta.moneda).map(g => g.monto ?? 0)
+    )
+    return { id: cuenta.id, nombre: cuenta.nombre, tipo: cuenta.tipo, moneda: cuenta.moneda, saldo_actual: redondear2(cuenta.saldo_inicial + ingresosCuenta - egresosCuenta) }
+  })
+
+  return { cuentasConSaldo, totalesPorMoneda }
+}
+
+async function obtenerIngresosProyecto(
+  supabase: SupabaseClient,
+  ctx: { obraId: string; obraTipo: 'desarrollo' | 'obra' }
+): Promise<MovimientoConCuenta[]> {
+  if (ctx.obraTipo === 'desarrollo') {
+    // Señas de reservas Vigentes: dinero ya depositado que hasta ahora no
+    // aparecía en ningún cálculo de caja. Solo 'Vigente' — una vez que la
+    // reserva se convierte en venta (estado 'Convertida'), ese monto pasa a
+    // representarse vía contratos_venta.entrega_efectiva (ver SaleForm, que
+    // prefillea la entrega con la seña ya cobrada) y contarlo acá también
+    // sería duplicarlo.
+    const [{ data: cuotas }, { data: contratos }, { data: reservas }] = await Promise.all([
+      supabase
+        .from('cuotas')
+        .select('monto_base, monto_cobrado, cuenta_propia_id, contratos_venta!inner(unidades!inner(obra_id))')
+        .eq('estado_pago', 'Pagado')
+        .eq('contratos_venta.unidades.obra_id', ctx.obraId),
+      supabase
+        .from('contratos_venta')
+        .select('entrega_efectiva, cuenta_propia_id, unidades!inner(obra_id)')
+        .eq('unidades.obra_id', ctx.obraId)
+        .not('entrega_efectiva', 'is', null),
+      supabase
+        .from('reservas')
+        .select('monto_sena, cuenta_propia_id')
+        .eq('obra_id', ctx.obraId)
+        .eq('estado', 'Vigente')
+        .not('monto_sena', 'is', null),
+    ])
+
+    return [
+      ...(cuotas ?? []).map(c => ({ monto: c.monto_cobrado ?? c.monto_base ?? 0, cuenta_propia_id: c.cuenta_propia_id ?? null, moneda: null })),
+      ...(contratos ?? []).filter(c => (c.entrega_efectiva ?? 0) > 0).map(c => ({ monto: c.entrega_efectiva ?? 0, cuenta_propia_id: c.cuenta_propia_id ?? null, moneda: null })),
+      ...(reservas ?? []).map(r => ({ monto: r.monto_sena ?? 0, cuenta_propia_id: r.cuenta_propia_id ?? null, moneda: null })),
+    ]
+  }
+
+  const { data: cobros } = await supabase
+    .from('cobros_proyecto')
+    .select('monto, moneda, cuenta_propia_id')
+    .eq('obra_id', ctx.obraId)
+    .eq('estado', 'cobrado')
+
+  return (cobros ?? []).map(c => ({ monto: c.monto, cuenta_propia_id: c.cuenta_propia_id ?? null, moneda: c.moneda }))
+}
+
 export async function calcularCajaProyecto(
   supabase: SupabaseClient,
   ctx: { constructoraId: string; obraId: string; obraTipo: 'desarrollo' | 'obra'; obraModo: 'empresa' | 'especificas' }
@@ -138,81 +221,21 @@ export async function calcularCajaProyecto(
     .eq('constructora_id', ctx.constructoraId)
     .eq('activa', true)
     .order('nombre')
+  const cuentasQueryScoped = ctx.obraModo === 'especificas' ? cuentasQuery.eq('obra_id', ctx.obraId) : cuentasQuery.is('obra_id', null)
 
-  const { data: cuentas } = await (
-    ctx.obraModo === 'especificas'
-      ? cuentasQuery.eq('obra_id', ctx.obraId)
-      : cuentasQuery.is('obra_id', null)
-  )
-
-  const { data: gastos } = await supabase
+  const gastosQuery = supabase
     .from('gastos')
     .select('*')
     .eq('constructora_id', ctx.constructoraId)
     .eq('obra_id', ctx.obraId)
 
-  let ingresos: MovimientoConCuenta[] = []
+  const [{ data: cuentas }, { data: gastos }, ingresos] = await Promise.all([
+    cuentasQueryScoped,
+    gastosQuery,
+    obtenerIngresosProyecto(supabase, ctx),
+  ])
 
-  if (ctx.obraTipo === 'desarrollo') {
-    const { data: cuotas } = await supabase
-      .from('cuotas')
-      .select('monto_base, monto_cobrado, cuenta_propia_id, contratos_venta!inner(unidades!inner(obra_id))')
-      .eq('estado_pago', 'Pagado')
-      .eq('contratos_venta.unidades.obra_id', ctx.obraId)
-
-    const { data: contratos } = await supabase
-      .from('contratos_venta')
-      .select('entrega_efectiva, cuenta_propia_id, unidades!inner(obra_id)')
-      .eq('unidades.obra_id', ctx.obraId)
-      .not('entrega_efectiva', 'is', null)
-
-    // Señas de reservas Vigentes: dinero ya depositado que hasta ahora no
-    // aparecía en ningún cálculo de caja. Solo 'Vigente' — una vez que la
-    // reserva se convierte en venta (estado 'Convertida'), ese monto pasa a
-    // representarse vía contratos_venta.entrega_efectiva (ver SaleForm, que
-    // prefillea la entrega con la seña ya cobrada) y contarlo acá también
-    // sería duplicarlo.
-    const { data: reservas } = await supabase
-      .from('reservas')
-      .select('monto_sena, cuenta_propia_id')
-      .eq('obra_id', ctx.obraId)
-      .eq('estado', 'Vigente')
-      .not('monto_sena', 'is', null)
-
-    ingresos = [
-      ...(cuotas ?? []).map(c => ({ monto: c.monto_cobrado ?? c.monto_base ?? 0, cuenta_propia_id: c.cuenta_propia_id ?? null, moneda: null })),
-      ...(contratos ?? []).filter(c => (c.entrega_efectiva ?? 0) > 0).map(c => ({ monto: c.entrega_efectiva ?? 0, cuenta_propia_id: c.cuenta_propia_id ?? null, moneda: null })),
-      ...(reservas ?? []).map(r => ({ monto: r.monto_sena ?? 0, cuenta_propia_id: r.cuenta_propia_id ?? null, moneda: null })),
-    ]
-  } else {
-    const { data: cobros } = await supabase
-      .from('cobros_proyecto')
-      .select('monto, moneda, cuenta_propia_id')
-      .eq('obra_id', ctx.obraId)
-      .eq('estado', 'cobrado')
-
-    ingresos = (cobros ?? []).map(c => ({ monto: c.monto, cuenta_propia_id: c.cuenta_propia_id ?? null, moneda: c.moneda }))
-  }
-
-  const totalesPorMoneda: Record<string, TotalesMoneda> = {}
-  for (const moneda of MONEDAS) {
-    const ingresosMoneda = sumarMontos(ingresos.filter(i => (i.moneda ?? 'USD') === moneda).map(i => i.monto))
-    const egresosPagados = sumarMontos((gastos ?? []).filter(g => g.estado === 'Pagado' && g.moneda === moneda).map(g => g.monto ?? 0))
-    const egresosPendientes = sumarMontos((gastos ?? []).filter(g => g.estado === 'Pendiente' && g.moneda === moneda).map(g => g.monto ?? 0))
-    if (ingresosMoneda !== 0 || egresosPagados !== 0 || egresosPendientes !== 0) {
-      totalesPorMoneda[moneda] = { ingresos: ingresosMoneda, egresosPagados, egresosPendientes }
-    }
-  }
-
-  const cuentasConSaldo = (cuentas ?? []).map(cuenta => {
-    const ingresosCuenta = sumarMontos(ingresos.filter(i => perteneceACuenta(i, cuenta)).map(i => i.monto))
-    const egresosCuenta = sumarMontos(
-      (gastos ?? []).filter(g => g.cuenta_propia_id === cuenta.id && g.estado === 'Pagado' && g.moneda === cuenta.moneda).map(g => g.monto ?? 0)
-    )
-    return { id: cuenta.id, nombre: cuenta.nombre, tipo: cuenta.tipo, moneda: cuenta.moneda, saldo_actual: redondear2(cuenta.saldo_inicial + ingresosCuenta - egresosCuenta) }
-  })
-
-  return { cuentasConSaldo, totalesPorMoneda }
+  return calcularTotalesYSaldos(cuentas ?? [], gastos ?? [], ingresos)
 }
 
 export interface CuentaSimple {

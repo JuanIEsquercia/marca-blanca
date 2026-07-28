@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getProyectoContext } from '@/lib/tenant'
-import { formatCurrency, formatDate, redondear2 } from '@/lib/utils'
+import { estaVencido, formatCurrency, formatDate, redondear2 } from '@/lib/utils'
 import { puedeAcceder, type ModuloKey } from '@/lib/permisos'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -52,20 +52,36 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
       .order('fecha_inicio', { ascending: true, nullsFirst: false })
     const contratoIdsSub = (contratosSub ?? []).map(c => c.id)
 
+    // cobros/gastos ya no filtran por estado en la query — antes solo se
+    // traía lo cobrado/pagado, así que no había forma de detectar vencidos
+    // sin otro round-trip. Con estado+fecha_vencimiento en el select se
+    // derivan ambos (total cobrado/pagado y vencidos) de la misma consulta.
     const [{ data: certificados }, { data: cobros }, { data: certificadosSub }, { data: pagos }] = await Promise.all([
       contratoIds.length > 0
         ? supabase.from('certificados_avance').select('*').in('contrato_obra_id', contratoIds).order('numero', { ascending: false })
-        : Promise.resolve({ data: [] as { id: string; contrato_obra_id: string; numero: number; periodo: string; porcentaje_avance: number; monto_certificado: number; estado: string }[] }),
+        : Promise.resolve({ data: [] as { id: string; contrato_obra_id: string; numero: number; periodo: string; porcentaje_avance: number; monto_certificado: number; estado: string; created_at: string }[] }),
       contratoIds.length > 0
-        ? supabase.from('cobros_proyecto').select('monto, moneda, contrato_obra_id').eq('estado', 'cobrado').in('contrato_obra_id', contratoIds)
-        : Promise.resolve({ data: [] as { monto: number; moneda: string; contrato_obra_id: string | null }[] }),
+        ? supabase.from('cobros_proyecto').select('monto, moneda, contrato_obra_id, estado, fecha_vencimiento').in('contrato_obra_id', contratoIds)
+        : Promise.resolve({ data: [] as { monto: number; moneda: string; contrato_obra_id: string | null; estado: string; fecha_vencimiento: string | null }[] }),
       contratoIdsSub.length > 0
         ? supabase.from('certificados_avance').select('*').in('contrato_obra_id', contratoIdsSub).order('numero', { ascending: false })
-        : Promise.resolve({ data: [] as { id: string; contrato_obra_id: string; numero: number; periodo: string; porcentaje_avance: number; monto_certificado: number; estado: string }[] }),
+        : Promise.resolve({ data: [] as { id: string; contrato_obra_id: string; numero: number; periodo: string; porcentaje_avance: number; monto_certificado: number; estado: string; created_at: string }[] }),
       contratoIdsSub.length > 0
-        ? supabase.from('gastos').select('monto, moneda, certificado_id, certificados_avance!inner(contrato_obra_id)').eq('estado', 'Pagado').in('certificados_avance.contrato_obra_id', contratoIdsSub)
-        : Promise.resolve({ data: [] as { monto: number; moneda: string; certificado_id: string | null; certificados_avance: { contrato_obra_id: string } | null }[] }),
+        ? supabase.from('gastos').select('monto, moneda, certificado_id, estado, fecha_vencimiento, certificados_avance!inner(contrato_obra_id)').in('certificados_avance.contrato_obra_id', contratoIdsSub)
+        : Promise.resolve({ data: [] as { monto: number; moneda: string; certificado_id: string | null; estado: string; fecha_vencimiento: string | null; certificados_avance: { contrato_obra_id: string } | null }[] }),
     ])
+
+    // Alertas agregadas (todas los contratos, cliente + subcontratistas) —
+    // antes este dashboard no avisaba de nada, a diferencia del de
+    // DESARROLLO (cuotas vencidas/reservas por vencer). Un operador tenía
+    // que entrar módulo por módulo para descubrir un atraso.
+    const DIAS_CERTIFICADO_ESTANCADO = 14
+    const diasDesde = (fecha: string) => Math.floor((Date.now() - new Date(fecha).getTime()) / (1000 * 60 * 60 * 24))
+
+    const certificadosEstancados = [...(certificados ?? []), ...(certificadosSub ?? [])]
+      .filter(c => c.estado === 'borrador' && diasDesde(c.created_at) > DIAS_CERTIFICADO_ESTANCADO)
+    const cobrosVencidos = (cobros ?? []).filter(c => estaVencido(c.fecha_vencimiento, c.estado, 'pendiente'))
+    const pagosVencidos = (pagos ?? []).filter(g => estaVencido(g.fecha_vencimiento, g.estado, 'Pendiente'))
 
     return (
       <div className="space-y-6">
@@ -73,6 +89,32 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
           <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
           <p className="text-slate-500 text-sm mt-1">{ctx.obraNombre} — Obra de construcción</p>
         </div>
+
+        {(certificadosEstancados.length > 0 || cobrosVencidos.length > 0 || pagosVencidos.length > 0) && (
+          <div className="space-y-2">
+            {certificadosEstancados.length > 0 && puede('certificados') && (
+              <Link href={`/admin/proyectos/${obraId}/certificados`} className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors">
+                <svg className="w-5 h-5 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p className="text-sm text-amber-800 flex-1"><strong>{certificadosEstancados.length} certificado{certificadosEstancados.length > 1 ? 's' : ''}</strong> en borrador hace más de {DIAS_CERTIFICADO_ESTANCADO} días sin presentar</p>
+                <span className="text-xs text-amber-600">Ver →</span>
+              </Link>
+            )}
+            {cobrosVencidos.length > 0 && puede('cobros') && (
+              <Link href={`/admin/proyectos/${obraId}/cobros`} className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors">
+                <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <p className="text-sm text-red-800 flex-1"><strong>{cobrosVencidos.length} cobro{cobrosVencidos.length > 1 ? 's' : ''}</strong> vencido{cobrosVencidos.length > 1 ? 's' : ''} sin cobrar</p>
+                <span className="text-xs text-red-500">Ver →</span>
+              </Link>
+            )}
+            {pagosVencidos.length > 0 && puede('gastos') && (
+              <Link href={`/admin/proyectos/${obraId}/gastos`} className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors">
+                <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <p className="text-sm text-red-800 flex-1"><strong>{pagosVencidos.length} pago{pagosVencidos.length > 1 ? 's' : ''} a subcontratistas</strong> vencido{pagosVencidos.length > 1 ? 's' : ''} sin pagar</p>
+                <span className="text-xs text-red-500">Ver →</span>
+              </Link>
+            )}
+          </div>
+        )}
 
         {!contratos || contratos.length === 0 ? (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
@@ -87,7 +129,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
           <div className="space-y-5">
             {contratos.map(contrato => {
               const certifDelContrato = (certificados ?? []).filter(c => c.contrato_obra_id === contrato.id)
-              const cobrosDelContrato = (cobros ?? []).filter(c => c.contrato_obra_id === contrato.id)
+              const cobrosDelContrato = (cobros ?? []).filter(c => c.contrato_obra_id === contrato.id && c.estado === 'cobrado')
               const totalCobradoPorMoneda = cobrosDelContrato.reduce<Record<string, number>>((acc, c) => {
                 acc[c.moneda] = redondear2((acc[c.moneda] ?? 0) + Number(c.monto))
                 return acc
@@ -107,12 +149,12 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div className="bg-white border border-slate-200 rounded-xl p-5">
                       <p className="text-xs font-medium text-slate-500 mb-1">Monto del contrato</p>
-                      <p className="text-2xl font-bold text-slate-900">{formatCurrency(contrato.monto_total, contrato.moneda)}</p>
+                      <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate" title={formatCurrency(contrato.monto_total, contrato.moneda)}>{formatCurrency(contrato.monto_total, contrato.moneda)}</p>
                       <p className="text-xs text-slate-400 mt-1">{contrato.compradores?.nombre_completo}</p>
                     </div>
                     <div className="bg-white border border-slate-200 rounded-xl p-5">
                       <p className="text-xs font-medium text-slate-500 mb-1">Total certificado</p>
-                      <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalCertificados, contrato.moneda)}</p>
+                      <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate" title={formatCurrency(totalCertificados, contrato.moneda)}>{formatCurrency(totalCertificados, contrato.moneda)}</p>
                       <p className="text-xs text-slate-400 mt-1">
                         {contrato.monto_total > 0
                           ? `${Math.round((totalCertificados / contrato.monto_total) * 100)}% del contrato`
@@ -122,10 +164,10 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
                     <div className="bg-white border border-slate-200 rounded-xl p-5">
                       <p className="text-xs font-medium text-slate-500 mb-1">Total cobrado</p>
                       {Object.keys(totalCobradoPorMoneda).length === 0 ? (
-                        <p className="text-2xl font-bold text-emerald-700">{formatCurrency(0, contrato.moneda)}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-emerald-700 truncate" title={formatCurrency(0, contrato.moneda)}>{formatCurrency(0, contrato.moneda)}</p>
                       ) : (
                         Object.entries(totalCobradoPorMoneda).map(([moneda, monto]) => (
-                          <p key={moneda} className="text-2xl font-bold text-emerald-700">{formatCurrency(monto, moneda)}</p>
+                          <p key={moneda} className="text-xl sm:text-2xl font-bold text-emerald-700 truncate" title={formatCurrency(monto, moneda)}>{formatCurrency(monto, moneda)}</p>
                         ))
                       )}
                       <p className="text-xs text-slate-400 mt-1">
@@ -166,7 +208,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
             </p>
             {contratosSub.map(contrato => {
               const certifDelContrato = (certificadosSub ?? []).filter(c => c.contrato_obra_id === contrato.id)
-              const pagosDelContrato = (pagos ?? []).filter(g => (g.certificados_avance as any)?.contrato_obra_id === contrato.id)
+              const pagosDelContrato = (pagos ?? []).filter(g => (g.certificados_avance as any)?.contrato_obra_id === contrato.id && g.estado === 'Pagado')
               const totalPagadoPorMoneda = pagosDelContrato.reduce<Record<string, number>>((acc, g) => {
                 acc[g.moneda] = redondear2((acc[g.moneda] ?? 0) + Number(g.monto))
                 return acc
@@ -182,12 +224,12 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div className="bg-white border border-slate-200 rounded-xl p-5">
                       <p className="text-xs font-medium text-slate-500 mb-1">Monto del contrato</p>
-                      <p className="text-2xl font-bold text-slate-900">{formatCurrency(contrato.monto_total, contrato.moneda)}</p>
+                      <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate" title={formatCurrency(contrato.monto_total, contrato.moneda)}>{formatCurrency(contrato.monto_total, contrato.moneda)}</p>
                       <p className="text-xs text-slate-400 mt-1">{contrato.proveedores?.razon_social}</p>
                     </div>
                     <div className="bg-white border border-slate-200 rounded-xl p-5">
                       <p className="text-xs font-medium text-slate-500 mb-1">Total certificado</p>
-                      <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalCertificados, contrato.moneda)}</p>
+                      <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate" title={formatCurrency(totalCertificados, contrato.moneda)}>{formatCurrency(totalCertificados, contrato.moneda)}</p>
                       <p className="text-xs text-slate-400 mt-1">
                         {contrato.monto_total > 0
                           ? `${Math.round((totalCertificados / contrato.monto_total) * 100)}% del contrato`
@@ -197,10 +239,10 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
                     <div className="bg-white border border-red-100 rounded-xl p-5">
                       <p className="text-xs font-medium text-slate-500 mb-1">Total pagado</p>
                       {Object.keys(totalPagadoPorMoneda).length === 0 ? (
-                        <p className="text-2xl font-bold text-red-700">{formatCurrency(0, contrato.moneda)}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-red-700 truncate" title={formatCurrency(0, contrato.moneda)}>{formatCurrency(0, contrato.moneda)}</p>
                       ) : (
                         Object.entries(totalPagadoPorMoneda).map(([moneda, monto]) => (
-                          <p key={moneda} className="text-2xl font-bold text-red-700">{formatCurrency(monto, moneda)}</p>
+                          <p key={moneda} className="text-xl sm:text-2xl font-bold text-red-700 truncate" title={formatCurrency(monto, moneda)}>{formatCurrency(monto, moneda)}</p>
                         ))
                       )}
                       <p className="text-xs text-slate-400 mt-1">
@@ -237,31 +279,40 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
   }
 
   // Dashboard para DESARROLLO inmobiliario
-  // Las cuotas no tienen obra_id directo; se obtienen via contratos_venta (que sí tiene obra_id)
+  // Antes esto traía TODOS los contratos_venta de la obra con joins anidados
+  // a compradores/unidades/cuotas (filas completas) solo para mostrar 5 en
+  // "Últimas ventas" y sumar dos agregados en JS — con muchos contratos esa
+  // única query pesaba mucho más de lo que hacía falta. Se separa en 3
+  // queries angostas: la de display ya viene limitada a 5 desde la DB, y los
+  // dos agregados solo piden las columnas que suman (sin joins anidados).
+  // Las cuotas no tienen obra_id directo; se obtienen via contratos_venta (que sí tiene obra_id).
   const [
     unidadesRes,
-    contratosRes,
+    ultimasVentasRes,
+    precioFinalRes,
+    cuotasPendientesRes,
     reservasVigenteRes,
     reservasPorVencerRes,
   ] = await Promise.all([
     supabase.from('unidades').select('estado_comercial').eq('obra_id', obraId),
     supabase
       .from('contratos_venta')
-      .select('id, precio_final, fecha_firma, compradores(nombre_completo), unidades(piso, numero, letra), cuotas(monto_base, estado_pago, fecha_vencimiento)')
+      .select('id, precio_final, fecha_firma, compradores(nombre_completo), unidades(piso, numero, letra)')
       .eq('obra_id', obraId)
-      .order('fecha_firma', { ascending: false }),
+      .order('fecha_firma', { ascending: false })
+      .limit(5),
+    supabase.from('contratos_venta').select('precio_final').eq('obra_id', obraId),
+    supabase
+      .from('cuotas')
+      .select('monto_base, fecha_vencimiento, contratos_venta!inner(obra_id)')
+      .eq('estado_pago', 'Pendiente')
+      .eq('contratos_venta.obra_id', obraId),
     supabase.from('reservas').select('*', { count: 'exact', head: true }).eq('obra_id', obraId).eq('estado', 'Vigente'),
     supabase.from('reservas').select('*', { count: 'exact', head: true }).eq('obra_id', obraId).eq('estado', 'Vigente').lte('fecha_vencimiento', en7Dias),
   ])
 
   const unidades = unidadesRes.data ?? []
-  const contratos = contratosRes.data ?? []
-
-  // Flatten cuotas de todos los contratos de esta obra
-  type CuotaBasic = { monto_base: number; estado_pago: string; fecha_vencimiento: string }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allCuotas = contratos.flatMap(c => ((c.cuotas ?? []) as any[]) as CuotaBasic[])
-  const cuotasPendientes = allCuotas.filter(c => c.estado_pago === 'Pendiente')
+  const cuotasPendientes = cuotasPendientesRes.data ?? []
   const cuotasVencidas = cuotasPendientes.filter(c => c.fecha_vencimiento < today)
 
   const stats = {
@@ -269,13 +320,13 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
     disponibles: unidades.filter(u => u.estado_comercial === 'Disponible').length,
     reservadas: unidades.filter(u => u.estado_comercial === 'Reservado').length,
     vendidas: unidades.filter(u => u.estado_comercial === 'Vendido').length,
-    ingresos_contratos: contratos.reduce((acc, c) => acc + Number(c.precio_final), 0),
+    ingresos_contratos: (precioFinalRes.data ?? []).reduce((acc, c) => acc + Number(c.precio_final), 0),
     cuotas_pendientes: cuotasPendientes.reduce((acc, c) => acc + Number(c.monto_base), 0),
     cuotas_vencidas: cuotasVencidas.length,
     reservas_vigentes: reservasVigenteRes.count ?? 0,
     reservas_por_vencer: reservasPorVencerRes.count ?? 0,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ultimos_contratos: contratos.slice(0, 5) as any[],
+    ultimos_contratos: (ultimasVentasRes.data ?? []) as any[],
   }
 
   const kpis = [
@@ -325,12 +376,12 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white border border-slate-200 rounded-xl p-6">
           <p className="text-sm font-medium text-slate-500 mb-1">Ingresos totales por contratos</p>
-          <p className="text-3xl font-bold text-slate-900">{formatCurrency(stats.ingresos_contratos)}</p>
+          <p className="text-xl sm:text-2xl md:text-3xl font-bold text-slate-900 truncate" title={formatCurrency(stats.ingresos_contratos)}>{formatCurrency(stats.ingresos_contratos)}</p>
           <p className="text-xs text-slate-400 mt-2">Suma de precios finales firmados</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-6">
           <p className="text-sm font-medium text-slate-500 mb-1">Saldo en cuotas pendientes</p>
-          <p className="text-3xl font-bold text-orange-600">{formatCurrency(stats.cuotas_pendientes)}</p>
+          <p className="text-xl sm:text-2xl md:text-3xl font-bold text-orange-600 truncate" title={formatCurrency(stats.cuotas_pendientes)}>{formatCurrency(stats.cuotas_pendientes)}</p>
           <p className="text-xs text-slate-400 mt-2">Total de cuotas en estado Pendiente</p>
         </div>
       </div>

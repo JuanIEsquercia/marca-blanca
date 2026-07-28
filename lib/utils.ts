@@ -28,6 +28,16 @@ export function sumarMontos(values: (number | null | undefined)[]): number {
   return redondear2(values.reduce((acc: number, v) => acc + (v ?? 0), 0))
 }
 
+// Misma regla de "vencido" repetida antes en ContratoObraCard (movVencido),
+// CobrosObraManager (esVencido), ContratosManager y ReservasManager (inline)
+// — centralizada para que un cambio futuro (ej. ventana de gracia) no haya
+// que replicarlo en cada componente por separado.
+export function estaVencido(fechaVencimiento: string | null | undefined, estadoActual: string, estadoQueVence: string): boolean {
+  if (estadoActual !== estadoQueVence || !fechaVencimiento) return false
+  const hoy = new Date().toISOString().split('T')[0]
+  return fechaVencimiento < hoy
+}
+
 export function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('es-AR', {
     day: '2-digit',

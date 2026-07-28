@@ -80,6 +80,14 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   const [loadingPago, setLoadingPago] = useState(false)
   const [pagoError, setPagoError] = useState<string | null>(null)
 
+  // Selección y pago en lote — antes pagar 10 gastos eran 10 modales
+  // secuenciales, cada uno pidiendo cuenta y fecha de nuevo.
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
+  const [pagandoLote, setPagandoLote] = useState(false)
+  const [pagoLoteForm, setPagoLoteForm] = useState({ cuenta_propia_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
+  const [loadingPagoLote, setLoadingPagoLote] = useState(false)
+  const [pagoLoteError, setPagoLoteError] = useState<string | null>(null)
+
   function refresh() { startTransition(() => router.refresh()) }
 
   // Cuentas del proveedor seleccionado
@@ -303,6 +311,77 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
     refresh()
   }
 
+  // Precarga el form con todo menos vencimiento/comprobante — pensado para
+  // gastos recurrentes (alquiler, seguros) que hoy había que tipear de cero
+  // cada mes.
+  function duplicar(g: Gasto) {
+    setEditingId(null)
+    setForm({
+      proveedor_id: g.proveedor_id ?? '',
+      cuenta_proveedor_id: g.cuenta_proveedor_id ?? '',
+      categoria_id: g.categoria_id ?? '',
+      certificado_id: '',
+      descripcion: g.descripcion,
+      monto: String(g.monto),
+      moneda: g.moneda,
+      fecha_vencimiento: new Date().toISOString().split('T')[0],
+      numero_comprobante: '',
+      notas: g.notas ?? '',
+      monto_neto: g.monto_neto != null ? String(g.monto_neto) : '',
+      iva: g.iva != null ? String(g.iva) : '',
+      percepciones: g.percepciones != null ? String(g.percepciones) : '',
+    })
+    setComprobanteUrl('')
+    setError(null)
+    setAvisoEscaneo(null)
+    setShowForm(true)
+  }
+
+  function toggleSeleccionado(id: string) {
+    setSeleccionados(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const pendientesVisibles = gastosFiltrados.filter(g => g.estado === 'Pendiente')
+  const todosPendientesSeleccionados = pendientesVisibles.length > 0 && pendientesVisibles.every(g => seleccionados.has(g.id))
+
+  function toggleSeleccionarTodosPendientes() {
+    const idsPendientes = pendientesVisibles.map(g => g.id)
+    setSeleccionados(prev => todosPendientesSeleccionados
+      ? new Set([...prev].filter(id => !idsPendientes.includes(id)))
+      : new Set([...prev, ...idsPendientes]))
+  }
+
+  const gastosSeleccionados = gastos.filter(g => seleccionados.has(g.id))
+  const monedasSeleccionadas = [...new Set(gastosSeleccionados.map(g => g.moneda))]
+  const monedaLote = monedasSeleccionadas.length === 1 ? monedasSeleccionadas[0] : null
+
+  function abrirPagoLote() {
+    setPagoLoteForm({ cuenta_propia_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
+    setPagoLoteError(null)
+    setPagandoLote(true)
+  }
+
+  async function confirmarPagoLote() {
+    if (!pagoLoteForm.cuenta_propia_id || gastosSeleccionados.length === 0) return
+    setLoadingPagoLote(true)
+    setPagoLoteError(null)
+    const supabase = createClient()
+    const { error } = await supabase.from('gastos').update({
+      estado: 'Pagado',
+      fecha_pago: pagoLoteForm.fecha_pago,
+      cuenta_propia_id: pagoLoteForm.cuenta_propia_id,
+    }).in('id', gastosSeleccionados.map(g => g.id))
+    setLoadingPagoLote(false)
+    if (error) { setPagoLoteError(error.message); return }
+    setPagandoLote(false)
+    setSeleccionados(new Set())
+    refresh()
+  }
+
   const totalPendienteARS = sumarMontos(gastos.filter(g => g.estado === 'Pendiente' && g.moneda === 'ARS').map(g => g.monto))
   const totalPendienteUSD = sumarMontos(gastos.filter(g => g.estado === 'Pendiente' && g.moneda === 'USD').map(g => g.monto))
 
@@ -400,12 +479,40 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
           onChange={e => { const f = e.target.files?.[0]; if (f) handleEscanear(f); e.target.value = '' }} />
       </div>
 
+      {!readOnly && seleccionados.size > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-3 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2.5">
+          <span className="text-sm text-indigo-800">
+            {seleccionados.size} gasto{seleccionados.size > 1 ? 's' : ''} seleccionado{seleccionados.size > 1 ? 's' : ''}
+            {!monedaLote && ' — mezclás ARS y USD, seleccioná gastos de una sola moneda para pagarlos juntos'}
+          </span>
+          <div className="flex items-center gap-3 shrink-0">
+            <button onClick={() => setSeleccionados(new Set())} className="text-xs text-indigo-600 hover:text-indigo-800">
+              Deseleccionar
+            </button>
+            <button
+              onClick={abrirPagoLote}
+              disabled={!monedaLote}
+              className="text-xs font-medium px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors">
+              Pagar seleccionados
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Tabla */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
+                {!readOnly && (
+                  <th className="px-4 py-3 w-8">
+                    {pendientesVisibles.length > 0 && (
+                      <input type="checkbox" checked={todosPendientesSeleccionados} onChange={toggleSeleccionarTodosPendientes}
+                        title="Seleccionar todos los pendientes visibles" className="rounded border-slate-300" />
+                    )}
+                  </th>
+                )}
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Descripción</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Proveedor</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Categoría</th>
@@ -418,6 +525,14 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
             <tbody className="divide-y divide-slate-100">
               {gastosFiltrados.map(g => (
                 <tr key={g.id} className="hover:bg-slate-50">
+                  {!readOnly && (
+                    <td className="px-4 py-3">
+                      {g.estado === 'Pendiente' && (
+                        <input type="checkbox" checked={seleccionados.has(g.id)} onChange={() => toggleSeleccionado(g.id)}
+                          className="rounded border-slate-300" />
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-900">{g.descripcion}</p>
                     {g.notas && <p className="text-xs text-slate-400 truncate max-w-xs">{g.notas}</p>}
@@ -461,6 +576,10 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                       )}
                       {g.estado === 'Pagado' && g.fecha_pago && (
                         <span className="text-xs text-slate-400">{formatDate(g.fecha_pago)}</span>
+                      )}
+                      {!readOnly && (
+                        <button onClick={() => duplicar(g)}
+                          className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Duplicar</button>
                       )}
                       {!readOnly && (
                         <button onClick={() => openEdit(g)}
@@ -531,6 +650,64 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   disabled={loadingPago || !pagoForm.cuenta_propia_id}
                   className="flex-1 py-2.5 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                   {loadingPago ? 'Guardando...' : 'Confirmar pago'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Pago en lote */}
+      {pagandoLote && monedaLote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="p-6 border-b border-slate-200">
+              <h2 className="font-bold text-slate-900">Pagar {gastosSeleccionados.length} gastos</h2>
+              <p className="text-sm text-slate-500 mt-0.5">
+                Total <strong>{formatCurrency(sumarMontos(gastosSeleccionados.map(g => g.monto)), monedaLote)}</strong> — se aplica la misma cuenta y fecha a todos.
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="max-h-32 overflow-y-auto bg-slate-50 border border-slate-100 rounded-lg divide-y divide-slate-100">
+                {gastosSeleccionados.map(g => (
+                  <div key={g.id} className="px-3 py-1.5 flex items-center justify-between text-xs">
+                    <span className="text-slate-600 truncate">{g.descripcion}</span>
+                    <span className="text-slate-800 font-medium shrink-0 ml-2">{formatCurrency(g.monto, g.moneda)}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta desde la que se pagó *</label>
+                <select
+                  value={pagoLoteForm.cuenta_propia_id}
+                  onChange={e => setPagoLoteForm(f => ({ ...f, cuenta_propia_id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">Seleccionar cuenta...</option>
+                  {cuentasPropias
+                    .filter(c => c.activa && c.moneda === monedaLote)
+                    .map(c => (
+                      <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de pago *</label>
+                <input type="date" value={pagoLoteForm.fecha_pago}
+                  onChange={e => setPagoLoteForm(f => ({ ...f, fecha_pago: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              {pagoLoteError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{pagoLoteError}</div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => { setPagandoLote(false); setPagoLoteError(null) }}
+                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  Cancelar
+                </button>
+                <button onClick={confirmarPagoLote}
+                  disabled={loadingPagoLote || !pagoLoteForm.cuenta_propia_id}
+                  className="flex-1 py-2.5 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
+                  {loadingPagoLote ? 'Guardando...' : 'Confirmar pago'}
                 </button>
               </div>
             </div>

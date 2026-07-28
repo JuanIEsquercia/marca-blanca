@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import { cn, estaVencido, formatCurrency, formatDate } from '@/lib/utils'
 import type { Reserva, Comprador, Unidad, Tipologia, CuentaPropia, EstadoReserva } from '@/types/database'
 import SaleForm from './SaleForm'
 import ConfirmModal from './ConfirmModal'
@@ -38,8 +38,6 @@ export default function ReservasManager({ reservas, cuentasPropias, constructora
   const [saleReserva, setSaleReserva] = useState<ReservaConRelaciones | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [, startTransition] = useTransition()
-
-  const today = new Date().toISOString().split('T')[0]
 
   const filtradas = filtro === 'Todas'
     ? reservas
@@ -123,7 +121,7 @@ export default function ReservasManager({ reservas, cuentasPropias, constructora
                 const diasRestantes = Math.round(
                   (new Date(r.fecha_vencimiento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
                 )
-                const vencida = r.estado === 'Vigente' && r.fecha_vencimiento < today
+                const vencida = estaVencido(r.fecha_vencimiento, r.estado, 'Vigente')
                 return (
                   <tr key={r.id} className={cn('hover:bg-slate-50 transition-colors', vencida && 'bg-red-50/50')}>
                     <td className="px-4 py-3">

@@ -46,6 +46,7 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [soloConDeuda, setSoloConDeuda] = useState(false)
+  const [busqueda, setBusqueda] = useState('')
   const [verPagadosDe, setVerPagadosDe] = useState<string | null>(null) // proveedor_id
 
   const gastosPorProveedor = useMemo(() => {
@@ -59,12 +60,19 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
   }, [gastos])
 
   const proveedoresFiltrados = useMemo(() => {
-    if (!soloConDeuda) return proveedores
-    return proveedores.filter(p => {
-      const pendientes = (gastosPorProveedor.get(p.id) ?? []).filter(g => g.estado === 'Pendiente')
-      return pendientes.length > 0
-    })
-  }, [proveedores, gastosPorProveedor, soloConDeuda])
+    let lista = proveedores
+    if (soloConDeuda) {
+      lista = lista.filter(p => {
+        const pendientes = (gastosPorProveedor.get(p.id) ?? []).filter(g => g.estado === 'Pendiente')
+        return pendientes.length > 0
+      })
+    }
+    const q = busqueda.trim().toLowerCase()
+    if (q) {
+      lista = lista.filter(p => p.razon_social.toLowerCase().includes(q) || (p.cuit ?? '').includes(q))
+    }
+    return lista
+  }, [proveedores, gastosPorProveedor, soloConDeuda, busqueda])
   const [showProv, setShowProv] = useState(false)
   const [editingProv, setEditingProv] = useState<Proveedor | null>(null)
   const [formProv, setFormProv] = useState(EMPTY_PROV)
@@ -202,8 +210,15 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
   return (
     <div>
       <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
-        <div className="flex items-center gap-4">
-          <p className="text-slate-500 text-sm">{proveedoresFiltrados.length} de {proveedores.length} proveedor(es)</p>
+        <div className="flex flex-wrap items-center gap-4">
+          <input
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            placeholder="Buscar por razón social o CUIT..."
+            className="w-full sm:w-64 px-3 py-2 border border-slate-300 rounded-lg text-sm
+                       focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <p className="text-slate-500 text-sm whitespace-nowrap">{proveedoresFiltrados.length} de {proveedores.length} proveedor(es)</p>
           {puedeVerGastos && (
             <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
               <input type="checkbox" checked={soloConDeuda} onChange={e => setSoloConDeuda(e.target.checked)} />

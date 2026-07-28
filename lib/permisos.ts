@@ -1,21 +1,46 @@
 export type TipoProyecto = 'desarrollo' | 'obra'
 
+// `descripcion` se muestra como tooltip en el árbol de permisos (UsuariosManager)
+// — sin esto, un admin tiene que adivinar el alcance real de cada checkbox
+// (ej. "Caja" y "Cuentas" suenan igual, "Ventas" no deja claro que incluye cuotas).
+// `avisoAgregado`, cuando existe, se muestra siempre (no solo en el tooltip):
+// son los módulos que, aunque se tildan DENTRO de un proyecto puntual, en
+// realidad destraban una vista consolidada de TODA la empresa (ver
+// puedeAcceder() más abajo, rama "vista agregada") — el punto de confusión
+// más reportado por admins que arman el árbol de permisos.
 export const MODULOS = [
-  { key: 'tipologias',  label: 'Tipologías',  seccion: 'Proyecto',  soloTipo: 'desarrollo' },
-  { key: 'amenities',   label: 'Amenities',   seccion: 'Proyecto',  soloTipo: 'desarrollo' },
-  { key: 'unidades',    label: 'Unidades',    seccion: 'Proyecto',  soloTipo: 'desarrollo' },
-  { key: 'reservas',    label: 'Reservas',    seccion: 'Comercial', soloTipo: 'desarrollo' },
-  { key: 'contratos',   label: 'Ventas',      seccion: 'Comercial', soloTipo: 'desarrollo' },
-  { key: 'certificados', label: 'Certificados de avance', seccion: 'Comercial', soloTipo: 'obra' },
-  { key: 'cobros',      label: 'Cobros de obra', seccion: 'Comercial', soloTipo: 'obra' },
-  { key: 'gastos',      label: 'Gastos',      seccion: 'Operaciones' },
-  { key: 'proveedores', label: 'Proveedores', seccion: 'Operaciones' },
-  { key: 'presupuestos', label: 'Presupuestos', seccion: 'Operaciones' },
-  { key: 'inventario',  label: 'Inventario',  seccion: 'Operaciones' },
-  { key: 'personal',    label: 'Personal',    seccion: 'Operaciones' },
-  { key: 'tesoreria',   label: 'Caja',        seccion: 'Finanzas' },
-  { key: 'cuentas',     label: 'Cuentas',     seccion: 'Finanzas' },
-  { key: 'ingresos',    label: 'Ingresos',    seccion: 'Finanzas' },
+  { key: 'tipologias',  label: 'Tipologías',  seccion: 'Proyecto',  soloTipo: 'desarrollo',
+    descripcion: 'Plantas y metrajes disponibles para este desarrollo.' },
+  { key: 'amenities',   label: 'Amenities',   seccion: 'Proyecto',  soloTipo: 'desarrollo',
+    descripcion: 'Espacios comunes del desarrollo (SUM, pileta, cochera, etc.).' },
+  { key: 'unidades',    label: 'Unidades',    seccion: 'Proyecto',  soloTipo: 'desarrollo',
+    descripcion: 'Inventario de unidades a la venta y su estado comercial.' },
+  { key: 'reservas',    label: 'Reservas',    seccion: 'Comercial', soloTipo: 'desarrollo',
+    descripcion: 'Señas y reservas de unidades antes de firmar la venta.' },
+  { key: 'contratos',   label: 'Ventas',      seccion: 'Comercial', soloTipo: 'desarrollo',
+    descripcion: 'Contratos de venta firmados y su plan de cuotas.' },
+  { key: 'certificados', label: 'Certificados de avance', seccion: 'Comercial', soloTipo: 'obra',
+    descripcion: 'Certificación de avance de obra, rubro por rubro.' },
+  { key: 'cobros',      label: 'Cobros de obra', seccion: 'Comercial', soloTipo: 'obra',
+    descripcion: 'Cobros al cliente asociados a los certificados de esta obra.' },
+  { key: 'gastos',      label: 'Gastos',      seccion: 'Operaciones',
+    descripcion: 'Gastos y pagos a proveedores imputados a este proyecto.',
+    avisoAgregado: 'También habilita ver el listado de Gastos de TODA la empresa (no solo este proyecto) en el menú principal.' },
+  { key: 'proveedores', label: 'Proveedores', seccion: 'Operaciones',
+    descripcion: 'Cuenta corriente y datos de contacto de cada proveedor — módulo de toda la empresa, no depende de un proyecto.' },
+  { key: 'presupuestos', label: 'Presupuestos', seccion: 'Operaciones',
+    descripcion: 'Cotizaciones y presupuestos por rubro — módulo de toda la empresa.' },
+  { key: 'inventario',  label: 'Inventario',  seccion: 'Operaciones',
+    descripcion: 'Maquinaria y equipos, su asignación e historial — módulo de toda la empresa.' },
+  { key: 'personal',    label: 'Personal',    seccion: 'Operaciones',
+    descripcion: 'Cuadrillas y personal asignado a cada obra — módulo de toda la empresa.' },
+  { key: 'tesoreria',   label: 'Caja',        seccion: 'Finanzas',
+    descripcion: 'Saldo consolidado de todas las cuentas de la empresa, en cualquier moneda — módulo de toda la empresa.' },
+  { key: 'cuentas',     label: 'Cuentas',     seccion: 'Finanzas',
+    descripcion: 'Alta y edición de cuentas propias (bancos, cajas) de este proyecto.',
+    avisoAgregado: 'También habilita ver el listado de Cuentas de TODA la empresa (no solo este proyecto) en el menú principal.' },
+  { key: 'ingresos',    label: 'Ingresos',    seccion: 'Finanzas',
+    descripcion: 'Registro de ingresos que no provienen de una venta o cobro de obra — módulo de toda la empresa.' },
 ] as const
 
 export type ModuloKey = typeof MODULOS[number]['key']

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
+import { cn, estaVencido, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
 import type { CobroProyecto, CuentaPropia } from '@/types/database'
 
 type FiltroCobro = 'todos' | 'pendiente' | 'cobrado'
@@ -33,6 +33,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [filtro, setFiltro] = useState<FiltroCobro>('todos')
+  const [busqueda, setBusqueda] = useState('')
   const [pagoTarget, setPagoTarget]       = useState<CobroConCertificado | null>(null)
   const [pagoForm, setPagoForm]           = useState(EMPTY_PAGO)
   const [showNuevo, setShowNuevo]         = useState(false)
@@ -49,10 +50,8 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
 
   function refresh() { startTransition(() => router.refresh()) }
 
-  const today = new Date().toISOString().split('T')[0]
-
   function esVencido(c: CobroConCertificado) {
-    return c.estado === 'pendiente' && c.fecha_vencimiento != null && c.fecha_vencimiento < today
+    return estaVencido(c.fecha_vencimiento, c.estado, 'pendiente')
   }
 
   const vencidos   = cobros.filter(c => esVencido(c))
@@ -73,11 +72,18 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
     vencidosCount: vencidos.filter(c => c.moneda === m).length,
   }]))
 
-  const filtrados = filtro === 'pendiente'
+  const porEstado = filtro === 'pendiente'
     ? [...vencidos, ...pendientes]
     : filtro === 'cobrado'
       ? cobrados
       : [...vencidos, ...pendientes, ...cobrados]
+
+  const q = busqueda.trim().toLowerCase()
+  const filtrados = !q ? porEstado : porEstado.filter(c =>
+    (c.notas ?? '').toLowerCase().includes(q) ||
+    String(c.numero ?? '').includes(q) ||
+    (c.certificados_avance?.periodo ?? '').toLowerCase().includes(q)
+  )
 
   // ── Registrar pago ────────────────────────────────────────────
 
@@ -158,22 +164,22 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-white border border-slate-200 rounded-2xl p-5">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Cobrado</p>
-                  <p className="text-2xl font-bold text-emerald-600">{formatCurrency(t.cobrado, m)}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-emerald-600 truncate" title={formatCurrency(t.cobrado, m)}>{formatCurrency(t.cobrado, m)}</p>
                   <p className="text-xs text-slate-400 mt-1">{t.cobradosCount} pago{t.cobradosCount !== 1 ? 's' : ''}</p>
                 </div>
                 <div className="bg-white border border-amber-200 rounded-2xl p-5">
                   <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-1">Pendiente</p>
-                  <p className="text-2xl font-bold text-amber-700">{formatCurrency(t.pendiente, m)}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-amber-700 truncate" title={formatCurrency(t.pendiente, m)}>{formatCurrency(t.pendiente, m)}</p>
                   <p className="text-xs text-amber-500 mt-1">{t.pendientesCount} cobro{t.pendientesCount !== 1 ? 's' : ''}</p>
                 </div>
                 <div className={cn(
-                  'rounded-2xl p-5 border',
+                  'rounded-2xl p-5 border min-w-0',
                   t.vencidosCount > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'
                 )}>
                   <p className={cn('text-xs font-semibold uppercase tracking-wider mb-1', t.vencidosCount > 0 ? 'text-red-600' : 'text-slate-500')}>
                     Vencido
                   </p>
-                  <p className={cn('text-2xl font-bold', t.vencidosCount > 0 ? 'text-red-700' : 'text-slate-400')}>
+                  <p className={cn('text-xl sm:text-2xl font-bold truncate', t.vencidosCount > 0 ? 'text-red-700' : 'text-slate-400')} title={formatCurrency(t.vencido, m)}>
                     {formatCurrency(t.vencido, m)}
                   </p>
                   <p className={cn('text-xs mt-1', t.vencidosCount > 0 ? 'text-red-500' : 'text-slate-400')}>
@@ -187,7 +193,14 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
       </div>
 
       {/* Barra de acciones */}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <input
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+          placeholder="Buscar por nota, N° o período..."
+          className="w-full sm:w-56 px-3 py-1.5 border border-slate-300 rounded-lg text-sm
+                     focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
         <div className="flex items-center gap-2">
           {([
             { key: 'todos', label: 'Todos' },

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { cn, formatCurrency, formatDate, redondear2 } from '@/lib/utils'
+import { cn, estaVencido, formatCurrency, formatDate, redondear2 } from '@/lib/utils'
 import { obtenerOCrearRubro } from '@/lib/rubros'
 import ConfirmModal from './ConfirmModal'
 import ItemsRubroTable, { nuevaFilaItem, type FilaItem } from './ItemsRubroTable'
@@ -23,10 +23,23 @@ interface Props {
   onChanged: () => void
 }
 
-const ESTADO_CERT: Record<EstadoCertificado, { label: string; color: string; next: EstadoCertificado | null; nextLabel: string | null }> = {
-  borrador:   { label: 'Borrador',   color: 'bg-slate-100 text-slate-600',   next: 'presentado', nextLabel: 'Marcar como presentado' },
-  presentado: { label: 'Presentado', color: 'bg-amber-100 text-amber-700',   next: 'aprobado',   nextLabel: 'Marcar como aprobado' },
-  aprobado:   { label: 'Aprobado',   color: 'bg-emerald-100 text-emerald-700', next: null,       nextLabel: null },
+// Tooltip del badge de estado del contrato — antes era un color sin
+// explicación, había que adivinar qué implica cada uno.
+const ESTADO_CONTRATO_INFO: Record<'vigente' | 'terminado' | 'rescindido', string> = {
+  vigente: 'En curso — se puede seguir certificando avance y registrando cobros/pagos.',
+  terminado: 'Finalizado normalmente (100% certificado o cerrado por acuerdo) — de solo lectura.',
+  rescindido: 'Cortado antes de terminar — de solo lectura.',
+}
+
+// `prev` permite deshacer un click erróneo (ej. "Marcar como presentado" sin
+// querer) — retroceder desde 'aprobado' igual queda bloqueado a nivel DB
+// para no-admins (trigger de inmutabilidad, ver migration_015), así que acá
+// no hace falta duplicar ese chequeo de rol: si el trigger lo rechaza, el
+// error ya se muestra (ver retrocederEstado).
+const ESTADO_CERT: Record<EstadoCertificado, { label: string; color: string; next: EstadoCertificado | null; nextLabel: string | null; prev: EstadoCertificado | null; prevLabel: string | null }> = {
+  borrador:   { label: 'Borrador',   color: 'bg-slate-100 text-slate-600',   next: 'presentado', nextLabel: 'Marcar como presentado', prev: null,         prevLabel: null },
+  presentado: { label: 'Presentado', color: 'bg-amber-100 text-amber-700',   next: 'aprobado',   nextLabel: 'Marcar como aprobado',    prev: 'borrador',   prevLabel: 'Volver a borrador' },
+  aprobado:   { label: 'Aprobado',   color: 'bg-emerald-100 text-emerald-700', next: null,       nextLabel: null,                      prev: 'presentado', prevLabel: 'Volver a presentado' },
 }
 
 const EMPTY_CERT = { periodo: '', porcentaje_avance: '', monto_certificado: '', descripcion_avances: '', notas: '' }
@@ -44,6 +57,7 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [estadoError, setEstadoError] = useState<string | null>(null)
 
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showCertForm, setShowCertForm] = useState(false)
@@ -161,11 +175,26 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
   async function avanzarEstado(cert: CertificadoConMov) {
     const next = ESTADO_CERT[cert.estado].next
     if (!next) return
+    setEstadoError(null)
     const supabase = createClient()
     const updates: Record<string, string> = { estado: next }
     if (next === 'presentado') updates.fecha_presentacion = new Date().toISOString().split('T')[0]
     if (next === 'aprobado')   updates.fecha_aprobacion   = new Date().toISOString().split('T')[0]
-    await supabase.from('certificados_avance').update(updates).eq('id', cert.id)
+    const { error: err } = await supabase.from('certificados_avance').update(updates).eq('id', cert.id)
+    if (err) { setEstadoError(err.message); return }
+    refresh()
+  }
+
+  async function retrocederEstado(cert: CertificadoConMov) {
+    const prev = ESTADO_CERT[cert.estado].prev
+    if (!prev) return
+    setEstadoError(null)
+    const supabase = createClient()
+    const updates: Record<string, string | null> = { estado: prev }
+    if (cert.estado === 'presentado') updates.fecha_presentacion = null
+    if (cert.estado === 'aprobado')   updates.fecha_aprobacion   = null
+    const { error: err } = await supabase.from('certificados_avance').update(updates).eq('id', cert.id)
+    if (err) { setEstadoError(err.message); return }
     refresh()
   }
 
@@ -334,15 +363,10 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
 
   // ── Helpers UI ────────────────────────────────────────────────
 
-  const today = new Date().toISOString().split('T')[0]
   const totalCertificado = certificados.reduce((s, c) => s + c.monto_certificado, 0)
   const porcentajeCertificado = contrato.monto_total > 0
     ? Math.min(100, Math.round((totalCertificado / contrato.monto_total) * 100))
     : 0
-
-  function movVencido(fechaVenc: string | null, estado: string, estadoPendiente: string) {
-    return estado === estadoPendiente && !!fechaVenc && fechaVenc < today
-  }
 
   const nombreParte = esCliente ? (contrato.compradores?.nombre_completo ?? 'Cliente') : (contrato.proveedores?.razon_social ?? 'Subcontratista')
 
@@ -357,10 +381,12 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                 esCliente ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700')}>
                 {esCliente ? 'Contrato con el cliente' : 'Subcontratista'}
               </span>
-              <span className={cn('text-xs px-2 py-0.5 rounded font-medium capitalize',
-                contrato.estado === 'vigente' ? 'bg-emerald-100 text-emerald-700' :
-                contrato.estado === 'terminado' ? 'bg-slate-100 text-slate-500' : 'bg-red-100 text-red-700'
-              )}>{contrato.estado}</span>
+              <span
+                title={ESTADO_CONTRATO_INFO[contrato.estado]}
+                className={cn('text-xs px-2 py-0.5 rounded font-medium capitalize',
+                  contrato.estado === 'vigente' ? 'bg-emerald-100 text-emerald-700' :
+                  contrato.estado === 'terminado' ? 'bg-slate-100 text-slate-500' : 'bg-red-100 text-red-700'
+                )}>{contrato.estado}</span>
             </div>
             <p className="text-lg font-bold text-slate-900">{nombreParte}</p>
             <div className="flex items-center gap-3 mt-1 text-sm text-slate-500 flex-wrap">
@@ -440,6 +466,13 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
         </div>
       </div>
 
+      {estadoError && (
+        <div className="mx-5 mt-3 flex items-center justify-between gap-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p className="text-xs text-red-700">{estadoError}</p>
+          <button onClick={() => setEstadoError(null)} className="text-red-400 hover:text-red-600 shrink-0">✕</button>
+        </div>
+      )}
+
       {certificados.length === 0 ? (
         <div className="px-5 py-12 text-center text-slate-400">
           <p className="text-sm">Sin certificados todavía.</p>
@@ -452,8 +485,8 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
             const pagos = cert.pagos ?? []
             const cobradoTotal = cobros.filter(c => c.estado === 'cobrado').reduce((s, c) => s + c.monto, 0)
             const pagadoTotal = pagos.filter(p => p.estado === 'Pagado').reduce((s, p) => s + p.monto, 0)
-            const hayVencidosCobro = cobros.some(c => movVencido(c.fecha_vencimiento, c.estado, 'pendiente'))
-            const hayVencidosPago = pagos.some(p => movVencido(p.fecha_vencimiento, p.estado, 'Pendiente'))
+            const hayVencidosCobro = cobros.some(c => estaVencido(c.fecha_vencimiento, c.estado, 'pendiente'))
+            const hayVencidosPago = pagos.some(p => estaVencido(p.fecha_vencimiento, p.estado, 'Pendiente'))
             const isExpanded = expanded === cert.id
 
             return (
@@ -487,6 +520,13 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                    {!readOnly && estadoInfo.prev && (
+                      <button onClick={() => retrocederEstado(cert)}
+                        title={cert.estado === 'aprobado' ? 'Un certificado aprobado solo lo puede retroceder un administrador' : undefined}
+                        className="text-xs px-2 py-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors">
+                        {estadoInfo.prevLabel}
+                      </button>
+                    )}
                     {!readOnly && estadoInfo.next && (
                       <button onClick={() => avanzarEstado(cert)}
                         className="text-xs px-2.5 py-1.5 border border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
@@ -535,7 +575,7 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                     {esCliente ? (
                       <div className="space-y-2">
                         {cobros.map(cobro => {
-                          const vencido = movVencido(cobro.fecha_vencimiento, cobro.estado, 'pendiente')
+                          const vencido = estaVencido(cobro.fecha_vencimiento, cobro.estado, 'pendiente')
                           return (
                             <div key={cobro.id} className={cn('bg-white border rounded-xl px-4 py-3 flex items-center gap-3', vencido ? 'border-red-200' : 'border-slate-200')}>
                               <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0',
@@ -596,7 +636,7 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                     ) : (
                       <div className="space-y-2">
                         {pagos.map(pago => {
-                          const vencido = movVencido(pago.fecha_vencimiento, pago.estado, 'Pendiente')
+                          const vencido = estaVencido(pago.fecha_vencimiento, pago.estado, 'Pendiente')
                           return (
                             <div key={pago.id} className={cn('bg-white border rounded-xl px-4 py-3 flex items-center gap-3', vencido ? 'border-red-200' : 'border-slate-200')}>
                               <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0',

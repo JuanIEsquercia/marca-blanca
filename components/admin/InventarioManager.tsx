@@ -37,6 +37,7 @@ export default function InventarioManager({ equipos, obras, constructoraId }: Pr
   const [error, setError] = useState<string | null>(null)
 
   const [filtroEstado, setFiltroEstado] = useState<'todos' | EstadoEquipo>('todos')
+  const [busqueda, setBusqueda] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const [showForm, setShowForm] = useState(false)
@@ -47,7 +48,16 @@ export default function InventarioManager({ equipos, obras, constructoraId }: Pr
 
   function refresh() { startTransition(() => router.refresh()) }
 
-  const filtrados = equipos.filter(e => filtroEstado === 'todos' || e.estado === filtroEstado)
+  const q = busqueda.trim().toLowerCase()
+  const filtrados = equipos
+    .filter(e => filtroEstado === 'todos' || e.estado === filtroEstado)
+    .filter(e => !q ||
+      e.nombre.toLowerCase().includes(q) ||
+      (e.tipo ?? '').toLowerCase().includes(q) ||
+      (e.marca ?? '').toLowerCase().includes(q) ||
+      (e.modelo ?? '').toLowerCase().includes(q) ||
+      (e.nro_serie ?? '').toLowerCase().includes(q)
+    )
 
   function asignacionVigente(equipo: Equipo) {
     return (equipo.equipo_asignaciones ?? []).find(a => a.fecha_hasta === null) ?? null
@@ -143,6 +153,13 @@ export default function InventarioManager({ equipos, obras, constructoraId }: Pr
   return (
     <div className="space-y-5">
       <div className="flex flex-col md:flex-row gap-3 justify-between">
+        <input
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+          placeholder="Buscar por nombre, tipo, marca o N° de serie..."
+          className="w-full md:w-64 px-3 py-2 border border-slate-300 rounded-lg text-sm
+                     focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
         <div className="flex rounded-lg border border-slate-300 overflow-x-auto max-w-full text-sm bg-white w-fit no-scrollbar">
           {(['todos', 'disponible', 'asignado', 'mantenimiento', 'baja'] as const).map(e => (
             <button key={e}

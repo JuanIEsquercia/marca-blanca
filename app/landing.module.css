@@ -137,7 +137,111 @@
 }
 .navLink:hover { opacity: 1; color: var(--goldSoft); }
 .navCta { display: none; }
-@media (min-width: 720px) { .navCta { display: inline-flex; } }
+@media (min-width: 860px) { .navCta { display: inline-flex; } }
+
+.navLinkDesktopOnly {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--ivory);
+  opacity: 0.8;
+  text-decoration: none;
+  white-space: nowrap;
+  display: none;
+}
+@media (min-width: 860px) { .navLinkDesktopOnly { display: inline-block; } }
+.navLinkDesktopOnly:hover { opacity: 1; color: var(--goldSoft); }
+
+/* ============ HAMBURGER MENU ============ */
+.hamburger {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 24px;
+  height: 18px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  z-index: 50;
+}
+.hamburgerLine {
+  width: 100%;
+  height: 2px;
+  background-color: var(--ivory);
+  transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
+  border-radius: 2px;
+}
+.hamburgerOpen .hamburgerLine:nth-child(1) {
+  transform: translateY(8px) rotate(45deg);
+}
+.hamburgerOpen .hamburgerLine:nth-child(2) {
+  opacity: 0;
+}
+.hamburgerOpen .hamburgerLine:nth-child(3) {
+  transform: translateY(-8px) rotate(-45deg);
+}
+@media (min-width: 860px) {
+  .hamburger { display: none; }
+}
+
+/* ============ MOBILE DRAWER ============ */
+.navLinksMobile {
+  position: fixed;
+  top: 68px;
+  left: 0;
+  width: 100%;
+  height: calc(100vh - 68px);
+  background: var(--navyDeep);
+  z-index: 45;
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  overflow-y: auto;
+  padding: 2rem clamp(1.25rem, 4vw, 2.5rem);
+  border-top: 1px solid var(--navyLine);
+}
+.navLinksMobileActive {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.navLinksMobileInner {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.navLinkMobileItem {
+  font-family: var(--publicSans);
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--ivory);
+  text-decoration: none;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(232, 232, 234, 0.06);
+  transition: color 0.2s ease, padding-left 0.2s ease;
+}
+.navLinkMobileItem:hover, .navLinkMobileItem:active {
+  color: var(--goldSoft);
+  padding-left: 6px;
+}
+.navLinksMobileDivider {
+  height: 1px;
+  background: var(--navyLine);
+  margin: 0.5rem 0;
+}
+.navMobileCta {
+  margin-top: 0.5rem;
+  justify-content: center;
+  font-size: 1rem;
+  padding: 0.9em 1.5em;
+}
+@media (min-width: 860px) {
+  .navLinksMobile { display: none; }
+}
 
 /* ============ SECTIONS ============ */
 .secPad { padding: clamp(3.5rem, 8vw, 6.5rem) 0; }
@@ -182,7 +286,14 @@
 .hero h1 em { font-style: italic; font-weight: 600; color: var(--goldSoft); }
 .lede { font-size: 1.1rem; max-width: 46ch; color: var(--ivory); opacity: 0.84; margin-bottom: 2.1rem; }
 .heroCtas { display: flex; flex-wrap: wrap; gap: 0.9rem; align-items: center; margin-bottom: 2.6rem; }
+@media (max-width: 600px) {
+  .heroCtas { flex-direction: column; align-items: stretch; width: 100%; gap: 0.75rem; }
+  .heroCtas .btn { justify-content: center; width: 100%; }
+}
 .heroNote { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.03em; color: var(--ivory); opacity: 0.5; }
+@media (max-width: 600px) {
+  .heroNote { text-align: center; display: block; }
+}
 
 .certCard {
   background: var(--navy);
@@ -194,6 +305,10 @@
   min-width: 0;
   margin-inline: auto;
   box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.55);
+  transition: padding 0.2s ease;
+}
+@media (max-width: 480px) {
+  .certCard { padding: 1.25rem 1.1rem; }
 }
 .certCardHead {
   display: flex;
@@ -251,6 +366,44 @@
 .fnSub { font-family: var(--mono); font-size: 0.68rem; color: var(--ivory); opacity: 0.5; letter-spacing: 0.03em; }
 .flowArrow { color: var(--gold); font-family: var(--mono); padding: 0 clamp(0.8rem, 2.4vw, 1.8rem); opacity: 0.8; }
 
+@media (max-width: 768px) {
+  .flowNodes {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.5rem;
+    position: relative;
+    padding-left: 1.6rem;
+  }
+  .flowNodes::before {
+    content: "";
+    position: absolute;
+    top: 0.5rem;
+    bottom: 0.5rem;
+    left: 4px;
+    width: 2px;
+    background: var(--gold);
+    opacity: 0.35;
+  }
+  .flowNode {
+    position: relative;
+    padding-left: 0.5rem;
+  }
+  .flowNode::before {
+    content: "";
+    position: absolute;
+    left: -21px;
+    top: 6px;
+    width: 10px;
+    height: 10px;
+    background: var(--gold);
+    border-radius: 50%;
+    box-shadow: 0 0 0 4px rgba(207, 149, 48, 0.2);
+  }
+  .flowArrow {
+    display: none;
+  }
+}
+
 /* ============ ROLES TREE ============ */
 .rolesWrap { display: grid; grid-template-columns: 1fr; gap: clamp(2.5rem, 5vw, 3.5rem); align-items: start; }
 @media (min-width: 980px) { .rolesWrap { grid-template-columns: 0.95fr 1.05fr; } }
@@ -261,9 +414,47 @@
   color: var(--navyDeep); background: var(--gold);
   padding: 0.55rem 1rem; border-radius: var(--radiusSm); margin-bottom: 1.6rem;
 }
-.treeProjects { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1.1rem; }
+.treeProjects { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1.1rem; position: relative; }
 .treeProject { border: 1px dashed var(--navyLine); border-radius: var(--radiusSm); padding: 1rem 1.05rem 1.15rem; position: relative; }
 .treeProject::before { content: ""; position: absolute; top: -1.1rem; left: 1.4rem; width: 1px; height: 1.1rem; background: var(--navyLine); }
+
+@media (max-width: 600px) {
+  .tree {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.5rem 1.25rem;
+  }
+  .treeAdmin {
+    margin-bottom: 2rem;
+    align-self: center;
+  }
+  .treeProjects {
+    width: 100%;
+    grid-template-columns: 1fr;
+    gap: 1.6rem;
+  }
+  .treeProject {
+    width: 100%;
+  }
+  .treeProject::before {
+    left: 50%;
+    top: -1.6rem;
+    height: 1.6rem;
+    background: var(--navyLine);
+    width: 1px;
+  }
+  .treeProjects::before {
+    content: "";
+    position: absolute;
+    top: -2rem;
+    left: 50%;
+    width: 1px;
+    height: 2rem;
+    background: var(--navyLine);
+    z-index: 1;
+  }
+}
 .tpName { font-family: var(--fraunces); font-weight: 600; font-size: 0.98rem; color: var(--ivory); margin-bottom: 0.15rem; }
 .tpType { font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--goldSoft); opacity: 0.85; display: block; margin-bottom: 0.8rem; }
 .tpModules { display: flex; flex-wrap: wrap; gap: 0.4rem; }

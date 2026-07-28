@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { createClient } from '@/lib/supabase/server'
-import { getConstructoraContext } from '@/lib/tenant'
+import { getAuthUser, getConstructoraContext } from '@/lib/tenant'
 import AdminSidebar from '@/components/admin/AdminSidebar'
 import { MODULOS, puedeAcceder } from '@/lib/permisos'
 import type { ModuloKey } from '@/lib/permisos'
@@ -14,10 +13,11 @@ const MODULO_KEYS = MODULOS.map(m => m.key)
 const SEGMENTO_A_MODULO: Record<string, ModuloKey> = { caja: 'tesoreria' }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  // Autenticación y contexto en paralelo
-  const supabase = await createClient()
-  const [{ data: { user } }, headersList] = await Promise.all([
-    supabase.auth.getUser(),
+  // Autenticación y headers en paralelo — getAuthUser() está cacheado por
+  // request, así que getConstructoraContext() más abajo reusa el mismo user
+  // sin disparar un segundo round-trip a Supabase Auth.
+  const [user, headersList] = await Promise.all([
+    getAuthUser(),
     headers(),
   ])
 
@@ -41,8 +41,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   // Operador: bloquear cualquier proyecto que no esté en su árbol (además del
   // enforcement en getProyectoContext() — esto corta antes de renderizar).
+  // El motivo viaja en la URL para que /admin muestre un aviso — antes esto
+  // devolvía en silencio y era indistinguible de un bug para el operador.
   if (rol !== 'admin' && esRutaDeProyecto && segmentos[3] && !proyectosAsignados.some(p => p.obraId === segmentos[3])) {
-    redirect('/admin')
+    redirect('/admin?motivo=sin-acceso')
   }
 
   // Guard de rutas por módulo — mismo chequeo que usa AdminSidebar para
@@ -55,7 +57,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     const obraIdActual = esRutaDeProyecto ? (segmentos[3] ?? null) : null
 
     if (segmento && MODULO_KEYS.includes(segmento as ModuloKey) && !puedeAcceder(rol, permisosEmpresa, proyectosAsignados, segmento, obraIdActual)) {
-      redirect('/admin')
+      redirect('/admin?motivo=sin-acceso')
     }
   }
 

@@ -1359,10 +1359,17 @@ CREATE INDEX IF NOT EXISTS idx_cuotas_constructora           ON cuotas(construct
 CREATE INDEX IF NOT EXISTS idx_cuotas_pendientes_vencimiento ON cuotas(fecha_vencimiento) WHERE estado_pago = 'Pendiente';
 -- migration_039: faltaba, cascada de contratos_venta la escaneaba entera
 CREATE INDEX IF NOT EXISTS idx_cuotas_contrato                ON cuotas(contrato_id);
+-- migration_051: tesorería/caja filtran estado_pago='Pagado' tan seguido como
+-- 'Pendiente' (arriba), pero solo ese último tenía índice
+CREATE INDEX IF NOT EXISTS idx_cuotas_pagado                 ON cuotas(estado_pago) WHERE estado_pago = 'Pagado';
 
 CREATE INDEX IF NOT EXISTS idx_gastos_constructora           ON gastos(constructora_id);
 -- migration_039: faltaba, purgar_obra_completa() escaneaba la tabla entera
 CREATE INDEX IF NOT EXISTS idx_gastos_obra                   ON gastos(obra_id);
+-- migration_051: tesorería/caja/gastos filtran siempre (constructora_id u
+-- obra_id) + estado juntos, sin índice compuesto que lo cubriera
+CREATE INDEX IF NOT EXISTS idx_gastos_constructora_estado    ON gastos(constructora_id, estado);
+CREATE INDEX IF NOT EXISTS idx_gastos_obra_estado            ON gastos(obra_id, estado) WHERE obra_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_proveedores_constructora      ON proveedores(constructora_id);
 CREATE INDEX IF NOT EXISTS idx_compradores_constructora      ON compradores(constructora_id);
 CREATE INDEX IF NOT EXISTS idx_cuentas_propias_constructora  ON cuentas_propias(constructora_id);

@@ -22,7 +22,12 @@ const ESTADO_COLOR: Record<EstadoObra, string> = {
   finalizada: 'bg-slate-100 text-slate-500',
 }
 
-export default async function AdminHomePage() {
+export default async function AdminHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ motivo?: string }>
+}) {
+  const { motivo } = await searchParams
   const ctx = await getConstructoraContext()
   if (!ctx) {
     return (
@@ -78,6 +83,16 @@ export default async function AdminHomePage() {
 
   return (
     <div>
+      {motivo === 'sin-acceso' && (
+        <div className="mb-6 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <p className="text-sm text-amber-800">
+            No tenés acceso a esa sección. Si creés que deberías tenerlo, pedile a un administrador que revise tus permisos en <strong>Usuarios</strong>.
+          </p>
+        </div>
+      )}
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Proyectos</h1>

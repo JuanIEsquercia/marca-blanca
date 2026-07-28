@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { cn, formatCurrency, formatDate, redondear2, sumarMontos, ESTADO_COLORS } from '@/lib/utils'
+import { cn, estaVencido, formatCurrency, formatDate, redondear2, sumarMontos, ESTADO_COLORS } from '@/lib/utils'
 import SaleForm from './SaleForm'
 import ConfirmModal from './ConfirmModal'
 import type { Unidad, Tipologia, Comprador, Cuota, CuentaPropia } from '@/types/database'
@@ -63,6 +63,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
 
   // Panel cuotas
   const [cuotaPanel, setCuotaPanel] = useState<ContratoRow | null>(null)
+  const [confirmRecalcular, setConfirmRecalcular] = useState(false)
 
   // Modal pago
   const [pagoModal, setPagoModal] = useState<{ cuotaId: string; monto: number } | null>(null)
@@ -75,7 +76,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     const cuotas = c.cuotas ?? []
     const pagadas = cuotas.filter((q) => q.estado_pago === 'Pagado').length
     const vencidas = cuotas.filter(
-      (q) => q.estado_pago === 'Pendiente' && q.fecha_vencimiento < today
+      (q) => estaVencido(q.fecha_vencimiento, q.estado_pago, 'Pendiente')
     ).length
     return { ...c, cuotas, pagadas, vencidas }
   })
@@ -138,6 +139,42 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     setPagoModal(null)
     refreshAndSyncPanel(cuotaPanel.id)
     setCuotaPanel(null)
+  }
+
+  // Redistribuye el saldo pendiente ACTUAL (precio_final - entrega_efectiva
+  // - lo ya cobrado) entre las cuotas que siguen Pendientes, en partes
+  // iguales (misma regla de redondeo que generar_cuotas_contrato: la última
+  // absorbe el resto) — nunca toca una cuota ya Pagada. Antes, editar el
+  // precio de una venta dejaba el plan de cuotas desactualizado sin ninguna
+  // acción en la UI para corregirlo.
+  async function recalcularCuotasPendientes() {
+    if (!cuotaPanel) return
+    const pendientes = cuotasPanel.filter(c => c.estado_pago === 'Pendiente')
+    if (pendientes.length === 0) return
+
+    const pagadoTotal = sumarMontos(
+      cuotasPanel.filter(c => c.estado_pago === 'Pagado').map(c => c.monto_cobrado ?? c.monto_base)
+    )
+    const nuevoSaldo = redondear2(cuotaPanel.precio_final - cuotaPanel.entrega_efectiva - pagadoTotal)
+
+    if (nuevoSaldo < 0) {
+      throw new Error('El precio actual es menor a la entrega + lo ya cobrado — revisá el precio del contrato antes de recalcular.')
+    }
+
+    const supabase = createClient()
+    const montoCuota = redondear2(nuevoSaldo / pendientes.length)
+
+    const resultados = await Promise.all(pendientes.map((c, i) => {
+      const esUltima = i === pendientes.length - 1
+      const monto = esUltima ? redondear2(nuevoSaldo - montoCuota * (pendientes.length - 1)) : montoCuota
+      return supabase.from('cuotas').update({ monto_base: monto }).eq('id', c.id)
+    }))
+
+    const conError = resultados.find(r => r.error)
+    if (conError?.error) throw new Error(conError.error.message)
+
+    setConfirmRecalcular(false)
+    refreshAndSyncPanel(cuotaPanel.id)
   }
 
   function imprimirRecibo(cuota: Cuota) {
@@ -222,7 +259,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
       : 0
 
     const filas = cuotasOrdenadas.map(c => {
-      const esVencida = c.estado_pago === 'Pendiente' && c.fecha_vencimiento < today
+      const esVencida = estaVencido(c.fecha_vencimiento, c.estado_pago, 'Pendiente')
       const estadoLabel = esVencida ? 'Vencida' : c.estado_pago
       const estadoColor = c.estado_pago === 'Pagado' ? '#16a34a' : esVencida ? '#dc2626' : '#ea580c'
       const rowBg = c.estado_pago === 'Pagado' ? '' : esVencida ? '#fff5f5' : ''
@@ -444,7 +481,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     : []
   const cuotasPagadas = cuotasPanel.filter(c => c.estado_pago === 'Pagado').length
   const cuotasPendientes = cuotasPanel.filter(c => c.estado_pago === 'Pendiente').length
-  const cuotasVencidas = cuotasPanel.filter(c => c.estado_pago === 'Pendiente' && c.fecha_vencimiento < today).length
+  const cuotasVencidas = cuotasPanel.filter(c => estaVencido(c.fecha_vencimiento, c.estado_pago, 'Pendiente')).length
 
   return (
     <div>
@@ -490,17 +527,17 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-white border border-slate-200 rounded-xl p-4">
           <p className="text-xs font-medium text-slate-500 mb-1">Ventas registradas</p>
-          <p className="text-2xl font-bold text-slate-900">{rows.length}</p>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate" title={String(rows.length)}>{rows.length}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4">
           <p className="text-xs font-medium text-slate-500 mb-1">Ingresos totales</p>
-          <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalIngresos)}</p>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate" title={formatCurrency(totalIngresos)}>{formatCurrency(totalIngresos)}</p>
         </div>
         <div className={`border rounded-xl p-4 ${totalVencidas > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
           <p className={`text-xs font-medium mb-1 ${totalVencidas > 0 ? 'text-red-600' : 'text-slate-500'}`}>
             Cuotas vencidas sin cobrar
           </p>
-          <p className={`text-2xl font-bold ${totalVencidas > 0 ? 'text-red-700' : 'text-slate-900'}`}>
+          <p className={`text-xl sm:text-2xl font-bold ${totalVencidas > 0 ? 'text-red-700' : 'text-slate-900'} truncate`} title={String(totalVencidas)}>
             {totalVencidas}
           </p>
         </div>
@@ -639,6 +676,20 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                 </p>
               </div>
               <div className="flex items-center gap-2 ml-4 shrink-0">
+                {!readOnly && cuotasPendientes > 0 && (
+                  <button
+                    onClick={() => setConfirmRecalcular(true)}
+                    title="Redistribuye el saldo pendiente actual (precio - entrega - lo ya cobrado) entre las cuotas que siguen pendientes. Las cuotas ya pagadas no se tocan."
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600
+                               border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Recalcular cuotas pendientes
+                  </button>
+                )}
                 <button
                   onClick={imprimirEstadoCuenta}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600
@@ -701,7 +752,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {cuotasPanel.map(cuota => {
-                        const esVencida = cuota.estado_pago === 'Pendiente' && cuota.fecha_vencimiento < today
+                        const esVencida = estaVencido(cuota.fecha_vencimiento, cuota.estado_pago, 'Pendiente')
                         return (
                           <tr key={cuota.id}
                             className={cn('hover:bg-slate-50 transition-colors', esVencida && 'bg-red-50/40')}>
@@ -920,7 +971,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                 />
               </div>
               <p className="text-[11px] text-slate-400">
-                Los cambios de precio no actualizan retroactivamente el plan de cuotas existente.
+                Los cambios de precio no actualizan solos el plan de cuotas — después de guardar, usá &quot;Recalcular cuotas pendientes&quot; en el panel de cuotas de este contrato si hace falta.
               </p>
               {editError && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
@@ -966,6 +1017,18 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
           confirmLabel="Eliminar venta"
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {/* Confirmar recalcular cuotas pendientes */}
+      {confirmRecalcular && cuotaPanel && (
+        <ConfirmModal
+          title="Recalcular cuotas pendientes"
+          message="Se va a redistribuir el saldo pendiente actual (precio del contrato menos entrega y lo ya cobrado) en partes iguales entre las cuotas que todavía están Pendientes. Las cuotas ya Pagadas no se modifican."
+          confirmLabel="Recalcular"
+          danger={false}
+          onConfirm={recalcularCuotasPendientes}
+          onCancel={() => setConfirmRecalcular(false)}
         />
       )}
     </div>

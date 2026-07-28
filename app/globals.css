@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-sans: var(--font-inter), var(--font-jakarta), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), monospace;
 }
 
 :root {
@@ -28,7 +28,7 @@ body {
 
 /* Premium Geometric Titles and Headers globally */
 h1, h2, h3, h4, h5, h6 {
-  font-family: "Plus Jakarta Sans", var(--font-sans);
+  font-family: var(--font-jakarta), var(--font-sans);
   letter-spacing: -0.02em;
 }
 

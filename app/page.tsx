@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import DiamondMark from '@/components/landing/DiamondMark'
 import ScrollReveal from '@/components/landing/ScrollReveal'
+import Navigation from '@/components/landing/Navigation'
 import styles from './landing.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -40,22 +41,7 @@ export default async function RootPage() {
 
   return (
     <div className={`${styles.page} ${fraunces.variable} ${publicSans.variable}`}>
-      <header className={styles.siteNav}>
-        <div className={`${styles.wrap} ${styles.navRow}`}>
-          <a className={styles.brand} href="#top" aria-label="Inicio">
-            <DiamondMark />
-            <span>Obra</span>
-          </a>
-          <nav className={styles.navLinks}>
-            <div className={styles.navLinksInline}>
-              <a className={styles.navLink} href="#como-funciona">Cómo funciona</a>
-              <a className={styles.navLink} href="#roles">Roles y permisos</a>
-              <a className={styles.navLink} href="#excel">Por qué dejar el Excel</a>
-            </div>
-            <a className={`${styles.btn} ${styles.btnGold} ${styles.navCta}`} href="https://wa.me/5493794267780?text=Hola%2C%20quiero%20pedir%20una%20demo%20del%20sistema" target="_blank" rel="noopener noreferrer">Pedir una demo</a>
-          </nav>
-        </div>
-      </header>
+      <Navigation />
 
       <main id="top">
         {/* ============ HERO ============ */}

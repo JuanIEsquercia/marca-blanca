@@ -38,7 +38,7 @@ export default function Navigation({ loggedIn = false }: { loggedIn?: boolean })
             <a className={styles.navLink} href="#roles">Roles y permisos</a>
             <a className={styles.navLink} href="#excel">Por qué dejar el Excel</a>
           </div>
-          <Link className={styles.navLinkDesktopOnly} href={loggedIn ? '/admin' : '/auth/login'}>
+          <Link className={`${styles.btn} ${styles.btnGhostDark} ${styles.navLoginDesktop}`} href={loggedIn ? '/admin' : '/auth/login'}>
             {loggedIn ? 'Ir al panel' : 'Iniciar sesión'}
           </Link>
           <a className={`${styles.btn} ${styles.btnGold} ${styles.navCta}`} href="https://wa.me/5493794267780?text=Hola%2C%20quiero%20pedir%20una%20demo%20del%20sistema" target="_blank" rel="noopener noreferrer">
@@ -72,9 +72,6 @@ export default function Navigation({ loggedIn = false }: { loggedIn?: boolean })
             Por qué dejar el Excel
           </a>
           <div className={styles.navLinksMobileDivider} />
-          <Link className={styles.navLinkMobileItem} href={loggedIn ? '/admin' : '/auth/login'} onClick={closeMenu}>
-            {loggedIn ? 'Ir al panel' : 'Iniciar sesión'}
-          </Link>
           <a
             className={`${styles.btn} ${styles.btnGold} ${styles.navMobileCta}`}
             href="https://wa.me/5493794267780?text=Hola%2C%20quiero%20pedir%20una%20demo%20del%20sistema"
@@ -84,6 +81,9 @@ export default function Navigation({ loggedIn = false }: { loggedIn?: boolean })
           >
             Pedir una demo
           </a>
+          <Link className={`${styles.btn} ${styles.btnGhostDark} ${styles.navMobileLogin}`} href={loggedIn ? '/admin' : '/auth/login'} onClick={closeMenu}>
+            {loggedIn ? 'Ir al panel' : 'Iniciar sesión'}
+          </Link>
         </div>
       </div>
     </header>

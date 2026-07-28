@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation'
 import { Fraunces, Public_Sans } from 'next/font/google'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
@@ -35,13 +34,14 @@ const publicSans = Public_Sans({
 export default async function RootPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  // Con sesión activa vamos directo al panel — /admin/layout.tsx ya
-  // resuelve de ahí si es superadmin. Sin sesión, esta SÍ es la home pública.
-  if (user) redirect('/admin')
-
+  // La landing es siempre pública, con sesión o sin ella — antes redirigía
+  // directo a /admin, así que un usuario logueado no tenía forma de
+  // mostrarle la página a alguien más (compartir el link lo mandaba
+  // directo al panel). El nav se adapta solo: "Ir al panel" en vez de
+  // "Iniciar sesión" cuando hay sesión activa.
   return (
     <div className={`${styles.page} ${fraunces.variable} ${publicSans.variable}`}>
-      <Navigation />
+      <Navigation loggedIn={!!user} />
 
       <main id="top">
         {/* ============ HERO ============ */}

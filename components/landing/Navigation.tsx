@@ -5,7 +5,7 @@ import Link from 'next/link'
 import DiamondMark from './DiamondMark'
 import styles from '@/app/landing.module.css'
 
-export default function Navigation() {
+export default function Navigation({ loggedIn = false }: { loggedIn?: boolean }) {
   const [isOpen, setIsOpen] = useState(false)
 
   // Deshabilitar scroll del body cuando el menú móvil esté abierto
@@ -38,7 +38,9 @@ export default function Navigation() {
             <a className={styles.navLink} href="#roles">Roles y permisos</a>
             <a className={styles.navLink} href="#excel">Por qué dejar el Excel</a>
           </div>
-          <Link className={styles.navLinkDesktopOnly} href="/auth/login">Iniciar sesión</Link>
+          <Link className={styles.navLinkDesktopOnly} href={loggedIn ? '/admin' : '/auth/login'}>
+            {loggedIn ? 'Ir al panel' : 'Iniciar sesión'}
+          </Link>
           <a className={`${styles.btn} ${styles.btnGold} ${styles.navCta}`} href="https://wa.me/5493794267780?text=Hola%2C%20quiero%20pedir%20una%20demo%20del%20sistema" target="_blank" rel="noopener noreferrer">
             Pedir una demo
           </a>
@@ -70,8 +72,8 @@ export default function Navigation() {
             Por qué dejar el Excel
           </a>
           <div className={styles.navLinksMobileDivider} />
-          <Link className={styles.navLinkMobileItem} href="/auth/login" onClick={closeMenu}>
-            Iniciar sesión
+          <Link className={styles.navLinkMobileItem} href={loggedIn ? '/admin' : '/auth/login'} onClick={closeMenu}>
+            {loggedIn ? 'Ir al panel' : 'Iniciar sesión'}
           </Link>
           <a
             className={`${styles.btn} ${styles.btnGold} ${styles.navMobileCta}`}

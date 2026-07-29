@@ -1,0 +1,1186 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import type { Producto, EstadoOrdenCompra } from '@/types/database'
+import ConfirmModal from './ConfirmModal'
+
+type ItemRow = {
+  id: string
+  producto_id: string
+  cantidad_solicitada: number
+  unidad_medida: string | null
+  notas: string | null
+  productos: { id: string; nombre: string; unidad_medida: string } | null
+  orden_compra_recepcion_items: { cantidad_recibida: number }[]
+}
+
+type RecepcionItemRow = {
+  id: string
+  cantidad_recibida: number
+  precio_unitario: number
+  subtotal: number
+  orden_compra_items: { producto_id: string; productos: { nombre: string; unidad_medida: string } | null } | null
+}
+
+type RecepcionRow = {
+  id: string
+  proveedor_id: string
+  gasto_id: string | null
+  fecha: string
+  moneda: string
+  notas: string | null
+  proveedores: { razon_social: string } | null
+  orden_compra_recepcion_items: RecepcionItemRow[]
+}
+
+type OrdenRow = {
+  id: string
+  numero: number
+  obra_id: string | null
+  estado: EstadoOrdenCompra
+  fecha_emision: string
+  notas: string | null
+  obras: { nombre: string } | null
+  orden_compra_items: ItemRow[]
+  orden_compra_recepciones: RecepcionRow[]
+}
+
+interface ProductoConCategoria extends Producto {
+  categorias_costo: { nombre: string; color: string } | null
+}
+
+interface StockResumenRow {
+  producto_id: string
+  obra_id: string | null
+  cantidad: number
+}
+
+interface Props {
+  ordenes: OrdenRow[]
+  productos: ProductoConCategoria[]
+  proveedores: { id: string; razon_social: string }[]
+  obras: { id: string; nombre: string; tipo: string }[]
+  categorias: { id: string; nombre: string; color: string }[]
+  stockResumen: StockResumenRow[]
+  constructoraId: string
+  constructoraNombre: string
+}
+
+type ConfirmState = { title: string; message: string; confirmLabel?: string; onConfirm: () => Promise<void> }
+
+const ESTADO_ORDEN_INFO: Record<EstadoOrdenCompra, { label: string; color: string }> = {
+  borrador: { label: 'Borrador', color: 'bg-slate-100 text-slate-600' },
+  confirmada: { label: 'Confirmada', color: 'bg-indigo-100 text-indigo-700' },
+  cancelada: { label: 'Cancelada', color: 'bg-red-100 text-red-600' },
+}
+
+// "Cuánto se recibió" y el estado de cumplimiento son SIEMPRE derivados de
+// las recepciones — nunca una columna guardada, mismo criterio que
+// estaVencido() en lib/utils.ts (ver migration_052.sql).
+function cantidadRecibida(item: ItemRow): number {
+  return (item.orden_compra_recepcion_items ?? []).reduce((s, r) => s + r.cantidad_recibida, 0)
+}
+
+function estadoCumplimiento(items: ItemRow[]): { label: string; color: string } {
+  if (items.length === 0) return { label: 'Sin ítems', color: 'bg-slate-100 text-slate-400' }
+  const recibidos = items.map(cantidadRecibida)
+  const completos = items.every((it, idx) => recibidos[idx] >= it.cantidad_solicitada)
+  const algoRecibido = recibidos.some(r => r > 0)
+  if (completos) return { label: 'Completa', color: 'bg-emerald-100 text-emerald-700' }
+  if (algoRecibido) return { label: 'Parcial', color: 'bg-amber-100 text-amber-700' }
+  return { label: 'Sin recibir', color: 'bg-slate-100 text-slate-500' }
+}
+
+const EMPTY_ITEM_FORM = { producto_id: '', cantidad_solicitada: '', notas: '', creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad' }
+const EMPTY_ORDEN_FORM = { obra_id: '', fecha_emision: new Date().toISOString().split('T')[0], notas: '' }
+const EMPTY_PRODUCTO_FORM = { nombre: '', unidad_medida: 'unidad', categoria_id: '' }
+
+export default function ComprasManager({ ordenes, productos, proveedores, obras, categorias, stockResumen, constructoraId, constructoraNombre }: Props) {
+  const router = useRouter()
+  const [, startTransition] = useTransition()
+  const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
+
+  const [tab, setTab] = useState<'ordenes' | 'stock'>('ordenes')
+
+  const [busqueda, setBusqueda] = useState('')
+  const [filtroEstado, setFiltroEstado] = useState<'todos' | EstadoOrdenCompra>('todos')
+  const [detalleOrden, setDetalleOrden] = useState<OrdenRow | null>(null)
+
+  // Nueva orden
+  const [showForm, setShowForm] = useState(false)
+  const [ordenForm, setOrdenForm] = useState(EMPTY_ORDEN_FORM)
+  const [itemsForm, setItemsForm] = useState([{ ...EMPTY_ITEM_FORM }])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Productos creados "al vuelo" desde el selector de un ítem — se
+  // acumulan acá para no depender de un refresh del servidor en medio de
+  // cargar una orden con varios ítems nuevos (se pisan solos con la lista
+  // real de `productos` en cuanto el próximo refresh los trae).
+  const [productosNuevos, setProductosNuevos] = useState<ProductoConCategoria[]>([])
+  const [creandoProductoLoading, setCreandoProductoLoading] = useState(false)
+  const [creandoProductoError, setCreandoProductoError] = useState<string | null>(null)
+
+  // Administrar productos
+  const [showProductos, setShowProductos] = useState(false)
+  const [productoForm, setProductoForm] = useState(EMPTY_PRODUCTO_FORM)
+  const [productoLoading, setProductoLoading] = useState(false)
+  const [productoError, setProductoError] = useState<string | null>(null)
+
+  // Nueva recepción (cumplimiento parcial contra una orden)
+  const [recepcionOrden, setRecepcionOrden] = useState<OrdenRow | null>(null)
+  const [recepcionForm, setRecepcionForm] = useState({ proveedor_id: '', fecha: new Date().toISOString().split('T')[0], moneda: 'ARS', notas: '' })
+  const [recepcionItems, setRecepcionItems] = useState<Record<string, { cantidad: string; precio: string }>>({})
+  const [recepcionLoading, setRecepcionLoading] = useState(false)
+  const [recepcionError, setRecepcionError] = useState<string | null>(null)
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null)
+
+  // Reparto de stock
+  const [showReparto, setShowReparto] = useState(false)
+  const [repartoForm, setRepartoForm] = useState({ producto_id: '', obra_origen: '', obra_destino: '', cantidad: '' })
+  const [repartoLoading, setRepartoLoading] = useState(false)
+  const [repartoError, setRepartoError] = useState<string | null>(null)
+
+  function refresh() { startTransition(() => router.refresh()) }
+
+  // Superset de `productos` — incluye los creados al vuelo en esta sesión
+  // que todavía no volvieron por props tras un refresh.
+  const productosDisponibles = [...productos, ...productosNuevos.filter(pn => !productos.some(p => p.id === pn.id))]
+
+  const ordenesFiltradas = ordenes
+    .filter(o => filtroEstado === 'todos' || o.estado === filtroEstado)
+    .filter(o => {
+      const q = busqueda.trim().toLowerCase()
+      if (!q) return true
+      return String(o.numero).includes(q) ||
+        (o.obras?.nombre ?? 'empresa').toLowerCase().includes(q) ||
+        (o.notas ?? '').toLowerCase().includes(q)
+    })
+
+  // Sincroniza el panel de detalle con datos frescos tras un refresh
+  const detalleActual = detalleOrden ? ordenes.find(o => o.id === detalleOrden.id) ?? null : null
+
+  function openNew() {
+    setOrdenForm(EMPTY_ORDEN_FORM)
+    setItemsForm([{ ...EMPTY_ITEM_FORM }])
+    setError(null)
+    setCreandoProductoError(null)
+    setShowForm(true)
+  }
+
+  function actualizarItem(idx: number, campo: keyof typeof EMPTY_ITEM_FORM, valor: string) {
+    setItemsForm(items => items.map((it, i) => i === idx ? { ...it, [campo]: valor } : it))
+  }
+  function agregarItem() {
+    setItemsForm(items => [...items, { ...EMPTY_ITEM_FORM }])
+  }
+  function quitarItem(idx: number) {
+    setItemsForm(items => items.length > 1 ? items.filter((_, i) => i !== idx) : items)
+  }
+
+  // "+ Agregar producto nuevo" en el selector de un ítem: en vez de tener
+  // que cerrar la orden e ir al modal de Productos, la fila se convierte
+  // en un mini-form (nombre + unidad) sin perder lo ya cargado en el resto
+  // de la orden.
+  function elegirProducto(idx: number, valor: string) {
+    if (valor === '__nuevo__') {
+      setItemsForm(items => items.map((it, i) => i === idx ? { ...it, creandoNuevo: true, producto_id: '' } : it))
+    } else {
+      setItemsForm(items => items.map((it, i) => i === idx ? { ...it, producto_id: valor } : it))
+    }
+  }
+
+  function cancelarNuevoProducto(idx: number) {
+    setItemsForm(items => items.map((it, i) => i === idx ? { ...it, creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad' } : it))
+  }
+
+  async function crearProductoEnFila(idx: number) {
+    const item = itemsForm[idx]
+    if (!item.nuevoNombre.trim()) return
+    setCreandoProductoLoading(true)
+    setCreandoProductoError(null)
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .rpc('obtener_o_crear_producto', {
+        p_constructora_id: constructoraId,
+        p_nombre: item.nuevoNombre.trim(),
+        p_unidad_medida: item.nuevoUnidad.trim() || 'unidad',
+      })
+      .single() as { data: { id: string; nombre: string; unidad_medida: string } | null; error: { message: string } | null }
+    setCreandoProductoLoading(false)
+    if (error || !data) {
+      setCreandoProductoError(error?.message ?? 'Error al crear el producto')
+      return
+    }
+
+    setProductosNuevos(prev => [...prev, {
+      id: data.id, nombre: data.nombre, unidad_medida: data.unidad_medida,
+      constructora_id: constructoraId, nombre_normalizado: '', categoria_id: null,
+      activo: true, notas: null, created_at: new Date().toISOString(), categorias_costo: null,
+    }])
+    setItemsForm(items => items.map((it, i) => i === idx
+      ? { ...it, producto_id: data.id, creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad' }
+      : it))
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+
+    const itemsValidos = itemsForm.filter(it => it.producto_id && parseFloat(it.cantidad_solicitada) > 0)
+    if (itemsValidos.length === 0) {
+      setError('Agregá al menos un ítem con producto y cantidad.')
+      return
+    }
+
+    setLoading(true)
+    const supabase = createClient()
+
+    const { data: orden, error: errOrden } = await supabase
+      .from('ordenes_compra')
+      .insert({
+        constructora_id: constructoraId,
+        obra_id: ordenForm.obra_id || null,
+        fecha_emision: ordenForm.fecha_emision,
+        notas: ordenForm.notas.trim() || null,
+      })
+      .select('id')
+      .single()
+
+    if (errOrden || !orden) {
+      setLoading(false)
+      setError(errOrden?.message ?? 'Error al crear la orden')
+      return
+    }
+
+    const productoDe = (id: string) => productosDisponibles.find(p => p.id === id)
+    const { error: errItems } = await supabase.from('orden_compra_items').insert(
+      itemsValidos.map(it => ({
+        orden_compra_id: orden.id,
+        producto_id: it.producto_id,
+        cantidad_solicitada: parseFloat(it.cantidad_solicitada),
+        unidad_medida: productoDe(it.producto_id)?.unidad_medida ?? null,
+        notas: it.notas.trim() || null,
+      }))
+    )
+
+    setLoading(false)
+    if (errItems) { setError(errItems.message); return }
+
+    setShowForm(false)
+    refresh()
+  }
+
+  function handleCancelar(orden: OrdenRow) {
+    setConfirmModal({
+      title: 'Cancelar orden de compra',
+      message: `¿Cancelar la orden OC-${orden.numero}? Ya no se van a poder registrar más recepciones contra ella.`,
+      confirmLabel: 'Cancelar orden',
+      onConfirm: async () => {
+        const supabase = createClient()
+        const { error } = await supabase.from('ordenes_compra').update({ estado: 'cancelada' }).eq('id', orden.id)
+        if (error) throw new Error(error.message)
+        setConfirmModal(null)
+        setDetalleOrden(null)
+        refresh()
+      },
+    })
+  }
+
+  function handleDelete(orden: OrdenRow) {
+    const tieneRecepciones = (orden.orden_compra_recepciones ?? []).length > 0
+    setConfirmModal({
+      title: 'Eliminar orden de compra',
+      message: tieneRecepciones
+        ? `¿Eliminar la orden OC-${orden.numero}? Esta acción no se puede deshacer. Los gastos y el stock ya generados por sus recepciones NO se eliminan (quedan como registros sueltos) — solo se borra la orden y su seguimiento.`
+        : `¿Eliminar la orden OC-${orden.numero}? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        const supabase = createClient()
+        const { error } = await supabase.from('ordenes_compra').delete().eq('id', orden.id)
+        if (error) throw new Error(error.message)
+        setConfirmModal(null)
+        setDetalleOrden(null)
+        refresh()
+      },
+    })
+  }
+
+  // Borra TODO el historial de movimientos de un producto en una ubicación
+  // (pool o una obra) — pensado para limpiar stock de prueba mientras se
+  // testea el módulo. Distinto de "Repartir stock": un excedente real (p.ej.
+  // bolsas de cemento que sobraron en una obra) hay que devolverlo al pool
+  // con "Repartir" (queda registrado como movimiento), no borrarlo — borrar
+  // es solo para descartar datos que nunca debieron existir.
+  function handleDeleteStock(row: StockResumenRow) {
+    const nombre = productos.find(p => p.id === row.producto_id)?.nombre ?? 'este producto'
+    const ubicacion = nombreUbicacion(row.obra_id)
+    setConfirmModal({
+      title: 'Eliminar stock',
+      message: `¿Eliminar todo el historial de "${nombre}" en ${ubicacion}? Se borran los movimientos de entrada/salida de esa combinación — pensado para limpiar datos de prueba. Si es un excedente real, mejor devolvelo al pool con "Repartir stock" en vez de borrarlo.`,
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        const supabase = createClient()
+        let query = supabase.from('stock_movimientos').delete().eq('producto_id', row.producto_id)
+        query = row.obra_id ? query.eq('obra_id', row.obra_id) : query.is('obra_id', null)
+        const { error } = await query
+        if (error) throw new Error(error.message)
+        setConfirmModal(null)
+        refresh()
+      },
+    })
+  }
+
+  // Documento para enviar a proveedores y que coticen — muestra qué se pide
+  // y en qué cantidad, sin precio (el precio lo completa el proveedor al
+  // cotizar; recién se carga acá al registrar la recepción). Mismo patrón
+  // que imprimirRecibo/imprimirEstadoCuenta en ContratosManager.tsx: HTML
+  // standalone en una ventana nueva, sin depender de un endpoint de PDF.
+  function imprimirOrden(orden: OrdenRow) {
+    const fmtDate = (s: string) =>
+      new Date(s).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
+    const filas = (orden.orden_compra_items ?? []).map(item => {
+      const unidad = item.unidad_medida ?? item.productos?.unidad_medida ?? ''
+      return `<tr>
+        <td style="padding:10px;border-bottom:1px solid #e2e8f0;">${item.productos?.nombre ?? '—'}</td>
+        <td style="padding:10px;border-bottom:1px solid #e2e8f0;text-align:center;">${item.cantidad_solicitada} ${unidad}</td>
+        <td style="padding:10px;border-bottom:1px solid #e2e8f0;color:#94a3b8;">${item.notas ?? ''}</td>
+        <td style="padding:10px;border-bottom:1px solid #e2e8f0;"></td>
+        <td style="padding:10px;border-bottom:1px solid #e2e8f0;"></td>
+      </tr>`
+    }).join('')
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Orden de Compra OC-${orden.numero}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; color: #1e293b; padding: 48px; max-width: 800px; margin: auto; }
+    h1 { font-size: 22px; font-weight: bold; margin-bottom: 4px; }
+    .subtitle { color: #64748b; font-size: 13px; margin-bottom: 32px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th { text-align: left; font-size: 11px; text-transform: uppercase; color: #64748b; padding: 8px 10px; border-bottom: 2px solid #cbd5e1; }
+    td { font-size: 13px; }
+    .notas { margin-top: 24px; font-size: 13px; color: #475569; }
+    .footer { margin-top: 56px; display: flex; justify-content: space-between; font-size: 12px; color: #64748b; }
+    .firma { border-top: 1px solid #94a3b8; width: 220px; padding-top: 6px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>${constructoraNombre}</h1>
+  <p class="subtitle">Orden de Compra Nº ${orden.numero} · ${orden.obras?.nombre ?? 'Compra para stock de empresa'} · Emitida ${fmtDate(orden.fecha_emision)}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Producto</th>
+        <th style="text-align:center;">Cantidad</th>
+        <th>Notas</th>
+        <th>Precio unitario</th>
+        <th>Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>${filas}</tbody>
+  </table>
+  ${orden.notas ? `<p class="notas"><strong>Notas:</strong> ${orden.notas}</p>` : ''}
+  <div class="footer">
+    <div class="firma">Cotizado por</div>
+    <div class="firma">Fecha</div>
+  </div>
+</body>
+</html>`
+    const w = window.open('', '_blank', 'width=800,height=1000')
+    if (!w) return
+    w.document.write(html)
+    w.document.close()
+    setTimeout(() => { w.print() }, 300)
+  }
+
+  async function handleCreateProducto(e: React.FormEvent) {
+    e.preventDefault()
+    if (!productoForm.nombre.trim()) return
+    setProductoLoading(true)
+    setProductoError(null)
+    const supabase = createClient()
+    // Vía RPC (no insert directo): así el nombre queda normalizado/deduplicado
+    // igual que rubros (lib/rubros.ts) — "Cemento" y "cemento" no terminan
+    // siendo dos productos distintos.
+    const { error } = await supabase.rpc('obtener_o_crear_producto', {
+      p_constructora_id: constructoraId,
+      p_nombre: productoForm.nombre.trim(),
+      p_unidad_medida: productoForm.unidad_medida.trim() || 'unidad',
+      p_categoria_id: productoForm.categoria_id || null,
+    })
+    setProductoLoading(false)
+    if (error) { setProductoError(error.message); return }
+    setProductoForm(EMPTY_PRODUCTO_FORM)
+    refresh()
+  }
+
+  async function handleToggleProducto(producto: ProductoConCategoria) {
+    const supabase = createClient()
+    await supabase.from('productos').update({ activo: !producto.activo }).eq('id', producto.id)
+    refresh()
+  }
+
+  function openRecepcion(orden: OrdenRow) {
+    setRecepcionOrden(orden)
+    setRecepcionForm({ proveedor_id: '', fecha: new Date().toISOString().split('T')[0], moneda: 'ARS', notas: '' })
+    setRecepcionItems({})
+    setRecepcionError(null)
+  }
+
+  function actualizarRecepcionItem(itemId: string, campo: 'cantidad' | 'precio', valor: string) {
+    setRecepcionItems(items => ({ ...items, [itemId]: { cantidad: items[itemId]?.cantidad ?? '', precio: items[itemId]?.precio ?? '', [campo]: valor } }))
+  }
+
+  async function handleSubmitRecepcion(e: React.FormEvent) {
+    e.preventDefault()
+    if (!recepcionOrden) return
+    setRecepcionError(null)
+
+    const itemsValidos = Object.entries(recepcionItems)
+      .filter(([, v]) => parseFloat(v.cantidad) > 0 && parseFloat(v.precio) >= 0)
+      .map(([itemId, v]) => ({ itemId, cantidad: parseFloat(v.cantidad), precio: parseFloat(v.precio) }))
+
+    if (!recepcionForm.proveedor_id) {
+      setRecepcionError('Elegí un proveedor.')
+      return
+    }
+    if (itemsValidos.length === 0) {
+      setRecepcionError('Cargá la cantidad y el precio de al menos un ítem recibido.')
+      return
+    }
+
+    setRecepcionLoading(true)
+    const supabase = createClient()
+
+    const { data: recepcion, error: errRecepcion } = await supabase
+      .from('orden_compra_recepciones')
+      .insert({
+        orden_compra_id: recepcionOrden.id,
+        proveedor_id: recepcionForm.proveedor_id,
+        fecha: recepcionForm.fecha,
+        moneda: recepcionForm.moneda,
+        notas: recepcionForm.notas.trim() || null,
+      })
+      .select('id')
+      .single()
+
+    if (errRecepcion || !recepcion) {
+      setRecepcionLoading(false)
+      setRecepcionError(errRecepcion?.message ?? 'Error al registrar la recepción')
+      return
+    }
+
+    const { error: errItems } = await supabase.from('orden_compra_recepcion_items').insert(
+      itemsValidos.map(it => ({
+        recepcion_id: recepcion.id,
+        orden_compra_item_id: it.itemId,
+        cantidad_recibida: it.cantidad,
+        precio_unitario: it.precio,
+      }))
+    )
+
+    setRecepcionLoading(false)
+    if (errItems) { setRecepcionError(errItems.message); return }
+
+    setRecepcionOrden(null)
+    refresh()
+  }
+
+  async function handleConfirmarRecepcion(recepcionId: string) {
+    setConfirmandoId(recepcionId)
+    const supabase = createClient()
+    const { error } = await supabase.rpc('confirmar_recepcion_compra', { p_recepcion_id: recepcionId })
+    setConfirmandoId(null)
+    if (error) {
+      setConfirmModal({
+        title: 'No se pudo confirmar',
+        message: error.message,
+        confirmLabel: 'Entendido',
+        onConfirm: async () => setConfirmModal(null),
+      })
+      return
+    }
+    refresh()
+  }
+
+  // "Cuánto hay" ya viene agregado desde resumen_stock (Postgres) — acá
+  // solo se arma un lookup rápido para no recorrer el array entero por
+  // cada celda. obra_id null = pool de empresa.
+  const stockPorClave = new Map(stockResumen.map(r => [`${r.producto_id}:${r.obra_id ?? 'pool'}`, r.cantidad]))
+  function stockDe(productoId: string, obraId: string | null): number {
+    return stockPorClave.get(`${productoId}:${obraId ?? 'pool'}`) ?? 0
+  }
+  function nombreUbicacion(obraId: string | null): string {
+    if (!obraId) return 'Empresa (pool)'
+    return obras.find(o => o.id === obraId)?.nombre ?? 'Proyecto eliminado'
+  }
+
+  const productosConStock = productos.filter(p => stockResumen.some(r => r.producto_id === p.id))
+
+  function openReparto() {
+    setRepartoForm({ producto_id: '', obra_origen: '', obra_destino: '', cantidad: '' })
+    setRepartoError(null)
+    setShowReparto(true)
+  }
+
+  async function handleSubmitReparto(e: React.FormEvent) {
+    e.preventDefault()
+    setRepartoError(null)
+
+    const cantidad = parseFloat(repartoForm.cantidad)
+    if (!repartoForm.producto_id) { setRepartoError('Elegí un producto.'); return }
+    if (!cantidad || cantidad <= 0) { setRepartoError('La cantidad tiene que ser mayor a cero.'); return }
+    if (repartoForm.obra_origen === repartoForm.obra_destino) { setRepartoError('El origen y el destino no pueden ser el mismo.'); return }
+
+    setRepartoLoading(true)
+    const supabase = createClient()
+    const { error } = await supabase.rpc('repartir_stock', {
+      p_producto_id: repartoForm.producto_id,
+      p_obra_origen: repartoForm.obra_origen || null,
+      p_obra_destino: repartoForm.obra_destino || null,
+      p_cantidad: cantidad,
+    })
+    setRepartoLoading(false)
+    if (error) { setRepartoError(error.message); return }
+
+    setShowReparto(false)
+    refresh()
+  }
+
+  return (
+    <div>
+      <div className="flex rounded-lg border border-slate-300 overflow-x-auto max-w-full text-sm bg-white no-scrollbar w-fit mb-5">
+        {([['ordenes', 'Órdenes'], ['stock', 'Stock']] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={cn('px-4 py-2 transition-colors', tab === key ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50')}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'stock' ? (
+        <div>
+          <div className="flex justify-end mb-4">
+            <button onClick={openReparto} disabled={productosConStock.length === 0}
+              title={productosConStock.length === 0 ? 'Todavía no hay stock cargado (confirmá una recepción primero)' : undefined}
+              className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed
+                         text-white rounded-lg text-sm font-medium transition-colors">
+              Repartir stock
+            </button>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Producto</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Ubicación</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600">Cantidad</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {stockResumen.map((r, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-medium text-slate-900">
+                        {productos.find(p => p.id === r.producto_id)?.nombre ?? '—'}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{nombreUbicacion(r.obra_id)}</td>
+                      <td className={cn('px-4 py-3 text-right font-semibold', r.cantidad < 0 ? 'text-red-600' : 'text-slate-800')}>
+                        {r.cantidad}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button onClick={() => handleDeleteStock(r)}
+                          className="text-xs text-red-400 hover:text-red-600 transition-colors">Eliminar</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {stockResumen.length === 0 && (
+              <div className="text-center py-12 text-slate-400">
+                <p className="text-sm">Todavía no hay stock — confirmá una recepción de una orden de compra para que aparezca acá.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+      <>
+      {/* Filtros + acciones */}
+      <div className="flex flex-col md:flex-row gap-3 mb-5">
+        <input
+          placeholder="Buscar por número, obra o notas..."
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+          className="w-full md:flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm
+                     focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+        <div className="flex flex-wrap gap-2 shrink-0">
+          <div className="flex rounded-lg border border-slate-300 overflow-x-auto max-w-full text-sm bg-white no-scrollbar">
+            {(['todos', 'borrador', 'confirmada', 'cancelada'] as const).map(e => (
+              <button key={e}
+                onClick={() => setFiltroEstado(e)}
+                className={cn(
+                  'px-3 py-2 transition-colors',
+                  filtroEstado === e ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                )}>
+                {e === 'todos' ? 'Todos' : ESTADO_ORDEN_INFO[e].label}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setShowProductos(true)}
+            className="flex items-center gap-2 px-3 py-2 border border-slate-300 bg-white hover:bg-slate-50
+                       text-slate-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+            Productos
+          </button>
+          <button onClick={openNew}
+            className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-500
+                       text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nueva orden
+          </button>
+        </div>
+      </div>
+
+      {/* Tabla */}
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">N°</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Destino</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Emisión</th>
+                <th className="text-center px-4 py-3 font-semibold text-slate-600">Ítems</th>
+                <th className="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
+                <th className="text-center px-4 py-3 font-semibold text-slate-600">Cumplimiento</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {ordenesFiltradas.map(o => {
+                const cumplimiento = estadoCumplimiento(o.orden_compra_items ?? [])
+                return (
+                  <tr key={o.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setDetalleOrden(o)}>
+                    <td className="px-4 py-3 font-medium text-slate-900">OC-{o.numero}</td>
+                    <td className="px-4 py-3 text-slate-600">{o.obras?.nombre ?? 'Empresa (sin asignar)'}</td>
+                    <td className="px-4 py-3 text-slate-500">{formatDate(o.fecha_emision)}</td>
+                    <td className="px-4 py-3 text-center text-slate-600">{(o.orden_compra_items ?? []).length}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={cn('inline-block text-xs font-medium px-2.5 py-0.5 rounded-full', ESTADO_ORDEN_INFO[o.estado].color)}>
+                        {ESTADO_ORDEN_INFO[o.estado].label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={cn('inline-block text-xs font-medium px-2.5 py-0.5 rounded-full', cumplimiento.color)}>
+                        {cumplimiento.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-3">
+                        <button onClick={() => imprimirOrden(o)}
+                          className="text-xs text-slate-400 hover:text-indigo-600 transition-colors">Imprimir</button>
+                        {o.estado !== 'cancelada' && (
+                          <button onClick={() => handleCancelar(o)}
+                            className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Cancelar</button>
+                        )}
+                        <button onClick={() => handleDelete(o)}
+                          className="text-xs text-red-400 hover:text-red-600 transition-colors">Eliminar</button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        {ordenesFiltradas.length === 0 && (
+          <div className="text-center py-12 text-slate-400">
+            <p className="text-sm">No hay órdenes de compra{filtroEstado !== 'todos' ? ` en estado ${ESTADO_ORDEN_INFO[filtroEstado].label.toLowerCase()}` : ''}.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Panel de detalle */}
+      {detalleActual && (
+        <div className="fixed inset-0 z-40 flex items-stretch">
+          <div className="flex-1 bg-black/40" onClick={() => setDetalleOrden(null)} />
+          <div className="w-full max-w-2xl bg-slate-50 flex flex-col shadow-2xl overflow-hidden">
+            <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-start justify-between shrink-0">
+              <div>
+                <p className="font-bold text-slate-900 text-lg">OC-{detalleActual.numero}</p>
+                <p className="text-slate-500 text-sm mt-0.5">
+                  {detalleActual.obras?.nombre ?? 'Empresa (sin asignar)'} · Emitida {formatDate(detalleActual.fecha_emision)}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => imprimirOrden(detalleActual)}
+                  className="text-xs font-medium text-indigo-600 hover:text-indigo-800 px-2 py-1.5">
+                  Imprimir
+                </button>
+                <button onClick={() => setDetalleOrden(null)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Ítems solicitados */}
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-100">
+                  <p className="font-semibold text-slate-800 text-sm">Ítems solicitados</p>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {(detalleActual.orden_compra_items ?? []).map(item => {
+                    const recibido = cantidadRecibida(item)
+                    const unidad = item.unidad_medida ?? item.productos?.unidad_medida ?? ''
+                    return (
+                      <div key={item.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">{item.productos?.nombre ?? '—'}</p>
+                          {item.notas && <p className="text-xs text-slate-400">{item.notas}</p>}
+                        </div>
+                        <div className="text-right shrink-0 text-sm">
+                          <span className={recibido >= item.cantidad_solicitada ? 'text-emerald-600 font-semibold' : 'text-slate-700'}>
+                            {recibido} / {item.cantidad_solicitada} {unidad}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Recepciones */}
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                  <p className="font-semibold text-slate-800 text-sm">Recepciones</p>
+                  {detalleActual.estado !== 'cancelada' && (
+                    <button onClick={() => openRecepcion(detalleActual)}
+                      className="text-xs font-medium text-indigo-600 hover:text-indigo-800">
+                      + Registrar recepción
+                    </button>
+                  )}
+                </div>
+                {(detalleActual.orden_compra_recepciones ?? []).length === 0 ? (
+                  <div className="px-4 py-8 text-center text-slate-400 text-sm">Todavía no se registró ninguna recepción.</div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {detalleActual.orden_compra_recepciones.map(r => {
+                      const total = r.orden_compra_recepcion_items.reduce((s, it) => s + it.subtotal, 0)
+                      return (
+                        <div key={r.id} className="px-4 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-medium text-slate-800">{r.proveedores?.razon_social ?? '—'}</p>
+                            <p className="text-sm font-semibold text-slate-900">{formatCurrency(total, r.moneda)}</p>
+                          </div>
+                          <div className="flex items-center justify-between mt-0.5">
+                            <p className="text-xs text-slate-400">
+                              {formatDate(r.fecha)} · {r.gasto_id ? 'Confirmada — gasto generado' : 'Sin confirmar'}
+                            </p>
+                            {!r.gasto_id && (
+                              <button
+                                onClick={() => handleConfirmarRecepcion(r.id)}
+                                disabled={confirmandoId === r.id}
+                                className="text-xs font-medium text-emerald-600 hover:text-emerald-800 disabled:opacity-50"
+                              >
+                                {confirmandoId === r.id ? 'Confirmando...' : 'Confirmar'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nueva orden */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <h2 className="font-bold text-slate-900">Nueva orden de compra</h2>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <form id="orden-form" onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Destino</label>
+                    <select value={ordenForm.obra_id} onChange={e => setOrdenForm(f => ({ ...f, obra_id: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                      <option value="">Empresa (repartir después)</option>
+                      {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de emisión *</label>
+                    <input required type="date" value={ordenForm.fecha_emision}
+                      onChange={e => setOrdenForm(f => ({ ...f, fecha_emision: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+                  <textarea rows={2} value={ordenForm.notas}
+                    onChange={e => setOrdenForm(f => ({ ...f, notas: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                </div>
+
+                <div className="border-t border-slate-100 pt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-slate-700">Ítems solicitados</p>
+                    <button type="button" onClick={agregarItem}
+                      className="text-xs font-medium text-indigo-600 hover:text-indigo-800">+ Agregar ítem</button>
+                  </div>
+                  <div className="space-y-2">
+                    {itemsForm.map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                        {item.creandoNuevo ? (
+                          <div className="flex-1 min-w-0 flex gap-2">
+                            <input autoFocus placeholder="Nombre del producto" value={item.nuevoNombre}
+                              onChange={e => actualizarItem(idx, 'nuevoNombre', e.target.value)}
+                              className="flex-1 min-w-0 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            <input placeholder="Unidad" value={item.nuevoUnidad}
+                              onChange={e => actualizarItem(idx, 'nuevoUnidad', e.target.value)}
+                              className="w-20 shrink-0 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            <button type="button" onClick={() => crearProductoEnFila(idx)}
+                              disabled={creandoProductoLoading || !item.nuevoNombre.trim()}
+                              className="shrink-0 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-medium">
+                              {creandoProductoLoading ? '...' : 'Crear'}
+                            </button>
+                            <button type="button" onClick={() => cancelarNuevoProducto(idx)}
+                              className="shrink-0 text-slate-400 hover:text-slate-600 px-1">✕</button>
+                          </div>
+                        ) : (
+                          <select value={item.producto_id} onChange={e => elegirProducto(idx, e.target.value)}
+                            className="flex-1 min-w-0 px-2 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="">Producto...</option>
+                            {productosDisponibles.map(p => <option key={p.id} value={p.id}>{p.nombre} ({p.unidad_medida})</option>)}
+                            <option value="__nuevo__">+ Agregar producto nuevo</option>
+                          </select>
+                        )}
+                        <input type="number" min="0" step="0.01" placeholder="Cant." value={item.cantidad_solicitada}
+                          onChange={e => actualizarItem(idx, 'cantidad_solicitada', e.target.value)}
+                          className="w-20 shrink-0 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                        <button type="button" onClick={() => quitarItem(idx)}
+                          className="shrink-0 text-slate-400 hover:text-red-500 px-1.5 py-1.5">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                  {creandoProductoError && (
+                    <p className="text-xs text-red-600 mt-2">{creandoProductoError}</p>
+                  )}
+                  {productosDisponibles.length === 0 && (
+                    <p className="text-xs text-amber-600 mt-2">
+                      Todavía no hay productos — elegí &quot;+ Agregar producto nuevo&quot; en el selector de arriba para crear el primero.
+                    </p>
+                  )}
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
+                )}
+              </form>
+            </div>
+            <div className="p-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+              <button type="button" onClick={() => setShowForm(false)}
+                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
+                Cancelar
+              </button>
+              <button type="submit" form="orden-form" disabled={loading}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60
+                           text-white rounded-xl text-sm font-semibold">
+                {loading ? 'Creando...' : 'Crear orden'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Administrar productos */}
+      {showProductos && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <div>
+                <h2 className="font-bold text-slate-900">Administrar productos</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Catálogo de insumos para las órdenes de compra</p>
+              </div>
+              <button onClick={() => setShowProductos(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-1.5">
+              {productos.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-6">No hay productos creados.</p>
+              ) : productos.map(p => (
+                <div key={p.id} className={cn(
+                  'flex items-center justify-between px-3 py-2.5 rounded-lg border',
+                  p.activo ? 'border-slate-100 hover:bg-slate-50' : 'border-slate-100 bg-slate-50 opacity-60'
+                )}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">{p.nombre}</p>
+                    <p className="text-xs text-slate-400">
+                      {p.unidad_medida}{p.categorias_costo ? ` · ${p.categorias_costo.nombre}` : ''}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleProducto(p)}
+                    className="text-xs text-slate-400 hover:text-slate-700 transition-colors px-1 shrink-0"
+                  >
+                    {p.activo ? 'Desactivar' : 'Activar'}
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
+              <form onSubmit={handleCreateProducto} className="space-y-2">
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Nuevo producto</p>
+                <div className="flex gap-2">
+                  <input
+                    required
+                    placeholder="Ej: Cemento, Hierro ø12..."
+                    value={productoForm.nombre}
+                    onChange={e => setProductoForm(f => ({ ...f, nombre: e.target.value }))}
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm
+                               focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  />
+                  <input
+                    placeholder="Unidad"
+                    value={productoForm.unidad_medida}
+                    onChange={e => setProductoForm(f => ({ ...f, unidad_medida: e.target.value }))}
+                    className="w-24 px-3 py-2 border border-slate-300 rounded-lg text-sm
+                               focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  />
+                </div>
+                <select
+                  value={productoForm.categoria_id}
+                  onChange={e => setProductoForm(f => ({ ...f, categoria_id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Sin categoría</option>
+                  {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+                {productoError && <p className="text-xs text-red-600">{productoError}</p>}
+                <button
+                  type="submit"
+                  disabled={productoLoading || !productoForm.nombre.trim()}
+                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50
+                             text-white rounded-lg text-sm font-semibold transition-colors"
+                >
+                  {productoLoading ? 'Creando...' : 'Crear producto'}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Registrar recepción */}
+      {recepcionOrden && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <div>
+                <h2 className="font-bold text-slate-900">Registrar recepción</h2>
+                <p className="text-xs text-slate-500 mt-0.5">OC-{recepcionOrden.numero}</p>
+              </div>
+              <button onClick={() => setRecepcionOrden(null)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <form id="recepcion-form" onSubmit={handleSubmitRecepcion} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Proveedor *</label>
+                    <select required value={recepcionForm.proveedor_id}
+                      onChange={e => setRecepcionForm(f => ({ ...f, proveedor_id: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">Elegir...</option>
+                      {proveedores.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Fecha *</label>
+                    <input required type="date" value={recepcionForm.fecha}
+                      onChange={e => setRecepcionForm(f => ({ ...f, fecha: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
+                  <select value={recepcionForm.moneda} onChange={e => setRecepcionForm(f => ({ ...f, moneda: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option>ARS</option>
+                    <option>USD</option>
+                  </select>
+                </div>
+
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="text-xs font-semibold text-slate-700 mb-2">Qué llegó en esta recepción</p>
+                  <div className="space-y-2">
+                    {(recepcionOrden.orden_compra_items ?? []).map(item => {
+                      const recibido = cantidadRecibida(item)
+                      const pendiente = Math.max(0, item.cantidad_solicitada - recibido)
+                      const unidad = item.unidad_medida ?? item.productos?.unidad_medida ?? ''
+                      const valores = recepcionItems[item.id] ?? { cantidad: '', precio: '' }
+                      return (
+                        <div key={item.id} className="bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                          <p className="text-sm font-medium text-slate-800">{item.productos?.nombre ?? '—'}</p>
+                          <p className="text-xs text-slate-400 mb-1.5">Pendiente: {pendiente} {unidad}</p>
+                          <div className="flex gap-2">
+                            <input type="number" min="0" step="0.01" placeholder="Cantidad"
+                              value={valores.cantidad}
+                              onChange={e => actualizarRecepcionItem(item.id, 'cantidad', e.target.value)}
+                              className="flex-1 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            <input type="number" min="0" step="0.01" placeholder="Precio unitario"
+                              value={valores.precio}
+                              onChange={e => actualizarRecepcionItem(item.id, 'precio', e.target.value)}
+                              className="flex-1 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+                  <textarea rows={2} value={recepcionForm.notas}
+                    onChange={e => setRecepcionForm(f => ({ ...f, notas: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                </div>
+
+                {recepcionError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{recepcionError}</div>
+                )}
+                <p className="text-[11px] text-slate-400">
+                  Esto guarda la recepción como borrador — todavía no genera el gasto. Confirmala desde la lista de recepciones cuando estés list@ para que impacte en Gastos y en el stock.
+                </p>
+              </form>
+            </div>
+            <div className="p-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+              <button type="button" onClick={() => setRecepcionOrden(null)}
+                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
+                Cancelar
+              </button>
+              <button type="submit" form="recepcion-form" disabled={recepcionLoading}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60
+                           text-white rounded-xl text-sm font-semibold">
+                {recepcionLoading ? 'Guardando...' : 'Guardar recepción'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
+      )}
+
+      {/* Modal Repartir stock */}
+      {showReparto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="p-6 border-b border-slate-200">
+              <h2 className="font-bold text-slate-900">Repartir stock</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Mueve cantidad del pool de empresa a una obra, entre obras, o de vuelta al pool.</p>
+            </div>
+            <form onSubmit={handleSubmitReparto} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Producto *</label>
+                <select required value={repartoForm.producto_id}
+                  onChange={e => setRepartoForm(f => ({ ...f, producto_id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">Elegir...</option>
+                  {productosConStock.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Desde</label>
+                  <select value={repartoForm.obra_origen} onChange={e => setRepartoForm(f => ({ ...f, obra_origen: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Empresa (pool)</option>
+                    {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                  </select>
+                  {repartoForm.producto_id && (
+                    <p className="text-xs text-slate-400 mt-1">
+                      Hay {stockDe(repartoForm.producto_id, repartoForm.obra_origen || null)} ahí
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Hacia</label>
+                  <select value={repartoForm.obra_destino} onChange={e => setRepartoForm(f => ({ ...f, obra_destino: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Empresa (pool)</option>
+                    {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Cantidad *</label>
+                <input required type="number" min="0" step="0.01" value={repartoForm.cantidad}
+                  onChange={e => setRepartoForm(f => ({ ...f, cantidad: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              {repartoError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{repartoError}</div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowReparto(false)}
+                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={repartoLoading}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
+                  {repartoLoading ? 'Guardando...' : 'Repartir'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
+    </div>
+  )
+}

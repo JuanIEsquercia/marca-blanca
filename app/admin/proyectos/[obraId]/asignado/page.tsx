@@ -5,7 +5,7 @@ import { cn, formatDate } from '@/lib/utils'
 import type { EstadoEquipo, EstadoPersonal, TipoContratacion } from '@/types/database'
 import type { Metadata } from 'next'
 
-export const metadata: Metadata = { title: 'Personal y equipos' }
+export const metadata: Metadata = { title: 'Personal, equipos y stock' }
 export const dynamic = 'force-dynamic'
 
 // Página de solo lectura — a propósito no exige el módulo 'inventario'/
@@ -52,7 +52,7 @@ export default async function AsignadoPage({ params }: { params: Promise<{ obraI
 
   const admin = createAdminClient()
 
-  const [{ data: equiposAsignados }, { data: personalAsignado }] = await Promise.all([
+  const [{ data: equiposAsignados }, { data: personalAsignado }, { data: movimientosStock }] = await Promise.all([
     admin
       .from('equipo_asignaciones')
       .select('fecha_desde, equipos(nombre, tipo, marca, modelo, estado)')
@@ -65,6 +65,13 @@ export default async function AsignadoPage({ params }: { params: Promise<{ obraI
       .eq('obra_id', obraId)
       .is('fecha_hasta', null)
       .order('fecha_desde', { ascending: false }),
+    // Igual que equipos/personal, "cuánto hay" es solo lectura acá — el
+    // reparto lo hace un admin desde Compras. Se agrega en JS (no hace
+    // falta un RPC como resumen_stock: ya está acotado a un solo obra_id).
+    admin
+      .from('stock_movimientos')
+      .select('tipo, cantidad, productos(nombre, unidad_medida)')
+      .eq('obra_id', obraId),
   ])
 
   const equipos = (equiposAsignados ?? [])
@@ -74,12 +81,22 @@ export default async function AsignadoPage({ params }: { params: Promise<{ obraI
     .map(p => ({ fecha_desde: p.fecha_desde, persona: unwrap(p.personal) }))
     .filter((p): p is { fecha_desde: string; persona: NonNullable<typeof p.persona> } => p.persona !== null)
 
+  const stockPorProducto = new Map<string, { nombre: string; unidad_medida: string; cantidad: number }>()
+  for (const mov of movimientosStock ?? []) {
+    const producto = unwrap(mov.productos)
+    if (!producto) continue
+    const actual = stockPorProducto.get(producto.nombre) ?? { nombre: producto.nombre, unidad_medida: producto.unidad_medida, cantidad: 0 }
+    actual.cantidad += mov.tipo === 'entrada' ? mov.cantidad : -mov.cantidad
+    stockPorProducto.set(producto.nombre, actual)
+  }
+  const stock = [...stockPorProducto.values()].filter(s => s.cantidad !== 0).sort((a, b) => a.nombre.localeCompare(b.nombre))
+
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Personal y equipos</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Personal, equipos y stock</h1>
         <p className="text-slate-500 text-sm mt-1">
-          Quién y qué está asignado a {ctx.obraNombre} en este momento — solo lectura, la asignación la maneja un administrador desde Personal/Inventario.
+          Quién, qué y cuánto material tiene {ctx.obraNombre} en este momento — solo lectura, la asignación la maneja un administrador desde Personal/Inventario/Compras.
         </p>
       </div>
 
@@ -148,6 +165,28 @@ export default async function AsignadoPage({ params }: { params: Promise<{ obraI
                   </div>
                 )
               })}
+            </div>
+          )}
+        </div>
+
+        {/* Stock */}
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden lg:col-span-2">
+          <div className="px-5 py-4 border-b border-slate-100">
+            <h2 className="font-semibold text-slate-800 text-sm">Stock en este proyecto</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{stock.length} producto{stock.length !== 1 ? 's' : ''} con stock</p>
+          </div>
+          {stock.length === 0 ? (
+            <div className="px-5 py-10 text-center text-slate-400 text-sm">Sin stock repartido a este proyecto todavía.</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {stock.map(s => (
+                <div key={s.nombre} className="px-5 py-3 flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-slate-800">{s.nombre}</p>
+                  <p className={cn('text-sm font-semibold', s.cantidad < 0 ? 'text-red-600' : 'text-slate-800')}>
+                    {s.cantidad} {s.unidad_medida}
+                  </p>
+                </div>
+              ))}
             </div>
           )}
         </div>

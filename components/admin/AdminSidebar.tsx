@@ -92,6 +92,13 @@ function buildConstructoraNav(): NavSection[] {
           icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
         },
         {
+          href: '/admin/compras',
+          label: 'Compras',
+          permiso: 'compras' as ModuloKey,
+          roles: ['admin', 'operador'],
+          icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 11a2 2 0 01-2 2H6a2 2 0 01-2-2l1-11z" /></svg>,
+        },
+        {
           href: '/admin/tesoreria',
           label: 'Caja',
           permiso: 'tesoreria' as ModuloKey,
@@ -154,7 +161,7 @@ function buildDesarrolloNav(obraId: string, modoCuentas: 'empresa' | 'especifica
         },
         {
           href: `${base}/asignado`,
-          label: 'Personal y equipos',
+          label: 'Personal, equipos y stock',
           permiso: null,
           roles: ['admin', 'operador'],
           icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" /></svg>,
@@ -238,7 +245,7 @@ function buildObraNav(obraId: string, modoCuentas: 'empresa' | 'especificas'): N
         },
         {
           href: `${base}/asignado`,
-          label: 'Personal y equipos',
+          label: 'Personal, equipos y stock',
           permiso: null,
           roles: ['admin', 'operador'],
           icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" /></svg>,

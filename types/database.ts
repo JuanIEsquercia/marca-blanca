@@ -231,6 +231,94 @@ export interface GastoCuentaCorriente {
   obras: { nombre: string } | null
 }
 
+// ============================================================
+// Compras — órdenes de compra cumplidas de a partes, y stock
+// repartido entre obras como ledger (ver supabase/migration_052.sql).
+// ============================================================
+
+export interface Producto {
+  id: string
+  constructora_id: string
+  nombre: string
+  nombre_normalizado: string
+  unidad_medida: string
+  categoria_id: string | null
+  activo: boolean
+  notas: string | null
+  created_at: string
+  categorias_costo?: Pick<CategoriaCosto, 'nombre' | 'color'> | null
+}
+
+export type EstadoOrdenCompra = 'borrador' | 'confirmada' | 'cancelada'
+
+export interface OrdenCompra {
+  id: string
+  constructora_id: string
+  obra_id: string | null
+  numero: number
+  estado: EstadoOrdenCompra
+  fecha_emision: string
+  notas: string | null
+  created_at: string
+  obras?: { nombre: string } | null
+  orden_compra_items?: OrdenCompraItem[]
+}
+
+export interface OrdenCompraItem {
+  id: string
+  orden_compra_id: string
+  constructora_id: string
+  producto_id: string
+  cantidad_solicitada: number
+  unidad_medida: string | null
+  notas: string | null
+  created_at: string
+  productos?: Pick<Producto, 'id' | 'nombre' | 'unidad_medida'>
+  orden_compra_recepcion_items?: Pick<OrdenCompraRecepcionItem, 'cantidad_recibida'>[]
+}
+
+export interface OrdenCompraRecepcion {
+  id: string
+  orden_compra_id: string
+  constructora_id: string
+  proveedor_id: string
+  gasto_id: string | null
+  fecha: string
+  moneda: string
+  notas: string | null
+  created_at: string
+  proveedores?: Pick<Proveedor, 'razon_social'>
+  orden_compra_recepcion_items?: OrdenCompraRecepcionItem[]
+}
+
+export interface OrdenCompraRecepcionItem {
+  id: string
+  recepcion_id: string
+  orden_compra_item_id: string
+  constructora_id: string
+  cantidad_recibida: number
+  precio_unitario: number
+  subtotal: number
+  created_at: string
+  orden_compra_items?: Pick<OrdenCompraItem, 'producto_id'> & { productos?: Pick<Producto, 'nombre' | 'unidad_medida'> }
+}
+
+export type TipoMovimientoStock = 'entrada' | 'salida'
+
+export interface StockMovimiento {
+  id: string
+  constructora_id: string
+  producto_id: string
+  obra_id: string | null
+  tipo: TipoMovimientoStock
+  cantidad: number
+  origen_recepcion_id: string | null
+  notas: string | null
+  created_at: string
+  productos?: Pick<Producto, 'nombre' | 'unidad_medida'>
+  obras?: { nombre: string } | null
+}
+
 export interface Perfil {
   id: string
   nombre: string

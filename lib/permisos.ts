@@ -41,6 +41,9 @@ export const MODULOS = [
     avisoAgregado: 'También habilita ver el listado de Cuentas de TODA la empresa (no solo este proyecto) en el menú principal.' },
   { key: 'ingresos',    label: 'Ingresos',    seccion: 'Finanzas',
     descripcion: 'Registro de ingresos que no provienen de una venta o cobro de obra — módulo de toda la empresa.' },
+  { key: 'compras',     label: 'Compras',     seccion: 'Operaciones',
+    descripcion: 'Órdenes de compra, recepciones de proveedores y stock repartido entre obras — módulo de toda la empresa.',
+    avisoAgregado: 'Confirmar una recepción genera un gasto — quien tenga Compras también necesita Gastos habilitado en el proyecto destino (o ser admin) para poder confirmarla.' },
 ] as const
 
 export type ModuloKey = typeof MODULOS[number]['key']
@@ -50,7 +53,7 @@ export const MAX_OPERADORES = 3
 // Bucket "Empresa": módulos que no cuelgan de ningún proyecto — sus datos
 // no tienen obra_id (proveedores) o son un agregado cruzado (tesoreria).
 // Todo lo demás vive en el árbol por-proyecto (perfil_proyectos).
-export const MODULOS_EMPRESA: ModuloKey[] = ['proveedores', 'tesoreria', 'presupuestos', 'inventario', 'personal', 'ingresos']
+export const MODULOS_EMPRESA: ModuloKey[] = ['proveedores', 'tesoreria', 'presupuestos', 'inventario', 'personal', 'ingresos', 'compras']
 
 export const MODULOS_PROYECTO = MODULOS.filter(m => !MODULOS_EMPRESA.includes(m.key))
 

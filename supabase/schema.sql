@@ -2938,6 +2938,10 @@ BEGIN
 END;
 $$;
 
+-- Ver migration_053.sql: personal_asignaciones quedó afuera de esta
+-- función cuando migration_038 sumó la tabla (sí se actualizó
+-- purgar_constructora_completa, no esta), causando violación de FK al
+-- eliminar un proyecto con personal asignado.
 CREATE OR REPLACE FUNCTION purgar_obra_completa(p_obra_id UUID)
 RETURNS void
 LANGUAGE plpgsql
@@ -2958,8 +2962,9 @@ BEGIN
   DELETE FROM certificados_avance WHERE obra_id = p_obra_id;
   DELETE FROM contratos_obra      WHERE obra_id = p_obra_id;
 
-  DELETE FROM equipo_asignaciones WHERE obra_id = p_obra_id;
-  DELETE FROM gastos              WHERE obra_id = p_obra_id;
+  DELETE FROM equipo_asignaciones   WHERE obra_id = p_obra_id;
+  DELETE FROM personal_asignaciones WHERE obra_id = p_obra_id;
+  DELETE FROM gastos                WHERE obra_id = p_obra_id;
 
   -- cuentas_propias NO se borra: su FK (obra_id ON DELETE SET NULL) la
   -- desvincula sola al llegar al DELETE FROM obras — sobrevive como

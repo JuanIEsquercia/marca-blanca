@@ -341,7 +341,8 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
             <ul className="text-xs text-slate-500 mb-6 list-disc list-inside space-y-0.5">
               <li>Contratos, certificados y cobros</li>
               <li>Unidades, tipologías y ventas</li>
-              <li>Gastos, equipos asignados y presupuestos vinculados</li>
+              <li>Gastos, presupuestos y órdenes de compra vinculados</li>
+              <li>Personal y equipos asignados, y el stock repartido acá</li>
             </ul>
             <p className="text-xs text-slate-400 mb-4 -mt-4">
               Las cuentas propias específicas del proyecto no se eliminan: pasan a ser cuentas de empresa.

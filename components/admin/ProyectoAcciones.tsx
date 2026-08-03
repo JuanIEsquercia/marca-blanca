@@ -176,6 +176,7 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
         'N° cuota': q.numero_cuota, 'Monto base': q.monto_base, 'Monto cobrado': q.monto_cobrado ?? '',
         'Cobrado en': q.cuentas_propias?.nombre ?? '',
         'Fecha vencimiento': q.fecha_vencimiento, Estado: q.estado_pago, 'Fecha pago': q.fecha_pago ?? '',
+        'N° comprobante': q.numero_comprobante ?? '', Neto: q.monto_neto ?? '', IVA: q.iva ?? '', Percepciones: q.percepciones ?? '',
       })))
       addSheet('Cuotas', cuotas)
     } else {
@@ -186,7 +187,7 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
       ] = await Promise.all([
         supabase.from('contratos_obra').select('*, compradores(*), proveedores(razon_social)').eq('obra_id', obraId),
         supabase.from('certificados_avance').select('*').eq('obra_id', obraId).order('numero'),
-        supabase.from('cobros_proyecto').select('*, certificados_avance(numero, periodo), cuentas_propias(nombre)').eq('obra_id', obraId).order('numero'),
+        supabase.from('cobros_proyecto').select('*, certificados_avance(numero, periodo), cuentas_propias(nombre), cobro_pagos(*, cuentas_propias(nombre))').eq('obra_id', obraId).order('numero'),
       ])
 
       // migration_047: puede haber más de un contrato (cliente +
@@ -210,12 +211,26 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
       addSheet('Cobros', (cobros ?? []).map((c: any) => ({
         'N°': c.numero ?? '', Certificado: c.certificados_avance ? `N°${c.certificados_avance.numero} - ${c.certificados_avance.periodo}` : '',
         Monto: c.monto, Moneda: c.moneda, Estado: c.estado, 'Cobrado en': c.cuentas_propias?.nombre ?? '',
-        'Fecha vencimiento': c.fecha_vencimiento ?? '', 'Fecha pago': c.fecha_pago ?? '', Notas: c.notas ?? '',
+        'Fecha vencimiento': c.fecha_vencimiento ?? '', 'Fecha pago': c.fecha_pago ?? '',
+        'N° comprobante': c.numero_comprobante ?? '', Neto: c.monto_neto ?? '', IVA: c.iva ?? '', Percepciones: c.percepciones ?? '',
+        Notas: c.notas ?? '',
       })))
+
+      // Un cobro con plan de pago (migration_064) queda "Pendiente" en la
+      // fila de arriba hasta que TODAS sus cuotas cierran — sin esta hoja,
+      // el Excel mostraba un cobro con 2 de 3 cheques ya cobrados como
+      // 100% pendiente, sin ningún rastro de lo ya cobrado.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cobroPagos = (cobros ?? []).flatMap((c: any) => (c.cobro_pagos ?? []).map((p: any) => ({
+        Cobro: c.numero ?? '', Medio: p.medio, 'N° cheque': p.numero_cheque ?? '', Banco: p.banco ?? '',
+        Monto: p.monto, Estado: p.estado, 'Fecha pago': p.fecha_pago, 'Cobrado en': p.cuentas_propias?.nombre ?? '',
+        Notas: p.notas ?? '',
+      })))
+      if (cobroPagos.length > 0) addSheet('Plan de cobro', cobroPagos)
     }
 
     const [{ data: gastos }, { data: cuentas }] = await Promise.all([
-      supabase.from('gastos').select('*, proveedores(razon_social), categorias_costo(nombre), cuentas_propias(nombre)').eq('obra_id', obraId).order('fecha_vencimiento', { ascending: false }),
+      supabase.from('gastos').select('*, proveedores(razon_social), categorias_costo(nombre), cuentas_propias(nombre), gasto_pagos(*, cuentas_propias(nombre))').eq('obra_id', obraId).order('fecha_vencimiento', { ascending: false }),
       supabase.from('cuentas_propias').select('*').eq('obra_id', obraId).order('nombre'),
     ])
 
@@ -228,6 +243,16 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
       'N° comprobante': g.numero_comprobante ?? '', Neto: g.monto_neto ?? '', IVA: g.iva ?? '', Percepciones: g.percepciones ?? '',
       Notas: g.notas ?? '',
     })))
+
+    // Ver comentario análogo en "Plan de cobro" más arriba — mismo caso
+    // para gastos con plan de pago.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const gastoPagos = (gastos ?? []).flatMap((g: any) => (g.gasto_pagos ?? []).map((p: any) => ({
+      Gasto: g.descripcion, Medio: p.medio, 'N° cheque': p.numero_cheque ?? '', Banco: p.banco ?? '',
+      Monto: p.monto, Estado: p.estado, 'Fecha pago': p.fecha_pago, 'Pagado desde': p.cuentas_propias?.nombre ?? '',
+      Notas: p.notas ?? '',
+    })))
+    if (gastoPagos.length > 0) addSheet('Plan de pago', gastoPagos)
 
     addSheet('Cuentas', (cuentas ?? []).map(c => ({
       Nombre: c.nombre, Tipo: c.tipo, Moneda: c.moneda, 'Saldo inicial': c.saldo_inicial,

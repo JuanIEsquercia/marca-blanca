@@ -18,7 +18,7 @@ export default async function GastosProyectoPage({ params }: { params: Promise<{
     await Promise.all([
       supabase
         .from('gastos')
-        .select('*, proveedores(*), cuentas_proveedor(*), categorias_costo(*), cuentas_propias(*)')
+        .select('*, proveedores(*), cuentas_proveedor(*), categorias_costo(*), cuentas_propias(*), gasto_pagos(*, cuentas_propias(id, nombre, moneda))')
         .eq('constructora_id', ctx.constructoraId)
         .eq('obra_id', obraId)
         .order('fecha_vencimiento', { ascending: true }),

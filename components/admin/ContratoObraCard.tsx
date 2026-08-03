@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { cn, estaVencido, formatCurrency, formatDate, redondear2 } from '@/lib/utils'
 import { obtenerOCrearRubro } from '@/lib/rubros'
 import ConfirmModal from './ConfirmModal'
+import IvaCalculator, { modoDePct, type ModoIva } from './IvaCalculator'
 import ItemsRubroTable, { nuevaFilaItem, type FilaItem } from './ItemsRubroTable'
 import type { ContratoObra, CertificadoAvance, CobroProyecto, Gasto, CuentaPropia, EstadoCertificado, ContratoObraItem, CertificadoItem } from '@/types/database'
 
@@ -43,8 +44,8 @@ const ESTADO_CERT: Record<EstadoCertificado, { label: string; color: string; nex
 }
 
 const EMPTY_CERT = { periodo: '', porcentaje_avance: '', monto_certificado: '', descripcion_avances: '', notas: '' }
-const EMPTY_COBRO = { numero: '', fecha_vencimiento: '', monto: '', moneda: 'ARS', notas: '' }
-const EMPTY_PAGO_SUBC = { descripcion: '', fecha_vencimiento: '', monto: '', moneda: 'ARS' }
+const EMPTY_COBRO = { numero: '', fecha_vencimiento: '', monto: '', moneda: 'ARS', notas: '', monto_neto: '', iva: '', percepciones: '', numero_comprobante: '' }
+const EMPTY_PAGO_SUBC = { descripcion: '', fecha_vencimiento: '', monto: '', moneda: 'ARS', monto_neto: '', iva: '', percepciones: '', numero_comprobante: '' }
 const EMPTY_REGISTRAR_PAGO = { fecha_pago: new Date().toISOString().split('T')[0], cuenta_propia_id: '' }
 
 // Toda la gestión de UN contrato de obra — certificados de avance y, según
@@ -103,7 +104,41 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
 
   const [registrarPagoForm, setRegistrarPagoForm] = useState(EMPTY_REGISTRAR_PAGO)
 
+  // Condición de IVA del contrato (ver ClienteYFechasForm/migration_055) —
+  // editable después de creado, para poder corregirla si se cargó mal.
+  const [editandoIva, setEditandoIva] = useState(false)
+  const [ivaEditForm, setIvaEditForm] = useState<{ modo: ModoIva; pct: string }>({ modo: '0', pct: '' })
+
   function refresh() { onChanged() }
+
+  // Precarga neto/IVA/total al abrir "+ Agregar cobro/pago" desde un
+  // certificado: si el contrato tiene una condición de IVA configurada
+  // (ver ClienteYFechasForm/migration_055), ya viene aplicada en vez de
+  // arrancar en "Sin IVA" cada vez.
+  function montosIniciales(neto: number) {
+    const pct = contrato.iva_pct ?? 0
+    const ivaNum = redondear2(neto * pct / 100)
+    return { monto_neto: String(neto), iva: pct > 0 ? String(ivaNum) : '', monto: String(redondear2(neto + ivaNum)) }
+  }
+
+  function abrirEditarIva() {
+    const modo = modoDePct(contrato.iva_pct)
+    setIvaEditForm({ modo, pct: modo === 'personalizado' ? String(contrato.iva_pct) : '' })
+    setEditandoIva(true)
+  }
+
+  async function handleGuardarIva() {
+    const nuevoPct = ivaEditForm.modo === '0' ? null
+      : ivaEditForm.modo === 'personalizado' ? (parseFloat(ivaEditForm.pct) || null)
+      : parseFloat(ivaEditForm.modo)
+    setLoading(true)
+    const supabase = createClient()
+    const { error: err } = await supabase.from('contratos_obra').update({ iva_pct: nuevoPct }).eq('id', contrato.id)
+    setLoading(false)
+    if (err) { setError(err.message); return }
+    setEditandoIva(false)
+    refresh()
+  }
 
   // ── Nuevo certificado ─────────────────────────────────────────
 
@@ -225,6 +260,22 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
     refresh()
   }
 
+  function handleDeleteContrato() {
+    setConfirmModal({
+      title: 'Eliminar contrato',
+      message: `¿Eliminar el contrato con ${nombreParte}? Se eliminan también sus certificados, ítems y ${esCliente ? 'cobros' : 'pagos'}. El presupuesto de origen (si lo hay) y los gastos ya generados a partir de certificados NO se eliminan — quedan como registros sueltos. Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      danger: true,
+      onConfirm: async () => {
+        const supabase = createClient()
+        const { error: err } = await supabase.from('contratos_obra').delete().eq('id', contrato.id)
+        if (err) throw new Error(err.message)
+        setConfirmModal(null)
+        refresh()
+      },
+    })
+  }
+
   function handleDeleteCert(cert: CertificadoConMov) {
     setConfirmModal({
       title: 'Eliminar certificado',
@@ -261,7 +312,11 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
       monto: parseFloat(cobroForm.monto),
       moneda: cobroForm.moneda,
       notas: cobroForm.notas.trim() || null,
-      estado: 'pendiente',
+      estado: 'Pendiente',
+      monto_neto: cobroForm.monto_neto ? redondear2(parseFloat(cobroForm.monto_neto)) : null,
+      iva: cobroForm.iva ? redondear2(parseFloat(cobroForm.iva)) : null,
+      percepciones: cobroForm.percepciones ? redondear2(parseFloat(cobroForm.percepciones)) : null,
+      numero_comprobante: cobroForm.numero_comprobante.trim() || null,
     })
     setLoading(false)
     if (err) { setError(err.message); return }
@@ -291,7 +346,7 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
     setLoading(true)
     const supabase = createClient()
     const { error: err } = await supabase.from('cobros_proyecto').update({
-      estado: 'cobrado',
+      estado: 'Cobrado',
       fecha_pago: registrarPagoForm.fecha_pago,
       cuenta_propia_id: registrarPagoForm.cuenta_propia_id || null,
     }).eq('id', pagoCobroTarget.id)
@@ -321,6 +376,10 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
       moneda: pagoSubcForm.moneda,
       fecha_vencimiento: pagoSubcForm.fecha_vencimiento,
       estado: 'Pendiente',
+      monto_neto: pagoSubcForm.monto_neto ? redondear2(parseFloat(pagoSubcForm.monto_neto)) : null,
+      iva: pagoSubcForm.iva ? redondear2(parseFloat(pagoSubcForm.iva)) : null,
+      percepciones: pagoSubcForm.percepciones ? redondear2(parseFloat(pagoSubcForm.percepciones)) : null,
+      numero_comprobante: pagoSubcForm.numero_comprobante.trim() || null,
     })
     setLoading(false)
     if (err) { setError(err.message); return }
@@ -393,19 +452,35 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
               <span>{formatCurrency(contrato.monto_total, contrato.moneda)}</span>
               {contrato.fecha_inicio && <span>Inicio: {formatDate(contrato.fecha_inicio)}</span>}
               {contrato.fecha_fin_estimada && <span>Fin est.: {formatDate(contrato.fecha_fin_estimada)}</span>}
+              <button onClick={abrirEditarIva} disabled={readOnly}
+                title="Condición de IVA aplicada por defecto al generar un cobro/pago desde un certificado"
+                className={cn('text-xs px-2 py-0.5 rounded-full font-medium transition-colors',
+                  contrato.iva_pct ? 'bg-slate-100 text-slate-600' : 'bg-slate-50 text-slate-400',
+                  !readOnly && 'hover:bg-slate-200 cursor-pointer')}>
+                {contrato.iva_pct ? `+ IVA ${contrato.iva_pct}%` : 'Sin IVA'}
+              </button>
             </div>
           </div>
           <div className="flex flex-col items-end gap-2 shrink-0">
-            {esCliente && (
-              <button
-                onClick={() => window.open(`/print/contrato/${contrato.id}`, '_blank')}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                Imprimir contrato
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {esCliente && (
+                <button
+                  onClick={() => window.open(`/print/contrato/${contrato.id}`, '_blank')}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Imprimir contrato
+                </button>
+              )}
+              {!readOnly && (
+                <button onClick={handleDeleteContrato}
+                  title="Eliminar contrato"
+                  className="text-xs px-2 py-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                  Eliminar
+                </button>
+              )}
+            </div>
             <div className="text-right">
               <p className="text-xs text-slate-400 mb-1">Certificado</p>
               <p className="text-2xl font-bold text-slate-900">{porcentajeCertificado}%</p>
@@ -483,9 +558,9 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
             const estadoInfo = ESTADO_CERT[cert.estado]
             const cobros = cert.cobros_proyecto ?? []
             const pagos = cert.pagos ?? []
-            const cobradoTotal = cobros.filter(c => c.estado === 'cobrado').reduce((s, c) => s + c.monto, 0)
+            const cobradoTotal = cobros.filter(c => c.estado === 'Cobrado').reduce((s, c) => s + c.monto, 0)
             const pagadoTotal = pagos.filter(p => p.estado === 'Pagado').reduce((s, p) => s + p.monto, 0)
-            const hayVencidosCobro = cobros.some(c => estaVencido(c.fecha_vencimiento, c.estado, 'pendiente'))
+            const hayVencidosCobro = cobros.some(c => estaVencido(c.fecha_vencimiento, c.estado, 'Pendiente'))
             const hayVencidosPago = pagos.some(p => estaVencido(p.fecha_vencimiento, p.estado, 'Pendiente'))
             const isExpanded = expanded === cert.id
 
@@ -533,6 +608,18 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                         {estadoInfo.nextLabel}
                       </button>
                     )}
+                    {!readOnly && esCliente && (
+                      <button onClick={() => { setCobroParaCert(cert.id); setCobroForm({ ...EMPTY_COBRO, moneda: contrato.moneda, ...montosIniciales(cert.monto_certificado) }); setError(null) }}
+                        className="text-xs px-2.5 py-1.5 border border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors">
+                        + Agregar cobro
+                      </button>
+                    )}
+                    {!readOnly && !esCliente && (
+                      <button onClick={() => { setPagoParaCert(cert.id); setPagoSubcForm({ ...EMPTY_PAGO_SUBC, moneda: contrato.moneda, ...montosIniciales(cert.monto_certificado) }); setError(null) }}
+                        className="text-xs px-2.5 py-1.5 border border-amber-200 text-amber-700 hover:bg-amber-50 rounded-lg transition-colors">
+                        + Agregar pago
+                      </button>
+                    )}
                     {esCliente && (
                       <button
                         onClick={() => window.open(`/print/certificado/${cert.id}`, '_blank')}
@@ -575,34 +662,41 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                     {esCliente ? (
                       <div className="space-y-2">
                         {cobros.map(cobro => {
-                          const vencido = estaVencido(cobro.fecha_vencimiento, cobro.estado, 'pendiente')
+                          const vencido = estaVencido(cobro.fecha_vencimiento, cobro.estado, 'Pendiente')
                           return (
                             <div key={cobro.id} className={cn('bg-white border rounded-xl px-4 py-3 flex items-center gap-3', vencido ? 'border-red-200' : 'border-slate-200')}>
                               <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0',
-                                cobro.estado === 'cobrado' ? 'bg-emerald-100 text-emerald-700' : vencido ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700')}>
+                                cobro.estado === 'Cobrado' ? 'bg-emerald-100 text-emerald-700' : vencido ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700')}>
                                 {cobro.numero ?? '—'}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                   <p className="text-sm font-semibold text-slate-900">{formatCurrency(cobro.monto, cobro.moneda)}</p>
                                   <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium',
-                                    cobro.estado === 'cobrado' ? 'bg-emerald-100 text-emerald-700' : vencido ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700')}>
-                                    {cobro.estado === 'cobrado' ? 'Cobrado' : vencido ? 'Vencido' : 'Pendiente'}
+                                    cobro.estado === 'Cobrado' ? 'bg-emerald-100 text-emerald-700' : vencido ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700')}>
+                                    {cobro.estado === 'Cobrado' ? 'Cobrado' : vencido ? 'Vencido' : 'Pendiente'}
                                   </span>
                                 </div>
                                 <p className="text-xs text-slate-400 mt-0.5">
-                                  {cobro.estado === 'cobrado' && cobro.fecha_pago ? `Pagado el ${formatDate(cobro.fecha_pago)}` : cobro.fecha_vencimiento ? `Vence: ${formatDate(cobro.fecha_vencimiento)}` : ''}
+                                  {cobro.estado === 'Cobrado' && cobro.fecha_pago ? `Pagado el ${formatDate(cobro.fecha_pago)}` : cobro.fecha_vencimiento ? `Vence: ${formatDate(cobro.fecha_vencimiento)}` : ''}
                                   {cobro.notas ? ` · ${cobro.notas}` : ''}
                                 </p>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
-                                {!readOnly && cobro.estado === 'pendiente' && (
+                                {!readOnly && cobro.estado === 'Pendiente' && (cobro.cobro_pagos?.length ?? 0) === 0 && (
                                   <button onClick={() => { setPagoCobroTarget(cobro); setRegistrarPagoForm({ ...EMPTY_REGISTRAR_PAGO }) }}
                                     className="text-xs px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors">
                                     Registrar pago
                                   </button>
                                 )}
-                                {cobro.estado === 'cobrado' && (
+                                {(cobro.cobro_pagos?.length ?? 0) > 0 && (
+                                  <span
+                                    title="Este cobro tiene un plan de pago (cuotas/cheques) — gestionalo desde Cobros de obra"
+                                    className="text-xs px-2 py-1 rounded-lg bg-slate-100 text-slate-500">
+                                    Plan: {cobro.cobro_pagos!.filter(c => c.estado === 'Cobrado').length}/{cobro.cobro_pagos!.length}
+                                  </span>
+                                )}
+                                {cobro.estado === 'Cobrado' && (
                                   <button onClick={() => window.open(`/print/cobro/${cobro.id}`, '_blank')} title="Imprimir recibo"
                                     className="text-slate-400 hover:text-slate-600 px-1 transition-colors">
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -618,19 +712,11 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                           )
                         })}
 
-                        <div className="flex items-center justify-between pt-1">
-                          <div className="flex gap-4 text-xs">
-                            {cobros.some(c => c.estado === 'pendiente') && (
-                              <span className="text-amber-700">Pendiente: {formatCurrency(cobros.filter(c => c.estado === 'pendiente').reduce((s, c) => s + c.monto, 0), cobros[0]?.moneda ?? contrato.moneda)}</span>
-                            )}
-                            {cobradoTotal > 0 && <span className="text-emerald-700">Cobrado: {formatCurrency(cobradoTotal, cobros[0]?.moneda ?? contrato.moneda)}</span>}
-                          </div>
-                          {!readOnly && (
-                            <button onClick={() => { setCobroParaCert(cert.id); setCobroForm({ ...EMPTY_COBRO, moneda: contrato.moneda }); setError(null) }}
-                              className="text-xs px-3 py-1.5 border border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                              + Agregar cobro
-                            </button>
+                        <div className="flex gap-4 text-xs pt-1">
+                          {cobros.some(c => c.estado === 'Pendiente') && (
+                            <span className="text-amber-700">Pendiente: {formatCurrency(cobros.filter(c => c.estado === 'Pendiente').reduce((s, c) => s + c.monto, 0), cobros[0]?.moneda ?? contrato.moneda)}</span>
                           )}
+                          {cobradoTotal > 0 && <span className="text-emerald-700">Cobrado: {formatCurrency(cobradoTotal, cobros[0]?.moneda ?? contrato.moneda)}</span>}
                         </div>
                       </div>
                     ) : (
@@ -660,11 +746,18 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                                 </p>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
-                                {!readOnly && pago.estado === 'Pendiente' && (
+                                {!readOnly && pago.estado === 'Pendiente' && (pago.gasto_pagos?.length ?? 0) === 0 && (
                                   <button onClick={() => { setPagarGastoTarget(pago); setRegistrarPagoForm({ ...EMPTY_REGISTRAR_PAGO }) }}
                                     className="text-xs px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors">
                                     Registrar pago
                                   </button>
+                                )}
+                                {(pago.gasto_pagos?.length ?? 0) > 0 && (
+                                  <span
+                                    title="Este pago tiene un plan de pago (cuotas/cheques) — gestionalo desde Gastos"
+                                    className="text-xs px-2 py-1 rounded-lg bg-slate-100 text-slate-500">
+                                    Plan: {pago.gasto_pagos!.filter(c => c.estado === 'Pagado').length}/{pago.gasto_pagos!.length}
+                                  </span>
                                 )}
                                 {!readOnly && (
                                   <button onClick={() => handleDeleteGasto(pago)} className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>
@@ -674,19 +767,11 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                           )
                         })}
 
-                        <div className="flex items-center justify-between pt-1">
-                          <div className="flex gap-4 text-xs">
-                            {pagos.some(p => p.estado === 'Pendiente') && (
-                              <span className="text-amber-700">Pendiente: {formatCurrency(pagos.filter(p => p.estado === 'Pendiente').reduce((s, p) => s + p.monto, 0), pagos[0]?.moneda ?? contrato.moneda)}</span>
-                            )}
-                            {pagadoTotal > 0 && <span className="text-emerald-700">Pagado: {formatCurrency(pagadoTotal, pagos[0]?.moneda ?? contrato.moneda)}</span>}
-                          </div>
-                          {!readOnly && (
-                            <button onClick={() => { setPagoParaCert(cert.id); setPagoSubcForm({ ...EMPTY_PAGO_SUBC, moneda: contrato.moneda }); setError(null) }}
-                              className="text-xs px-3 py-1.5 border border-amber-200 text-amber-700 hover:bg-amber-50 rounded-lg transition-colors">
-                              + Agregar pago
-                            </button>
+                        <div className="flex gap-4 text-xs pt-1">
+                          {pagos.some(p => p.estado === 'Pendiente') && (
+                            <span className="text-amber-700">Pendiente: {formatCurrency(pagos.filter(p => p.estado === 'Pendiente').reduce((s, p) => s + p.monto, 0), pagos[0]?.moneda ?? contrato.moneda)}</span>
                           )}
+                          {pagadoTotal > 0 && <span className="text-emerald-700">Pagado: {formatCurrency(pagadoTotal, pagos[0]?.moneda ?? contrato.moneda)}</span>}
                         </div>
                       </div>
                     )}
@@ -825,27 +910,37 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <form onSubmit={handleCobroSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Monto *</label>
-                  <input required type="number" min="0" step="0.01" value={cobroForm.monto}
-                    onChange={e => setCobroForm(f => ({ ...f, monto: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Moneda *</label>
-                  <select value={cobroForm.moneda} onChange={e => setCobroForm(f => ({ ...f, moneda: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="ARS">ARS — Pesos</option>
-                    <option value="USD">USD — Dólares</option>
-                  </select>
-                </div>
+            <form onSubmit={handleCobroSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Moneda *</label>
+                <select value={cobroForm.moneda} onChange={e => setCobroForm(f => ({ ...f, moneda: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="ARS">ARS — Pesos</option>
+                  <option value="USD">USD — Dólares</option>
+                </select>
+              </div>
+              <IvaCalculator
+                montoNeto={cobroForm.monto_neto} iva={cobroForm.iva} monto={cobroForm.monto}
+                onChangeMontoNeto={v => setCobroForm(f => ({ ...f, monto_neto: v }))}
+                onChangeIva={v => setCobroForm(f => ({ ...f, iva: v }))}
+                onChangeMonto={v => setCobroForm(f => ({ ...f, monto: v }))}
+                pctInicial={contrato.iva_pct}
+              />
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Percepciones</label>
+                <input type="number" min="0" step="0.01" value={cobroForm.percepciones}
+                  onChange={e => setCobroForm(f => ({ ...f, percepciones: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de vencimiento *</label>
                 <input required type="date" value={cobroForm.fecha_vencimiento}
                   onChange={e => setCobroForm(f => ({ ...f, fecha_vencimiento: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">N° comprobante</label>
+                <input value={cobroForm.numero_comprobante} onChange={e => setCobroForm(f => ({ ...f, numero_comprobante: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
@@ -878,33 +973,43 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <form onSubmit={handlePagoSubcSubmit} className="p-6 space-y-4">
+            <form onSubmit={handlePagoSubcSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Descripción</label>
                 <input value={pagoSubcForm.descripcion} onChange={e => setPagoSubcForm(f => ({ ...f, descripcion: e.target.value }))}
                   placeholder="Se completa solo si lo dejás vacío"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Monto *</label>
-                  <input required type="number" min="0" step="0.01" value={pagoSubcForm.monto}
-                    onChange={e => setPagoSubcForm(f => ({ ...f, monto: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Moneda *</label>
-                  <select value={pagoSubcForm.moneda} onChange={e => setPagoSubcForm(f => ({ ...f, moneda: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="ARS">ARS — Pesos</option>
-                    <option value="USD">USD — Dólares</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Moneda *</label>
+                <select value={pagoSubcForm.moneda} onChange={e => setPagoSubcForm(f => ({ ...f, moneda: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="ARS">ARS — Pesos</option>
+                  <option value="USD">USD — Dólares</option>
+                </select>
+              </div>
+              <IvaCalculator
+                montoNeto={pagoSubcForm.monto_neto} iva={pagoSubcForm.iva} monto={pagoSubcForm.monto}
+                onChangeMontoNeto={v => setPagoSubcForm(f => ({ ...f, monto_neto: v }))}
+                onChangeIva={v => setPagoSubcForm(f => ({ ...f, iva: v }))}
+                onChangeMonto={v => setPagoSubcForm(f => ({ ...f, monto: v }))}
+                pctInicial={contrato.iva_pct}
+              />
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Percepciones</label>
+                <input type="number" min="0" step="0.01" value={pagoSubcForm.percepciones}
+                  onChange={e => setPagoSubcForm(f => ({ ...f, percepciones: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de vencimiento *</label>
                 <input required type="date" value={pagoSubcForm.fecha_vencimiento}
                   onChange={e => setPagoSubcForm(f => ({ ...f, fecha_vencimiento: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">N° comprobante</label>
+                <input value={pagoSubcForm.numero_comprobante} onChange={e => setPagoSubcForm(f => ({ ...f, numero_comprobante: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
@@ -964,6 +1069,52 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: Condición de IVA del contrato ── */}
+      {editandoIva && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <h2 className="text-lg font-bold text-slate-900">Condición de IVA</h2>
+              <button onClick={() => setEditandoIva(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-500">
+                Se usa como default al generar un {esCliente ? 'cobro' : 'pago'} desde un certificado de este contrato — siempre se puede ajustar caso a caso ahí.
+              </p>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">IVA</label>
+                <select value={ivaEditForm.modo} onChange={e => setIvaEditForm(f => ({ ...f, modo: e.target.value as ModoIva }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="0">Sin IVA</option>
+                  <option value="10.5">+ IVA 10.5%</option>
+                  <option value="21">+ IVA 21%</option>
+                  <option value="personalizado">Personalizado</option>
+                </select>
+              </div>
+              {ivaEditForm.modo === 'personalizado' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">% de IVA</label>
+                  <input type="number" min="0" step="0.01" value={ivaEditForm.pct}
+                    onChange={e => setIvaEditForm(f => ({ ...f, pct: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              )}
+              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setEditandoIva(false)}
+                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+                <button type="button" onClick={handleGuardarIva} disabled={loading}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
+                  {loading ? 'Guardando...' : 'Guardar'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

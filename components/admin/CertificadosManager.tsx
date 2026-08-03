@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn, redondear2 } from '@/lib/utils'
 import { obtenerOCrearRubro } from '@/lib/rubros'
-import ClienteYFechasForm, { EMPTY_DATOS_GENERALES, type DatosGenerales } from './ClienteYFechasForm'
+import ClienteYFechasForm, { EMPTY_DATOS_GENERALES, ivaPctDeDatosGenerales, type DatosGenerales } from './ClienteYFechasForm'
 import ItemsRubroTable, { nuevaFilaItem, totalFilasItem, type FilaItem } from './ItemsRubroTable'
 import ContratoObraCard from './ContratoObraCard'
 import type { ContratoObra, CertificadoAvance, CobroProyecto, Gasto, CuentaPropia, ContratoObraItem, CertificadoItem, Proveedor, TipoContratoObra } from '@/types/database'
@@ -135,6 +135,7 @@ export default function CertificadosManager({ contratos, certificados, contratoO
         fecha_inicio: contratoForm.fecha_inicio || null,
         fecha_fin_estimada: contratoForm.fecha_fin_estimada || null,
         descripcion: contratoForm.descripcion.trim() || null,
+        iva_pct: ivaPctDeDatosGenerales(contratoForm),
       })
       .select('id')
       .single()

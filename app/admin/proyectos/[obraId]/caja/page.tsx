@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getProyectoContext } from '@/lib/tenant'
-import { calcularTotalesYSaldos, type MovimientoConCuenta } from '@/lib/tesoreria'
+import { calcularTotalesYSaldos, type GastoParaCaja, type MovimientoConCuenta } from '@/lib/tesoreria'
 import { cn, formatCurrency as fmt } from '@/lib/utils'
 import type { Metadata } from 'next'
 
@@ -21,7 +21,7 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
   // más abajo — antes se volvían a pedir adentro de calcularCajaProyecto).
   const gastosQuery = supabase
     .from('gastos')
-    .select('*, categorias_costo(nombre, color), proveedores(razon_social)')
+    .select('*, categorias_costo(nombre, color), proveedores(razon_social), pagos:gasto_pagos(estado, monto, cuenta_propia_id)')
     .eq('constructora_id', ctx.constructoraId)
     .eq('obra_id', obraId)
     .order('fecha_vencimiento', { ascending: false })
@@ -39,13 +39,15 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
       const [{ data: cuotas }, { data: contratos }, { data: reservasVigentes }] = await Promise.all([
         supabase
           .from('cuotas')
-          .select('monto_base, monto_cobrado, fecha_pago, cuenta_propia_id, contratos_venta!inner(unidades!inner(obra_id))')
+          .select('monto_base, monto_cobrado, fecha_pago, cuenta_propia_id, contratos_venta!inner(estado, unidades!inner(obra_id))')
           .eq('estado_pago', 'Pagado')
-          .eq('contratos_venta.unidades.obra_id', obraId),
+          .eq('contratos_venta.unidades.obra_id', obraId)
+          .eq('contratos_venta.estado', 'vigente'),
         supabase
           .from('contratos_venta')
           .select('entrega_efectiva, fecha_firma, cuenta_propia_id, unidades!inner(obra_id)')
           .eq('unidades.obra_id', obraId)
+          .eq('estado', 'vigente')
           .not('entrega_efectiva', 'is', null),
         supabase
           .from('reservas')
@@ -83,21 +85,40 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
       ].sort((a, b) => b.fecha.localeCompare(a.fecha))
     }
 
+    // Sin filtro de estado acá a propósito — un cobro con plan de pago
+    // parcialmente cumplido sigue Pendiente pero puede tener cuotas ya
+    // Cobradas (ver lib/tesoreria.ts). Acá se arma el detalle a mano (en
+    // vez de reusar movimientosLiquidados) para no perder la fecha propia
+    // de cada cuota en la lista de "Ingresos".
     const { data: cobros } = await supabase
       .from('cobros_proyecto')
-      .select('*')
+      .select('*, cobro_pagos(estado, monto, cuenta_propia_id, fecha_pago)')
       .eq('obra_id', obraId)
-      .eq('estado', 'cobrado')
       .order('fecha_pago', { ascending: false })
 
-    return (cobros ?? []).map(c => ({
-      fecha: c.fecha_pago ?? c.fecha,
-      descripcion: c.notas ?? 'Cobro de proyecto',
-      monto: c.monto,
-      moneda: c.moneda,
-      tipo: 'cobro',
-      cuenta_propia_id: c.cuenta_propia_id ?? null,
-    }))
+    type CuotaCobroRaw = { estado: string; monto: number; cuenta_propia_id: string | null; fecha_pago: string | null }
+
+    return (cobros ?? []).flatMap(c => {
+      const cuotas = (c.cobro_pagos ?? []) as CuotaCobroRaw[]
+      if (cuotas.length > 0) {
+        return cuotas.filter(p => p.estado === 'Cobrado').map(p => ({
+          fecha: p.fecha_pago ?? '',
+          descripcion: c.notas ?? 'Cobro de proyecto',
+          monto: p.monto,
+          moneda: c.moneda,
+          tipo: 'cobro',
+          cuenta_propia_id: p.cuenta_propia_id ?? null,
+        }))
+      }
+      return c.estado === 'Cobrado' ? [{
+        fecha: c.fecha_pago ?? c.fecha,
+        descripcion: c.notas ?? 'Cobro de proyecto',
+        monto: c.monto,
+        moneda: c.moneda,
+        tipo: 'cobro',
+        cuenta_propia_id: c.cuenta_propia_id ?? null,
+      }] : []
+    })
   }
 
   const [{ data: gastos }, { data: cuentas }, ingresos] = await Promise.all([
@@ -108,7 +129,7 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
 
   // Misma función pura que usa el webhook de WhatsApp (lib/tesoreria.ts) —
   // acá recibe los datos que esta página ya trajo arriba, sin volver a pedirlos.
-  const { cuentasConSaldo, totalesPorMoneda } = calcularTotalesYSaldos(cuentas ?? [], gastos ?? [], ingresos)
+  const { cuentasConSaldo, totalesPorMoneda } = calcularTotalesYSaldos(cuentas ?? [], (gastos ?? []) as unknown as GastoParaCaja[], ingresos)
   const monedasConMovimiento = Object.keys(totalesPorMoneda)
 
   return (

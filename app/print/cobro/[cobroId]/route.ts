@@ -68,6 +68,9 @@ export async function GET(
     certificadoNumero: cert?.numero ?? null,
     certificadoPeriodo: cert?.periodo ?? null,
     notas: cobro.notas,
+    montoNeto: cobro.monto_neto,
+    iva: cobro.iva,
+    percepciones: cobro.percepciones,
   })
 
   return new NextResponse(new Uint8Array(buffer), {

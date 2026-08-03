@@ -63,7 +63,7 @@ export async function registrarCobro(constructoraId: string, perfilId: string, d
     fecha_pago: hoy,
     monto: datos.monto,
     moneda: datos.moneda,
-    estado: 'cobrado',
+    estado: 'Cobrado',
     cuenta_propia_id: datos.cuentaPropiaId,
     created_by: perfilId,
   })

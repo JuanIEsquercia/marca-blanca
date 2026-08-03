@@ -56,19 +56,26 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
     // traía lo cobrado/pagado, así que no había forma de detectar vencidos
     // sin otro round-trip. Con estado+fecha_vencimiento en el select se
     // derivan ambos (total cobrado/pagado y vencidos) de la misma consulta.
+    type PagoConFecha = { estado: string; monto: number; fecha_pago: string }
+
     const [{ data: certificados }, { data: cobros }, { data: certificadosSub }, { data: pagos }] = await Promise.all([
       contratoIds.length > 0
         ? supabase.from('certificados_avance').select('*').in('contrato_obra_id', contratoIds).order('numero', { ascending: false })
         : Promise.resolve({ data: [] as { id: string; contrato_obra_id: string; numero: number; periodo: string; porcentaje_avance: number; monto_certificado: number; estado: string; created_at: string }[] }),
+      // pagos:cobro_pagos — un cobro con plan de pago (migration_064) sigue
+      // "Pendiente" a nivel de fila hasta que TODAS las cuotas cierran; sin
+      // esto, "Total cobrado" no sumaba nada de un plan parcialmente
+      // cumplido y "vencido" se evaluaba contra la fecha del padre en vez
+      // de la fecha real de cada cheque.
       contratoIds.length > 0
-        ? supabase.from('cobros_proyecto').select('monto, moneda, contrato_obra_id, estado, fecha_vencimiento').in('contrato_obra_id', contratoIds)
-        : Promise.resolve({ data: [] as { monto: number; moneda: string; contrato_obra_id: string | null; estado: string; fecha_vencimiento: string | null }[] }),
+        ? supabase.from('cobros_proyecto').select('monto, moneda, contrato_obra_id, estado, fecha_vencimiento, pagos:cobro_pagos(estado, monto, fecha_pago)').in('contrato_obra_id', contratoIds)
+        : Promise.resolve({ data: [] as { monto: number; moneda: string; contrato_obra_id: string | null; estado: string; fecha_vencimiento: string | null; pagos?: PagoConFecha[] }[] }),
       contratoIdsSub.length > 0
         ? supabase.from('certificados_avance').select('*').in('contrato_obra_id', contratoIdsSub).order('numero', { ascending: false })
         : Promise.resolve({ data: [] as { id: string; contrato_obra_id: string; numero: number; periodo: string; porcentaje_avance: number; monto_certificado: number; estado: string; created_at: string }[] }),
       contratoIdsSub.length > 0
-        ? supabase.from('gastos').select('monto, moneda, certificado_id, estado, fecha_vencimiento, certificados_avance!inner(contrato_obra_id)').in('certificados_avance.contrato_obra_id', contratoIdsSub)
-        : Promise.resolve({ data: [] as { monto: number; moneda: string; certificado_id: string | null; estado: string; fecha_vencimiento: string | null; certificados_avance: { contrato_obra_id: string } | null }[] }),
+        ? supabase.from('gastos').select('monto, moneda, certificado_id, estado, fecha_vencimiento, certificados_avance!inner(contrato_obra_id), pagos:gasto_pagos(estado, monto, fecha_pago)').in('certificados_avance.contrato_obra_id', contratoIdsSub)
+        : Promise.resolve({ data: [] as { monto: number; moneda: string; certificado_id: string | null; estado: string; fecha_vencimiento: string | null; certificados_avance: { contrato_obra_id: string } | null; pagos?: PagoConFecha[] }[] }),
     ])
 
     // Alertas agregadas (todas los contratos, cliente + subcontratistas) —
@@ -78,10 +85,24 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
     const DIAS_CERTIFICADO_ESTANCADO = 14
     const diasDesde = (fecha: string) => Math.floor((Date.now() - new Date(fecha).getTime()) / (1000 * 60 * 60 * 24))
 
+    // Con plan de pago, cada cuota cuenta por su propio estado/fecha en vez
+    // del padre — así un plan parcialmente cumplido aporta lo ya
+    // liquidado y "vencido" mira la fecha real de la cuota, no la del padre
+    // (que puede seguir mostrando una fecha vieja aunque haya un plan
+    // vigente con cuotas a fecha futura).
+    function montosLiquidados(pagos: PagoConFecha[] | undefined, estado: string, estadoLiquidado: string, montoPadre: number): number[] {
+      if (pagos && pagos.length > 0) return pagos.filter(p => p.estado === estadoLiquidado).map(p => p.monto)
+      return estado === estadoLiquidado ? [montoPadre] : []
+    }
+    function algunaVencida(pagos: PagoConFecha[] | undefined, estado: string, fechaVencimiento: string | null, estadoPendiente: string): boolean {
+      if (pagos && pagos.length > 0) return pagos.some(p => estaVencido(p.fecha_pago, p.estado, estadoPendiente))
+      return estaVencido(fechaVencimiento, estado, estadoPendiente)
+    }
+
     const certificadosEstancados = [...(certificados ?? []), ...(certificadosSub ?? [])]
       .filter(c => c.estado === 'borrador' && diasDesde(c.created_at) > DIAS_CERTIFICADO_ESTANCADO)
-    const cobrosVencidos = (cobros ?? []).filter(c => estaVencido(c.fecha_vencimiento, c.estado, 'pendiente'))
-    const pagosVencidos = (pagos ?? []).filter(g => estaVencido(g.fecha_vencimiento, g.estado, 'Pendiente'))
+    const cobrosVencidos = (cobros ?? []).filter(c => algunaVencida(c.pagos, c.estado, c.fecha_vencimiento, 'Pendiente'))
+    const pagosVencidos = (pagos ?? []).filter(g => algunaVencida(g.pagos, g.estado, g.fecha_vencimiento, 'Pendiente'))
 
     return (
       <div className="space-y-6">
@@ -129,9 +150,11 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
           <div className="space-y-5">
             {contratos.map(contrato => {
               const certifDelContrato = (certificados ?? []).filter(c => c.contrato_obra_id === contrato.id)
-              const cobrosDelContrato = (cobros ?? []).filter(c => c.contrato_obra_id === contrato.id && c.estado === 'cobrado')
+              const cobrosDelContrato = (cobros ?? []).filter(c => c.contrato_obra_id === contrato.id)
               const totalCobradoPorMoneda = cobrosDelContrato.reduce<Record<string, number>>((acc, c) => {
-                acc[c.moneda] = redondear2((acc[c.moneda] ?? 0) + Number(c.monto))
+                for (const monto of montosLiquidados(c.pagos, c.estado, 'Cobrado', c.monto)) {
+                  acc[c.moneda] = redondear2((acc[c.moneda] ?? 0) + Number(monto))
+                }
                 return acc
               }, {})
               const ultimoCertif = certifDelContrato[0] ?? null
@@ -208,9 +231,11 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
             </p>
             {contratosSub.map(contrato => {
               const certifDelContrato = (certificadosSub ?? []).filter(c => c.contrato_obra_id === contrato.id)
-              const pagosDelContrato = (pagos ?? []).filter(g => (g.certificados_avance as any)?.contrato_obra_id === contrato.id && g.estado === 'Pagado')
+              const pagosDelContrato = (pagos ?? []).filter(g => (g.certificados_avance as any)?.contrato_obra_id === contrato.id)
               const totalPagadoPorMoneda = pagosDelContrato.reduce<Record<string, number>>((acc, g) => {
-                acc[g.moneda] = redondear2((acc[g.moneda] ?? 0) + Number(g.monto))
+                for (const monto of montosLiquidados(g.pagos, g.estado, 'Pagado', g.monto)) {
+                  acc[g.moneda] = redondear2((acc[g.moneda] ?? 0) + Number(monto))
+                }
                 return acc
               }, {})
               const ultimoCertif = certifDelContrato[0] ?? null
@@ -299,14 +324,16 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
       .from('contratos_venta')
       .select('id, precio_final, fecha_firma, compradores(nombre_completo), unidades(piso, numero, letra)')
       .eq('obra_id', obraId)
+      .eq('estado', 'vigente')
       .order('fecha_firma', { ascending: false })
       .limit(5),
-    supabase.from('contratos_venta').select('precio_final').eq('obra_id', obraId),
+    supabase.from('contratos_venta').select('precio_final').eq('obra_id', obraId).eq('estado', 'vigente'),
     supabase
       .from('cuotas')
-      .select('monto_base, fecha_vencimiento, contratos_venta!inner(obra_id)')
+      .select('monto_base, fecha_vencimiento, contratos_venta!inner(obra_id, estado)')
       .eq('estado_pago', 'Pendiente')
-      .eq('contratos_venta.obra_id', obraId),
+      .eq('contratos_venta.obra_id', obraId)
+      .eq('contratos_venta.estado', 'vigente'),
     supabase.from('reservas').select('*', { count: 'exact', head: true }).eq('obra_id', obraId).eq('estado', 'Vigente'),
     supabase.from('reservas').select('*', { count: 'exact', head: true }).eq('obra_id', obraId).eq('estado', 'Vigente').lte('fecha_vencimiento', en7Dias),
   ])

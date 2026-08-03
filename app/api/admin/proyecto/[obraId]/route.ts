@@ -50,10 +50,16 @@ export async function PATCH(
   const { obraId } = await params
   const { estado } = await req.json()
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  // Chequeo explícito de rol: las RLS de `obras` ya exigen es_admin() para
+  // este UPDATE, pero purgar_obra_completa (DELETE, más abajo) dispara un
+  // borrado en cascada sobre tablas cuyas RLS solo exigen permiso normal de
+  // proyecto (no admin) — sin este chequeo acá, un operador con permiso en
+  // un solo módulo de su proyecto podía purgarlo entero vía este endpoint.
+  const ctx = await getProyectoContext(obraId)
+  if (!ctx) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 })
+  if (ctx.perfilRol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
 
+  const supabase = await createClient()
   const { error } = await supabase.from('obras').update({ estado }).eq('id', obraId)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
@@ -66,10 +72,11 @@ export async function DELETE(
 ) {
   const { obraId } = await params
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const ctx = await getProyectoContext(obraId)
+  if (!ctx) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 })
+  if (ctx.perfilRol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
 
+  const supabase = await createClient()
   const { error } = await supabase.rpc('purgar_obra_completa', { p_obra_id: obraId })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 

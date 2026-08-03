@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { redondear2 } from '@/lib/utils'
 import { obtenerOCrearRubro } from '@/lib/rubros'
-import ClienteYFechasForm, { EMPTY_DATOS_GENERALES, type DatosGenerales } from './ClienteYFechasForm'
+import ClienteYFechasForm, { EMPTY_DATOS_GENERALES, ivaPctDeDatosGenerales, type DatosGenerales } from './ClienteYFechasForm'
 import ItemsRubroTable, { nuevaFilaItem, type FilaItem } from './ItemsRubroTable'
 
 interface Props {
@@ -42,6 +42,7 @@ export default function NuevoPresupuestoForm({ constructoraId, rubros = [] }: Pr
         fecha_fin_estimada: form.fecha_fin_estimada || null,
         descripcion: form.descripcion.trim() || null,
         estado: 'borrador',
+        iva_pct: ivaPctDeDatosGenerales(form),
       })
       .select('id')
       .single()

@@ -33,7 +33,10 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
       .order('created_at', { ascending: true }),
     supabase
       .from('certificados_avance')
-      .select('*, cobros_proyecto(*), certificado_items(*)')
+      // cobro_pagos anidado: sin esto, esta vista no puede saber si un cobro
+      // ya tiene un plan de pago activo y permitía forzarlo a "Cobrado" con
+      // las cuotas reales todavía pendientes (ver ContratoObraCard).
+      .select('*, cobros_proyecto(*, cobro_pagos(*)), certificado_items(*)')
       .eq('obra_id', obraId)
       .order('numero', { ascending: true }),
     // Pagos a subcontratistas (gastos originados en un certificado) — se
@@ -42,7 +45,7 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
     // ambiguo sin especificar cuál. Se pega a cada certificado abajo.
     supabase
       .from('gastos')
-      .select('*')
+      .select('*, gasto_pagos(*)')
       .eq('obra_id', obraId)
       .not('certificado_id', 'is', null),
     supabase

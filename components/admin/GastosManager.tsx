@@ -8,6 +8,9 @@ import { uploadToCloudinary } from '@/lib/cloudinary'
 import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
 import type { Gasto, Proveedor, CuentaProveedor, CategoriaCosto, CuentaPropia } from '@/types/database'
 import ConfirmModal from './ConfirmModal'
+import PlanDePagoModal from './PlanDePagoModal'
+import CuotasList from './CuotasList'
+import IvaCalculator from './IvaCalculator'
 
 type ConfirmModalState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
 
@@ -55,6 +58,15 @@ const EMPTY_FORM = {
   percepciones: '',
 }
 
+// IvaCalculator solo lee su prop pctInicial al montar (useState inicial) —
+// como el modal se remonta cada vez que showForm pasa a true, alcanza con
+// dejar este valor bien calculado ANTES de abrir el modal (editar/duplicar/
+// escaneo), para no pisar un IVA ya cargado con el 0% por defecto.
+function pctDesdeNetoEIva(neto: number | null | undefined, iva: number | null | undefined): number | null {
+  if (!neto || iva == null) return null
+  return redondear2((iva / neto) * 100)
+}
+
 export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias, constructoraId, obraId, readOnly, historialAcotado, contratosSubcontratista = [] }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -63,6 +75,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [pctInicial, setPctInicial] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filtroEstado, setFiltroEstado] = useState<'todos' | 'Pendiente' | 'Pagado'>('todos')
@@ -79,6 +92,11 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   const [pagoForm, setPagoForm] = useState({ cuenta_propia_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
   const [loadingPago, setLoadingPago] = useState(false)
   const [pagoError, setPagoError] = useState<string | null>(null)
+
+  // Plan de pago (cuotas/cheques) — alternativa al pago único de arriba.
+  const [planDePagoTarget, setPlanDePagoTarget] = useState<Gasto | null>(null)
+  const [expandedGastoId, setExpandedGastoId] = useState<string | null>(null)
+  const tieneCuotas = (g: Gasto) => (g.gasto_pagos?.length ?? 0) > 0
 
   // Selección y pago en lote — antes pagar 10 gastos eran 10 modales
   // secuenciales, cada uno pidiendo cuenta y fecha de nuevo.
@@ -113,6 +131,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   function openNew() {
     setEditingId(null)
     setForm({ ...EMPTY_FORM, fecha_vencimiento: new Date().toISOString().split('T')[0] })
+    setPctInicial(null)
     setComprobanteUrl('')
     setError(null)
     setAvisoEscaneo(null)
@@ -121,6 +140,12 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
 
   function openEdit(g: Gasto) {
     setEditingId(g.id)
+    // Un gasto viejo sin desglose (monto_neto null, de antes de que
+    // existiera la calculadora de IVA) precarga el neto = total con
+    // "Sin IVA" — si no, el campo Monto neto (ahora requerido, igual que
+    // en Cobros) quedaría vacío y bloquearía el guardado hasta completarlo.
+    const montoNeto = g.monto_neto ?? g.monto
+    const iva = g.iva ?? 0
     setForm({
       proveedor_id: g.proveedor_id ?? '',
       cuenta_proveedor_id: g.cuenta_proveedor_id ?? '',
@@ -132,10 +157,11 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       fecha_vencimiento: g.fecha_vencimiento,
       numero_comprobante: g.numero_comprobante ?? '',
       notas: g.notas ?? '',
-      monto_neto: g.monto_neto != null ? String(g.monto_neto) : '',
-      iva: g.iva != null ? String(g.iva) : '',
+      monto_neto: String(montoNeto),
+      iva: String(iva),
       percepciones: g.percepciones != null ? String(g.percepciones) : '',
     })
+    setPctInicial(pctDesdeNetoEIva(montoNeto, iva))
     setComprobanteUrl(g.comprobante_url ?? '')
     setError(null)
     setAvisoEscaneo(null)
@@ -237,6 +263,11 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
         ? proveedores.find(p => p.cuit?.replace(/\D/g, '') === cuitNormalizado)
         : undefined
 
+      // Si la extracción no encontró el neto (factura sin ese desglose, OCR
+      // incompleto), se precarga neto = total con "Sin IVA" — igual criterio
+      // que abrir un gasto viejo sin desglose, para no bloquear el guardado.
+      const montoNeto = d.monto_neto ?? d.monto ?? null
+      const iva = d.iva ?? 0
       setForm({
         ...EMPTY_FORM,
         descripcion: d.descripcion ?? '',
@@ -245,13 +276,15 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
         fecha_vencimiento: d.fecha ?? new Date().toISOString().split('T')[0],
         numero_comprobante: d.numero_comprobante ?? '',
         proveedor_id: proveedorMatch?.id ?? '',
-        monto_neto: d.monto_neto != null ? String(d.monto_neto) : '',
-        iva: d.iva != null ? String(d.iva) : '',
+        monto_neto: montoNeto != null ? String(montoNeto) : '',
+        iva: String(iva),
         percepciones: d.percepciones != null ? String(d.percepciones) : '',
       })
+      setPctInicial(pctDesdeNetoEIva(montoNeto, iva))
       setAvisoEscaneo({ tipo: 'ok', mensaje: 'Datos completados automáticamente — revisá antes de guardar.' })
     } catch {
       setForm({ ...EMPTY_FORM, fecha_vencimiento: new Date().toISOString().split('T')[0] })
+      setPctInicial(null)
       setAvisoEscaneo({ tipo: 'error', mensaje: 'No pudimos leer los datos de la factura automáticamente — completá el formulario a mano.' })
     } finally {
       setShowForm(true)
@@ -316,6 +349,8 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   // cada mes.
   function duplicar(g: Gasto) {
     setEditingId(null)
+    const montoNeto = g.monto_neto ?? g.monto
+    const iva = g.iva ?? 0
     setForm({
       proveedor_id: g.proveedor_id ?? '',
       cuenta_proveedor_id: g.cuenta_proveedor_id ?? '',
@@ -327,10 +362,11 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       fecha_vencimiento: new Date().toISOString().split('T')[0],
       numero_comprobante: '',
       notas: g.notas ?? '',
-      monto_neto: g.monto_neto != null ? String(g.monto_neto) : '',
-      iva: g.iva != null ? String(g.iva) : '',
+      monto_neto: String(montoNeto),
+      iva: String(iva),
       percepciones: g.percepciones != null ? String(g.percepciones) : '',
     })
+    setPctInicial(pctDesdeNetoEIva(montoNeto, iva))
     setComprobanteUrl('')
     setError(null)
     setAvisoEscaneo(null)
@@ -345,7 +381,11 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
     })
   }
 
-  const pendientesVisibles = gastosFiltrados.filter(g => g.estado === 'Pendiente')
+  // Un gasto con plan de pago activo se paga cuota por cuota (ver
+  // CuotasList) — no participa del pago único ni del pago en lote, para
+  // no pisar con un solo UPDATE lo que las cuotas individuales ya vienen
+  // trackeando (ver lib/tesoreria.ts).
+  const pendientesVisibles = gastosFiltrados.filter(g => g.estado === 'Pendiente' && !tieneCuotas(g))
   const todosPendientesSeleccionados = pendientesVisibles.length > 0 && pendientesVisibles.every(g => seleccionados.has(g.id))
 
   function toggleSeleccionarTodosPendientes() {
@@ -522,12 +562,12 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {gastosFiltrados.map(g => (
-                <tr key={g.id} className="hover:bg-slate-50">
+            {gastosFiltrados.map(g => (
+              <tbody key={g.id} className="divide-y divide-slate-100">
+                <tr className="hover:bg-slate-50">
                   {!readOnly && (
                     <td className="px-4 py-3">
-                      {g.estado === 'Pendiente' && (
+                      {g.estado === 'Pendiente' && !tieneCuotas(g) && (
                         <input type="checkbox" checked={seleccionados.has(g.id)} onChange={() => toggleSeleccionado(g.id)}
                           className="rounded border-slate-300" />
                       )}
@@ -561,10 +601,16 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                     )}>
                       {g.estado}
                     </span>
+                    {tieneCuotas(g) && (
+                      <button onClick={() => setExpandedGastoId(id => id === g.id ? null : g.id)}
+                        className="block mx-auto mt-1 text-[11px] text-indigo-600 hover:text-indigo-800">
+                        {(g.gasto_pagos ?? []).filter(c => c.estado === 'Pagado').length}/{(g.gasto_pagos ?? []).length} pagadas {expandedGastoId === g.id ? '▲' : '▼'}
+                      </button>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      {!readOnly && g.estado === 'Pendiente' && (
+                      {!readOnly && g.estado === 'Pendiente' && !tieneCuotas(g) && (
                         <button
                           onClick={() => {
                             setPagandoGasto(g)
@@ -572,6 +618,12 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                           }}
                           className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
                           Registrar pago
+                        </button>
+                      )}
+                      {!readOnly && g.estado === 'Pendiente' && (
+                        <button onClick={() => setPlanDePagoTarget(g)}
+                          className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
+                          {tieneCuotas(g) ? 'Editar plan' : 'Plan de pago'}
                         </button>
                       )}
                       {g.estado === 'Pagado' && g.fecha_pago && (
@@ -592,8 +644,16 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                     </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
+                {expandedGastoId === g.id && (
+                  <tr>
+                    <td colSpan={readOnly ? 7 : 8} className="px-4 py-3 bg-slate-50/50">
+                      <CuotasList entidad="gasto" cuotas={g.gasto_pagos ?? []} moneda={g.moneda}
+                        cuentasPropias={cuentasPropias} readOnly={readOnly} onChanged={refresh} />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            ))}
           </table>
         </div>
         {gastosFiltrados.length === 0 && (
@@ -749,21 +809,28 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Monto *</label>
-                  <input required type="number" min="0" step="0.01" value={form.monto}
-                    onChange={e => setForm(f => ({ ...f, monto: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
-                  <select value={form.moneda} onChange={e => setForm(f => ({ ...f, moneda: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option>ARS</option>
-                    <option>USD</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
+                <select value={form.moneda} onChange={e => setForm(f => ({ ...f, moneda: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option>ARS</option>
+                  <option>USD</option>
+                </select>
+              </div>
+
+              <IvaCalculator
+                montoNeto={form.monto_neto} iva={form.iva} monto={form.monto}
+                onChangeMontoNeto={v => setForm(f => ({ ...f, monto_neto: v }))}
+                onChangeIva={v => setForm(f => ({ ...f, iva: v }))}
+                onChangeMonto={v => setForm(f => ({ ...f, monto: v }))}
+                pctInicial={pctInicial}
+              />
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Percepciones</label>
+                <input type="number" min="0" step="0.01" value={form.percepciones}
+                  onChange={e => setForm(f => ({ ...f, percepciones: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -840,21 +907,6 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   onChange={e => setForm(f => ({ ...f, numero_comprobante: e.target.value }))}
                   placeholder="Factura A 0001-00012345"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Desglose (opcional)</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <input type="number" min="0" step="0.01" value={form.monto_neto} placeholder="Neto"
-                    onChange={e => setForm(f => ({ ...f, monto_neto: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                  <input type="number" min="0" step="0.01" value={form.iva} placeholder="IVA"
-                    onChange={e => setForm(f => ({ ...f, iva: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                  <input type="number" min="0" step="0.01" value={form.percepciones} placeholder="Percepciones"
-                    onChange={e => setForm(f => ({ ...f, percepciones: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
               </div>
 
               {/* Comprobante imagen */}
@@ -989,6 +1041,19 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
             </div>
           </div>
         </div>
+      )}
+
+      {planDePagoTarget && (
+        <PlanDePagoModal
+          entidad="gasto"
+          id={planDePagoTarget.id}
+          montoTotal={planDePagoTarget.monto}
+          moneda={planDePagoTarget.moneda}
+          cuotasExistentes={planDePagoTarget.gasto_pagos ?? []}
+          cuentasPropias={cuentasPropias}
+          onClose={() => setPlanDePagoTarget(null)}
+          onSaved={() => { setPlanDePagoTarget(null); setExpandedGastoId(planDePagoTarget.id); refresh() }}
+        />
       )}
 
       {confirmModal && (

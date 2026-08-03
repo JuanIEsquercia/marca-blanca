@@ -3,9 +3,10 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { cn, formatCurrency, formatDate } from '@/lib/utils'
-import type { Producto, EstadoOrdenCompra } from '@/types/database'
+import { cn, formatCurrency, formatDate, redondear2 } from '@/lib/utils'
+import type { Producto, EstadoOrdenCompra, EstadoAcopio } from '@/types/database'
 import ConfirmModal from './ConfirmModal'
+import IvaCalculator from './IvaCalculator'
 
 type ItemRow = {
   id: string
@@ -58,6 +59,44 @@ interface StockResumenRow {
   cantidad: number
 }
 
+type AcopioRetiroRow = {
+  id: string
+  producto_id: string
+  cantidad: number
+  precio_unitario_retiro: number | null
+  precio_unitario_referencia: number | null
+  cantidad_referencia_descontada: number
+  obra_id: string | null
+  fecha: string
+  notas: string | null
+  productos: { nombre: string; unidad_medida: string } | null
+  obras: { nombre: string } | null
+}
+
+type AcopioRow = {
+  id: string
+  numero: number
+  obra_id: string | null
+  proveedor_id: string
+  producto_referencia_id: string
+  saldo_inicial: number
+  monto_pagado: number
+  precio_referencia_inicial: number | null
+  moneda: string
+  fecha: string
+  estado: EstadoAcopio
+  notas: string | null
+  proveedores: { razon_social: string } | null
+  productos: { nombre: string; unidad_medida: string } | null
+  obras: { nombre: string } | null
+  acopio_retiros: AcopioRetiroRow[]
+}
+
+interface AcopioResumenRow {
+  acopio_id: string
+  saldo_actual: number
+}
+
 interface Props {
   ordenes: OrdenRow[]
   productos: ProductoConCategoria[]
@@ -65,6 +104,8 @@ interface Props {
   obras: { id: string; nombre: string; tipo: string }[]
   categorias: { id: string; nombre: string; color: string }[]
   stockResumen: StockResumenRow[]
+  acopios: AcopioRow[]
+  acopiosResumen: AcopioResumenRow[]
   constructoraId: string
   constructoraNombre: string
 }
@@ -97,13 +138,23 @@ function estadoCumplimiento(items: ItemRow[]): { label: string; color: string } 
 const EMPTY_ITEM_FORM = { producto_id: '', cantidad_solicitada: '', notas: '', creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad' }
 const EMPTY_ORDEN_FORM = { obra_id: '', fecha_emision: new Date().toISOString().split('T')[0], notas: '' }
 const EMPTY_PRODUCTO_FORM = { nombre: '', unidad_medida: 'unidad', categoria_id: '' }
+const EMPTY_ACOPIO_FORM = {
+  proveedor_id: '', obra_id: '', producto_referencia_id: '', saldo_inicial: '', monto_pagado: '',
+  precio_referencia_inicial: '', moneda: 'ARS',
+  fecha: new Date().toISOString().split('T')[0], notas: '',
+  creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad',
+}
+const EMPTY_RETIRO_FORM = {
+  producto_id: '', cantidad: '', precio_retiro: '', precio_referencia: '', obra_id: '', notas: '',
+  creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad',
+}
 
-export default function ComprasManager({ ordenes, productos, proveedores, obras, categorias, stockResumen, constructoraId, constructoraNombre }: Props) {
+export default function ComprasManager({ ordenes, productos, proveedores, obras, categorias, stockResumen, acopios, acopiosResumen, constructoraId, constructoraNombre }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
 
-  const [tab, setTab] = useState<'ordenes' | 'stock'>('ordenes')
+  const [tab, setTab] = useState<'ordenes' | 'stock' | 'acopios'>('ordenes')
 
   const [busqueda, setBusqueda] = useState('')
   const [filtroEstado, setFiltroEstado] = useState<'todos' | EstadoOrdenCompra>('todos')
@@ -132,7 +183,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
 
   // Nueva recepción (cumplimiento parcial contra una orden)
   const [recepcionOrden, setRecepcionOrden] = useState<OrdenRow | null>(null)
-  const [recepcionForm, setRecepcionForm] = useState({ proveedor_id: '', fecha: new Date().toISOString().split('T')[0], moneda: 'ARS', notas: '' })
+  const [recepcionForm, setRecepcionForm] = useState({ proveedor_id: '', fecha: new Date().toISOString().split('T')[0], moneda: 'ARS', notas: '', iva: '', percepciones: '', numero_comprobante: '', monto: '' })
   const [recepcionItems, setRecepcionItems] = useState<Record<string, { cantidad: string; precio: string }>>({})
   const [recepcionLoading, setRecepcionLoading] = useState(false)
   const [recepcionError, setRecepcionError] = useState<string | null>(null)
@@ -144,11 +195,48 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
   const [repartoLoading, setRepartoLoading] = useState(false)
   const [repartoError, setRepartoError] = useState<string | null>(null)
 
+  // Acopios
+  const [detalleAcopio, setDetalleAcopio] = useState<AcopioRow | null>(null)
+  const [showAcopioForm, setShowAcopioForm] = useState(false)
+  const [acopioForm, setAcopioForm] = useState(EMPTY_ACOPIO_FORM)
+  const [acopioLoading, setAcopioLoading] = useState(false)
+  const [acopioError, setAcopioError] = useState<string | null>(null)
+
+  const [retiroAcopio, setRetiroAcopio] = useState<AcopioRow | null>(null)
+  const [retiroForm, setRetiroForm] = useState(EMPTY_RETIRO_FORM)
+  const [retiroLoading, setRetiroLoading] = useState(false)
+  const [retiroError, setRetiroError] = useState<string | null>(null)
+
+  // Si se carga el precio del producto de referencia al momento del pago,
+  // el saldo inicial se calcula solo (monto ÷ precio) al tipear cualquiera
+  // de los dos — sigue siendo editable a mano después, por si el
+  // proveedor da directamente la cantidad en vez de un precio (ej.
+  // "700.000 ladrillos", sin precio).
+  function actualizarMontoPagado(valor: string) {
+    setAcopioForm(f => {
+      const precio = parseFloat(f.precio_referencia_inicial)
+      const monto = parseFloat(valor)
+      const saldo = precio > 0 && monto > 0 ? String(redondear2(monto / precio)) : f.saldo_inicial
+      return { ...f, monto_pagado: valor, saldo_inicial: saldo }
+    })
+  }
+  function actualizarPrecioReferenciaInicial(valor: string) {
+    setAcopioForm(f => {
+      const precio = parseFloat(valor)
+      const monto = parseFloat(f.monto_pagado)
+      const saldo = precio > 0 && monto > 0 ? String(redondear2(monto / precio)) : f.saldo_inicial
+      return { ...f, precio_referencia_inicial: valor, saldo_inicial: saldo }
+    })
+  }
+
   function refresh() { startTransition(() => router.refresh()) }
 
-  // Superset de `productos` — incluye los creados al vuelo en esta sesión
-  // que todavía no volvieron por props tras un refresh.
-  const productosDisponibles = [...productos, ...productosNuevos.filter(pn => !productos.some(p => p.id === pn.id))]
+  // Para elegir un producto en un ítem NUEVO (orden/acopio) — solo activos
+  // más los creados al vuelo en esta sesión (que todavía no volvieron por
+  // props tras un refresh). `productos` en sí trae también los inactivos
+  // (para "Administrar productos" y el tab Stock, que si tienen que poder
+  // ver/repartir un producto discontinuado con remanente).
+  const productosDisponibles = [...productos.filter(p => p.activo), ...productosNuevos.filter(pn => !productos.some(p => p.id === pn.id))]
 
   const ordenesFiltradas = ordenes
     .filter(o => filtroEstado === 'todos' || o.estado === filtroEstado)
@@ -162,6 +250,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
 
   // Sincroniza el panel de detalle con datos frescos tras un refresh
   const detalleActual = detalleOrden ? ordenes.find(o => o.id === detalleOrden.id) ?? null : null
+  const detalleAcopioActual = detalleAcopio ? acopios.find(a => a.id === detalleAcopio.id) ?? null : null
 
   function openNew() {
     setOrdenForm(EMPTY_ORDEN_FORM)
@@ -430,7 +519,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
 
   function openRecepcion(orden: OrdenRow) {
     setRecepcionOrden(orden)
-    setRecepcionForm({ proveedor_id: '', fecha: new Date().toISOString().split('T')[0], moneda: 'ARS', notas: '' })
+    setRecepcionForm({ proveedor_id: '', fecha: new Date().toISOString().split('T')[0], moneda: 'ARS', notas: '', iva: '', percepciones: '', numero_comprobante: '', monto: '' })
     setRecepcionItems({})
     setRecepcionError(null)
   }
@@ -457,6 +546,19 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
       return
     }
 
+    // Nada impedía recibir más de lo pedido (ni en la base ni acá) — una
+    // orden de 10 bolsas podía terminar con el doble de stock/gasto
+    // generado si se cargaban dos recepciones de 100 c/u por error.
+    for (const it of itemsValidos) {
+      const item = (recepcionOrden.orden_compra_items ?? []).find(i => i.id === it.itemId)
+      if (!item) continue
+      const pendiente = Math.max(0, item.cantidad_solicitada - cantidadRecibida(item))
+      if (it.cantidad > pendiente) {
+        setRecepcionError(`"${item.productos?.nombre ?? 'Ítem'}": estás recibiendo ${it.cantidad} pero solo quedan ${pendiente} pendientes.`)
+        return
+      }
+    }
+
     setRecepcionLoading(true)
     const supabase = createClient()
 
@@ -468,6 +570,9 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
         fecha: recepcionForm.fecha,
         moneda: recepcionForm.moneda,
         notas: recepcionForm.notas.trim() || null,
+        iva: recepcionForm.iva ? redondear2(parseFloat(recepcionForm.iva)) : null,
+        percepciones: recepcionForm.percepciones ? redondear2(parseFloat(recepcionForm.percepciones)) : null,
+        numero_comprobante: recepcionForm.numero_comprobante.trim() || null,
       })
       .select('id')
       .single()
@@ -510,6 +615,13 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
     }
     refresh()
   }
+
+  // Neto de la recepción: siempre la suma de cantidad×precio de los
+  // ítems cargados — no es un campo propio, se recalcula en cada
+  // cambio (mismo criterio que "cuánto se recibió" en este módulo).
+  const netoRecepcion = Object.values(recepcionItems).reduce(
+    (s, v) => s + (parseFloat(v.cantidad) || 0) * (parseFloat(v.precio) || 0), 0
+  )
 
   // "Cuánto hay" ya viene agregado desde resumen_stock (Postgres) — acá
   // solo se arma un lookup rápido para no recorrer el array entero por
@@ -555,10 +667,222 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
     refresh()
   }
 
+  // ── Acopios ───────────────────────────────────────────────────
+
+  // "Cuánto queda" viene agregado desde resumen_acopios (Postgres) — mismo
+  // criterio que stockPorClave/resumen_stock, nunca se suma en el cliente.
+  const saldoPorAcopio = new Map(acopiosResumen.map(r => [r.acopio_id, r.saldo_actual]))
+  function saldoDeAcopio(acopioId: string): number {
+    return saldoPorAcopio.get(acopioId) ?? 0
+  }
+
+  // Valor de mercado estimado hoy = saldo × el precio de referencia más
+  // reciente conocido de ESE acopio: el de algún retiro con conversión si
+  // ya hubo alguno (más actualizado), si no el que se cargó al pagar
+  // (precio_referencia_inicial), y solo si tampoco hay eso, el precio
+  // implícito (monto_pagado / saldo_inicial) como último recurso para
+  // acopios viejos sin ese dato. Puramente informativo — nunca es lo que
+  // limita cuánto se puede retirar.
+  function precioReferenciaEstimado(acopio: AcopioRow): number {
+    const retirosConPrecio = (acopio.acopio_retiros ?? [])
+      .filter(r => r.precio_unitario_referencia != null)
+      .sort((a, b) => b.fecha.localeCompare(a.fecha))
+    if (retirosConPrecio.length > 0) return retirosConPrecio[0].precio_unitario_referencia!
+    if (acopio.precio_referencia_inicial != null) return acopio.precio_referencia_inicial
+    return acopio.saldo_inicial > 0 ? acopio.monto_pagado / acopio.saldo_inicial : 0
+  }
+
+  // Mismo patrón que crearProductoEnFila (órdenes), pero sin depender de un
+  // índice de fila — lo llaman tanto "Nuevo acopio" como "Registrar retiro".
+  async function crearProductoInline(nombre: string, unidad: string): Promise<{ id: string; nombre: string; unidad_medida: string } | null> {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .rpc('obtener_o_crear_producto', {
+        p_constructora_id: constructoraId,
+        p_nombre: nombre.trim(),
+        p_unidad_medida: unidad.trim() || 'unidad',
+      })
+      .single() as { data: { id: string; nombre: string; unidad_medida: string } | null; error: { message: string } | null }
+    if (error || !data) return null
+    setProductosNuevos(prev => [...prev, {
+      id: data.id, nombre: data.nombre, unidad_medida: data.unidad_medida,
+      constructora_id: constructoraId, nombre_normalizado: '', categoria_id: null,
+      activo: true, notas: null, created_at: new Date().toISOString(), categorias_costo: null,
+    }])
+    return data
+  }
+
+  function openNuevoAcopio() {
+    setAcopioForm(EMPTY_ACOPIO_FORM)
+    setAcopioError(null)
+    setShowAcopioForm(true)
+  }
+
+  async function crearProductoParaAcopio() {
+    if (!acopioForm.nuevoNombre.trim()) return
+    setAcopioLoading(true)
+    const data = await crearProductoInline(acopioForm.nuevoNombre, acopioForm.nuevoUnidad)
+    setAcopioLoading(false)
+    if (!data) { setAcopioError('Error al crear el producto'); return }
+    setAcopioForm(f => ({ ...f, producto_referencia_id: data.id, creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad' }))
+  }
+
+  async function handleSubmitAcopio(e: React.FormEvent) {
+    e.preventDefault()
+    setAcopioError(null)
+
+    const saldoInicial = parseFloat(acopioForm.saldo_inicial)
+    const montoPagado = parseFloat(acopioForm.monto_pagado)
+    if (!acopioForm.proveedor_id) { setAcopioError('Elegí un proveedor.'); return }
+    if (!acopioForm.producto_referencia_id) { setAcopioError('Elegí el producto de referencia.'); return }
+    if (!saldoInicial || saldoInicial <= 0) { setAcopioError('El saldo inicial tiene que ser mayor a cero.'); return }
+    if (!montoPagado || montoPagado <= 0) { setAcopioError('El monto pagado tiene que ser mayor a cero.'); return }
+
+    setAcopioLoading(true)
+    const supabase = createClient()
+    const proveedorNombre = proveedores.find(p => p.id === acopioForm.proveedor_id)?.razon_social ?? ''
+
+    const { data: gasto, error: errGasto } = await supabase.from('gastos').insert({
+      constructora_id: constructoraId,
+      obra_id: acopioForm.obra_id || null,
+      proveedor_id: acopioForm.proveedor_id,
+      descripcion: `Acopio con ${proveedorNombre}`,
+      monto: montoPagado,
+      moneda: acopioForm.moneda,
+      fecha_vencimiento: acopioForm.fecha,
+      fecha_pago: acopioForm.fecha,
+      estado: 'Pagado',
+      notas: acopioForm.notas.trim() || null,
+    }).select('id').single()
+
+    if (errGasto || !gasto) {
+      setAcopioLoading(false)
+      setAcopioError(errGasto?.message ?? 'Error al registrar el pago')
+      return
+    }
+
+    const { error: errAcopio } = await supabase.from('acopios').insert({
+      constructora_id: constructoraId,
+      obra_id: acopioForm.obra_id || null,
+      proveedor_id: acopioForm.proveedor_id,
+      producto_referencia_id: acopioForm.producto_referencia_id,
+      saldo_inicial: saldoInicial,
+      monto_pagado: montoPagado,
+      precio_referencia_inicial: acopioForm.precio_referencia_inicial ? parseFloat(acopioForm.precio_referencia_inicial) : null,
+      moneda: acopioForm.moneda,
+      fecha: acopioForm.fecha,
+      gasto_id: gasto.id,
+      notas: acopioForm.notas.trim() || null,
+    })
+
+    setAcopioLoading(false)
+    if (errAcopio) {
+      // No dejar un gasto de $500M colgado sin el acopio que lo justifica.
+      await supabase.from('gastos').delete().eq('id', gasto.id)
+      setAcopioError(errAcopio.message)
+      return
+    }
+
+    setShowAcopioForm(false)
+    refresh()
+  }
+
+  function openRetiro(acopio: AcopioRow) {
+    setRetiroAcopio(acopio)
+    // Precarga el precio de referencia con el último conocido de este
+    // acopio (de un retiro anterior, o el cargado al pagar) — de punto de
+    // partida para ajustar al valor de hoy, no en blanco cada vez.
+    const precioConocido = precioReferenciaEstimado(acopio)
+    setRetiroForm({ ...EMPTY_RETIRO_FORM, precio_referencia: precioConocido > 0 ? String(precioConocido) : '' })
+    setRetiroError(null)
+  }
+
+  async function crearProductoParaRetiro() {
+    if (!retiroForm.nuevoNombre.trim()) return
+    setRetiroLoading(true)
+    const data = await crearProductoInline(retiroForm.nuevoNombre, retiroForm.nuevoUnidad)
+    setRetiroLoading(false)
+    if (!data) { setRetiroError('Error al crear el producto'); return }
+    setRetiroForm(f => ({ ...f, producto_id: data.id, creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad' }))
+  }
+
+  async function handleSubmitRetiro(e: React.FormEvent) {
+    e.preventDefault()
+    if (!retiroAcopio) return
+    setRetiroError(null)
+
+    const cantidad = parseFloat(retiroForm.cantidad)
+    if (!retiroForm.producto_id) { setRetiroError('Elegí qué producto se retira.'); return }
+    if (!cantidad || cantidad <= 0) { setRetiroError('La cantidad tiene que ser mayor a cero.'); return }
+
+    const esProductoReferencia = retiroForm.producto_id === retiroAcopio.producto_referencia_id
+    const precioRetiro = parseFloat(retiroForm.precio_retiro)
+    const precioReferencia = parseFloat(retiroForm.precio_referencia)
+    if (!esProductoReferencia && (!precioRetiro || precioRetiro <= 0 || !precioReferencia || precioReferencia <= 0)) {
+      setRetiroError('Para retirar un producto distinto al de referencia, cargá el precio de hoy de los dos.')
+      return
+    }
+
+    setRetiroLoading(true)
+    const supabase = createClient()
+    const { error } = await supabase.rpc('registrar_retiro_acopio', {
+      p_acopio_id: retiroAcopio.id,
+      p_producto_id: retiroForm.producto_id,
+      p_cantidad: cantidad,
+      p_precio_retiro: esProductoReferencia ? null : precioRetiro,
+      p_precio_referencia: esProductoReferencia ? null : precioReferencia,
+      p_obra_id: retiroForm.obra_id || null,
+      p_notas: retiroForm.notas.trim() || null,
+    })
+    setRetiroLoading(false)
+    if (error) { setRetiroError(error.message); return }
+
+    setRetiroAcopio(null)
+    refresh()
+  }
+
+  // El stock que generó el retiro NO se borra (mismo criterio que
+  // "Eliminar orden de compra"/"Eliminar stock": lo real que ya entró al
+  // depósito no desaparece por borrar el papeleo) — si es de prueba y
+  // también querés sacar ese stock, usá "Eliminar" desde la pestaña Stock.
+  function handleDeleteRetiro(retiro: AcopioRetiroRow) {
+    setConfirmModal({
+      title: 'Eliminar retiro',
+      message: `¿Eliminar este retiro de ${retiro.cantidad} ${retiro.productos?.unidad_medida ?? ''} de "${retiro.productos?.nombre ?? '—'}"? El saldo del acopio vuelve a subir, pero el stock que ya generó NO se elimina (queda como un movimiento suelto) — si es de prueba, podés borrarlo aparte desde la pestaña Stock.`,
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        const supabase = createClient()
+        const { error } = await supabase.from('acopio_retiros').delete().eq('id', retiro.id)
+        if (error) throw new Error(error.message)
+        setConfirmModal(null)
+        refresh()
+      },
+    })
+  }
+
+  function handleDeleteAcopio(acopio: AcopioRow) {
+    const tieneRetiros = (acopio.acopio_retiros ?? []).length > 0
+    setConfirmModal({
+      title: 'Eliminar acopio',
+      message: tieneRetiros
+        ? `¿Eliminar el acopio ACO-${acopio.numero}? Se eliminan también sus ${acopio.acopio_retiros.length} retiro(s) registrado(s). El gasto del pago original y el stock ya generado NO se eliminan — quedan como registros sueltos. Esta acción no se puede deshacer.`
+        : `¿Eliminar el acopio ACO-${acopio.numero}? El gasto del pago original no se elimina. Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        const supabase = createClient()
+        const { error } = await supabase.from('acopios').delete().eq('id', acopio.id)
+        if (error) throw new Error(error.message)
+        setConfirmModal(null)
+        setDetalleAcopio(null)
+        refresh()
+      },
+    })
+  }
+
   return (
     <div>
       <div className="flex rounded-lg border border-slate-300 overflow-x-auto max-w-full text-sm bg-white no-scrollbar w-fit mb-5">
-        {([['ordenes', 'Órdenes'], ['stock', 'Stock']] as const).map(([key, label]) => (
+        {([['ordenes', 'Órdenes'], ['stock', 'Stock'], ['acopios', 'Acopios']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={cn('px-4 py-2 transition-colors', tab === key ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50')}>
             {label}
@@ -609,6 +933,63 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
             {stockResumen.length === 0 && (
               <div className="text-center py-12 text-slate-400">
                 <p className="text-sm">Todavía no hay stock — confirmá una recepción de una orden de compra para que aparezca acá.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : tab === 'acopios' ? (
+        <div>
+          <div className="flex justify-end mb-4">
+            <button onClick={openNuevoAcopio}
+              className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-500
+                         text-white rounded-lg text-sm font-medium transition-colors">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nuevo acopio
+            </button>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">N°</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Proveedor</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Producto de referencia</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600">Saldo actual</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600">Valor estimado hoy</th>
+                    <th className="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {acopios.map(a => {
+                    const saldo = saldoDeAcopio(a.id)
+                    const valorEstimado = saldo * precioReferenciaEstimado(a)
+                    return (
+                      <tr key={a.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setDetalleAcopio(a)}>
+                        <td className="px-4 py-3 font-medium text-slate-900">ACO-{a.numero}</td>
+                        <td className="px-4 py-3 text-slate-600">{a.proveedores?.razon_social ?? '—'}</td>
+                        <td className="px-4 py-3 text-slate-600">{a.productos?.nombre ?? '—'}</td>
+                        <td className={cn('px-4 py-3 text-right font-semibold', saldo < 0 ? 'text-red-600' : 'text-slate-900')}>
+                          {saldo} {a.productos?.unidad_medida ?? ''}
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-500">{formatCurrency(valorEstimado, a.moneda)}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={cn('inline-block text-xs font-medium px-2.5 py-0.5 rounded-full',
+                            a.estado === 'activo' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500')}>
+                            {a.estado === 'activo' ? 'Activo' : 'Cerrado'}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {acopios.length === 0 && (
+              <div className="text-center py-12 text-slate-400">
+                <p className="text-sm">Todavía no hay acopios cargados.</p>
               </div>
             )}
           </div>
@@ -1060,7 +1441,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                           <p className="text-sm font-medium text-slate-800">{item.productos?.nombre ?? '—'}</p>
                           <p className="text-xs text-slate-400 mb-1.5">Pendiente: {pendiente} {unidad}</p>
                           <div className="flex gap-2">
-                            <input type="number" min="0" step="0.01" placeholder="Cantidad"
+                            <input type="number" min="0" max={pendiente} step="0.01" placeholder="Cantidad"
                               value={valores.cantidad}
                               onChange={e => actualizarRecepcionItem(item.id, 'cantidad', e.target.value)}
                               className="flex-1 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -1073,6 +1454,28 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                       )
                     })}
                   </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-4">
+                  <IvaCalculator
+                    montoNeto={String(netoRecepcion)} netoReadOnly labelNeto="Subtotal (ítems)"
+                    iva={recepcionForm.iva} monto={recepcionForm.monto}
+                    onChangeMontoNeto={() => {}}
+                    onChangeIva={v => setRecepcionForm(f => ({ ...f, iva: v }))}
+                    onChangeMonto={v => setRecepcionForm(f => ({ ...f, monto: v }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Percepciones</label>
+                  <input type="number" min="0" step="0.01" value={recepcionForm.percepciones}
+                    onChange={e => setRecepcionForm(f => ({ ...f, percepciones: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">N° comprobante</label>
+                  <input value={recepcionForm.numero_comprobante}
+                    onChange={e => setRecepcionForm(f => ({ ...f, numero_comprobante: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
 
                 <div>
@@ -1165,6 +1568,331 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                 <button type="submit" disabled={repartoLoading}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                   {repartoLoading ? 'Guardando...' : 'Repartir'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Panel de detalle: Acopio */}
+      {detalleAcopioActual && (
+        <div className="fixed inset-0 z-40 flex items-stretch">
+          <div className="flex-1 bg-black/40" onClick={() => setDetalleAcopio(null)} />
+          <div className="w-full max-w-2xl bg-slate-50 flex flex-col shadow-2xl overflow-hidden">
+            <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-start justify-between shrink-0">
+              <div>
+                <p className="font-bold text-slate-900 text-lg">ACO-{detalleAcopioActual.numero}</p>
+                <p className="text-slate-500 text-sm mt-0.5">
+                  {detalleAcopioActual.proveedores?.razon_social ?? '—'} · Referencia: {detalleAcopioActual.productos?.nombre ?? '—'} · Cargado {formatDate(detalleAcopioActual.fecha)}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => handleDeleteAcopio(detalleAcopioActual)}
+                  className="text-xs text-red-400 hover:text-red-600 px-2 py-1.5 transition-colors">
+                  Eliminar
+                </button>
+                <button onClick={() => setDetalleAcopio(null)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs text-slate-400 mb-1">Saldo actual</p>
+                  <p className={cn('text-xl font-bold', saldoDeAcopio(detalleAcopioActual.id) < 0 ? 'text-red-600' : 'text-slate-900')}>
+                    {saldoDeAcopio(detalleAcopioActual.id)} {detalleAcopioActual.productos?.unidad_medida ?? ''}
+                  </p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs text-slate-400 mb-1">Pagado originalmente</p>
+                  <p className="text-xl font-bold text-slate-900">{formatCurrency(detalleAcopioActual.monto_pagado, detalleAcopioActual.moneda)}</p>
+                </div>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                  <p className="font-semibold text-slate-800 text-sm">Retiros</p>
+                  <button onClick={() => openRetiro(detalleAcopioActual)}
+                    className="text-xs font-medium text-indigo-600 hover:text-indigo-800">
+                    + Registrar retiro
+                  </button>
+                </div>
+                {(detalleAcopioActual.acopio_retiros ?? []).length === 0 ? (
+                  <div className="px-4 py-8 text-center text-slate-400 text-sm">Todavía no se registró ningún retiro.</div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {[...detalleAcopioActual.acopio_retiros].sort((a, b) => b.fecha.localeCompare(a.fecha)).map(r => (
+                      <div key={r.id} className="px-4 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium text-slate-800">{r.productos?.nombre ?? '—'}</p>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <p className="text-sm font-semibold text-slate-900">{r.cantidad} {r.productos?.unidad_medida ?? ''}</p>
+                            <button onClick={() => handleDeleteRetiro(r)}
+                              className="text-xs text-red-400 hover:text-red-600 transition-colors">✕</button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-0.5 text-xs text-slate-400">
+                          <span>{formatDate(r.fecha)} · {r.obra_id ? (r.obras?.nombre ?? 'Proyecto eliminado') : 'Empresa (pool)'}</span>
+                          <span>
+                            {r.precio_unitario_retiro != null
+                              ? `Convertido — descuenta ${r.cantidad_referencia_descontada} ${detalleAcopioActual.productos?.unidad_medida ?? ''}`
+                              : `Descuenta ${r.cantidad_referencia_descontada} directo`}
+                          </span>
+                        </div>
+                        {r.notas && <p className="text-xs text-slate-400 mt-1">{r.notas}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nuevo acopio */}
+      {showAcopioForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <h2 className="font-bold text-slate-900">Nuevo acopio</h2>
+              <button onClick={() => setShowAcopioForm(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <form id="acopio-form" onSubmit={handleSubmitAcopio} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Proveedor *</label>
+                    <select required value={acopioForm.proveedor_id}
+                      onChange={e => setAcopioForm(f => ({ ...f, proveedor_id: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">Elegir...</option>
+                      {proveedores.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Proyecto</label>
+                    <select value={acopioForm.obra_id} onChange={e => setAcopioForm(f => ({ ...f, obra_id: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">Empresa (sin asignar)</option>
+                      {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Producto de referencia *</label>
+                  <p className="text-[11px] text-slate-400 mb-1.5">La unidad en la que se va a llevar el saldo (ej. kg de acero).</p>
+                  {acopioForm.creandoNuevo ? (
+                    <div className="flex gap-2">
+                      <input autoFocus placeholder="Nombre del producto" value={acopioForm.nuevoNombre}
+                        onChange={e => setAcopioForm(f => ({ ...f, nuevoNombre: e.target.value }))}
+                        className="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      <input placeholder="Unidad" value={acopioForm.nuevoUnidad}
+                        onChange={e => setAcopioForm(f => ({ ...f, nuevoUnidad: e.target.value }))}
+                        className="w-24 shrink-0 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      <button type="button" onClick={crearProductoParaAcopio}
+                        disabled={acopioLoading || !acopioForm.nuevoNombre.trim()}
+                        className="shrink-0 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-medium">
+                        Crear
+                      </button>
+                      <button type="button" onClick={() => setAcopioForm(f => ({ ...f, creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad' }))}
+                        className="shrink-0 text-slate-400 hover:text-slate-600 px-1">✕</button>
+                    </div>
+                  ) : (
+                    <select value={acopioForm.producto_referencia_id}
+                      onChange={e => e.target.value === '__nuevo__'
+                        ? setAcopioForm(f => ({ ...f, creandoNuevo: true, producto_referencia_id: '' }))
+                        : setAcopioForm(f => ({ ...f, producto_referencia_id: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">Elegir...</option>
+                      {productosDisponibles.map(p => <option key={p.id} value={p.id}>{p.nombre} ({p.unidad_medida})</option>)}
+                      <option value="__nuevo__">+ Agregar producto nuevo</option>
+                    </select>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Monto pagado *</label>
+                    <input required type="number" min="0" step="0.01" value={acopioForm.monto_pagado}
+                      onChange={e => actualizarMontoPagado(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Precio de referencia al pagar</label>
+                    <input type="number" min="0" step="0.01" value={acopioForm.precio_referencia_inicial}
+                      onChange={e => actualizarPrecioReferenciaInicial(e.target.value)}
+                      placeholder="Ej: 1.000.000 ($/kg)"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Saldo inicial *</label>
+                  <input required type="number" min="0" step="0.01" value={acopioForm.saldo_inicial}
+                    onChange={e => setAcopioForm(f => ({ ...f, saldo_inicial: e.target.value }))}
+                    placeholder="Ej: 100 (kg)"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {acopioForm.precio_referencia_inicial
+                      ? 'Calculado solo (monto ÷ precio) — lo podés ajustar si hace falta.'
+                      : 'Si cargás el precio de referencia de arriba, esto se calcula solo.'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
+                    <select value={acopioForm.moneda} onChange={e => setAcopioForm(f => ({ ...f, moneda: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option>ARS</option>
+                      <option>USD</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Fecha *</label>
+                    <input required type="date" value={acopioForm.fecha}
+                      onChange={e => setAcopioForm(f => ({ ...f, fecha: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+                  <textarea rows={2} value={acopioForm.notas}
+                    onChange={e => setAcopioForm(f => ({ ...f, notas: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                </div>
+                {acopioError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{acopioError}</div>
+                )}
+                <p className="text-[11px] text-slate-400">
+                  Esto registra el pago como un gasto ya pagado. El saldo se descuenta a medida que registrás retiros.
+                </p>
+              </form>
+            </div>
+            <div className="p-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+              <button type="button" onClick={() => setShowAcopioForm(false)}
+                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
+                Cancelar
+              </button>
+              <button type="submit" form="acopio-form" disabled={acopioLoading}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60
+                           text-white rounded-xl text-sm font-semibold">
+                {acopioLoading ? 'Guardando...' : 'Crear acopio'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Registrar retiro */}
+      {retiroAcopio && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <div>
+                <h2 className="font-bold text-slate-900">Registrar retiro</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  ACO-{retiroAcopio.numero} · Saldo actual: {saldoDeAcopio(retiroAcopio.id)} {retiroAcopio.productos?.unidad_medida ?? ''}
+                </p>
+              </div>
+              <button onClick={() => setRetiroAcopio(null)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleSubmitRetiro} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Producto retirado *</label>
+                {retiroForm.creandoNuevo ? (
+                  <div className="flex gap-2">
+                    <input autoFocus placeholder="Nombre del producto" value={retiroForm.nuevoNombre}
+                      onChange={e => setRetiroForm(f => ({ ...f, nuevoNombre: e.target.value }))}
+                      className="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input placeholder="Unidad" value={retiroForm.nuevoUnidad}
+                      onChange={e => setRetiroForm(f => ({ ...f, nuevoUnidad: e.target.value }))}
+                      className="w-24 shrink-0 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <button type="button" onClick={crearProductoParaRetiro}
+                      disabled={retiroLoading || !retiroForm.nuevoNombre.trim()}
+                      className="shrink-0 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-medium">
+                      Crear
+                    </button>
+                    <button type="button" onClick={() => setRetiroForm(f => ({ ...f, creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad' }))}
+                      className="shrink-0 text-slate-400 hover:text-slate-600 px-1">✕</button>
+                  </div>
+                ) : (
+                  <select value={retiroForm.producto_id}
+                    onChange={e => e.target.value === '__nuevo__'
+                      ? setRetiroForm(f => ({ ...f, creandoNuevo: true, producto_id: '' }))
+                      : setRetiroForm(f => ({ ...f, producto_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Elegir...</option>
+                    {productosDisponibles.map(p => <option key={p.id} value={p.id}>{p.nombre} ({p.unidad_medida})</option>)}
+                    <option value="__nuevo__">+ Agregar producto nuevo</option>
+                  </select>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Cantidad *</label>
+                <input required type="number" min="0" step="0.01" value={retiroForm.cantidad}
+                  onChange={e => setRetiroForm(f => ({ ...f, cantidad: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+
+              {retiroForm.producto_id && retiroForm.producto_id !== retiroAcopio.producto_referencia_id && (
+                <div className="grid grid-cols-2 gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <div>
+                    <label className="block text-xs font-medium text-amber-800 mb-1">Precio de hoy de lo retirado *</label>
+                    <input required type="number" min="0" step="0.01" value={retiroForm.precio_retiro}
+                      onChange={e => setRetiroForm(f => ({ ...f, precio_retiro: e.target.value }))}
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-amber-800 mb-1">Precio de hoy del producto de referencia *</label>
+                    <input required type="number" min="0" step="0.01" value={retiroForm.precio_referencia}
+                      onChange={e => setRetiroForm(f => ({ ...f, precio_referencia: e.target.value }))}
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                  </div>
+                  <p className="col-span-2 text-[11px] text-amber-700">
+                    Como no es el producto de referencia del acopio, hace falta convertir: se descuenta (cantidad × precio retirado) ÷ precio de referencia.
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Proyecto destino</label>
+                <select value={retiroForm.obra_id} onChange={e => setRetiroForm(f => ({ ...f, obra_id: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">Empresa (pool)</option>
+                  {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+                <input value={retiroForm.notas} onChange={e => setRetiroForm(f => ({ ...f, notas: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              {retiroError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{retiroError}</div>
+              )}
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setRetiroAcopio(null)}
+                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={retiroLoading}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
+                  {retiroLoading ? 'Guardando...' : 'Registrar retiro'}
                 </button>
               </div>
             </form>

@@ -38,6 +38,16 @@ interface BucketMes {
 const FILTRO_TODOS = 'todos'
 const FILTRO_SIN_PROYECTO = 'sin_proyecto'
 
+// Mismo criterio de ventana de 12 meses que "Por cobrar" en Tesorería
+// (TesoreriaView.tsx) — antes esta lista mostraba TODOS los meses con algo
+// pendiente sin límite (una cuota de un plan a 36 meses podía asomar años
+// hacia adelante). "Vencido" y "Sin fecha" quedan siempre visibles, fuera
+// de la paginación — no son parte del horizonte temporal que se pagina.
+function labelVentanaMeses(ordenInicio: number, ordenFin: number) {
+  const fmt = (orden: number) => new Date(Math.floor(orden / 12), orden % 12, 1).toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })
+  return `${fmt(ordenInicio)} – ${fmt(ordenFin - 1)}`
+}
+
 // Agrupa los pendientes por mes de vencimiento real — sin rellenar meses
 // vacíos hasta un horizonte fijo. Así una deuda repartida en 36 cuotas se ve
 // distinta (36 filas chicas) de la misma plata concentrada en 6 meses (6
@@ -82,6 +92,7 @@ export default function IngresosManager({ ingresos, historialAcotado }: Props) {
   const [verPagadosDe, setVerPagadosDe] = useState<string | null>(null)
   const [proyectoFiltro, setProyectoFiltro] = useState<string>(FILTRO_TODOS)
   const [mesAbierto, setMesAbierto] = useState<string | null>(null)
+  const [paginaMeses, setPaginaMeses] = useState(0)
 
   const proyectoOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -116,6 +127,13 @@ export default function IngresosManager({ ingresos, historialAcotado }: Props) {
   const totalPendienteGeneral = sumarPorMoneda(pendientesEnAmbito)
   const { vencidos, meses, sinVencimiento } = useMemo(() => agruparPorMes(pendientesEnAmbito), [pendientesEnAmbito])
 
+  const hoy = new Date()
+  const ordenActual = hoy.getFullYear() * 12 + hoy.getMonth()
+  const ordenInicioVentana = ordenActual + paginaMeses * 12
+  const ordenFinVentana = ordenInicioVentana + 12
+  const mesesVentana = meses.filter(m => m.orden >= ordenInicioVentana && m.orden < ordenFinVentana)
+  const hayPaginaSiguiente = meses.some(m => m.orden >= ordenFinVentana)
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-3">
@@ -131,7 +149,7 @@ export default function IngresosManager({ ingresos, historialAcotado }: Props) {
         </div>
         <select
           value={proyectoFiltro}
-          onChange={e => setProyectoFiltro(e.target.value)}
+          onChange={e => { setProyectoFiltro(e.target.value); setPaginaMeses(0) }}
           className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           <option value={FILTRO_TODOS}>Todos los proyectos</option>
@@ -143,12 +161,37 @@ export default function IngresosManager({ ingresos, historialAcotado }: Props) {
       {/* Proyección de vencimientos — mira para adelante, distinto de la
           columna "Cobrado" de abajo (que mira para atrás). */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Cuándo vence lo pendiente</p>
-        {vencidos.length === 0 && meses.length === 0 && sinVencimiento.length === 0 ? (
-          <p className="text-xs text-slate-400">Nada pendiente de cobro en este momento.</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Cuándo vence lo pendiente</p>
+          {meses.length > 0 && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setPaginaMeses(p => Math.max(0, p - 1))}
+                disabled={paginaMeses === 0}
+                className="text-xs font-medium text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                ← Anterior
+              </button>
+              <span className="text-[10px] text-slate-400">
+                {paginaMeses === 0 ? 'próximos 12 meses' : labelVentanaMeses(ordenInicioVentana, ordenFinVentana)}
+              </span>
+              <button
+                onClick={() => setPaginaMeses(p => p + 1)}
+                disabled={!hayPaginaSiguiente}
+                className="text-xs font-medium text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                Siguiente →
+              </button>
+            </div>
+          )}
+        </div>
+        {vencidos.length === 0 && mesesVentana.length === 0 && sinVencimiento.length === 0 ? (
+          <p className="text-xs text-slate-400">
+            {meses.length === 0 && vencidos.length === 0 && sinVencimiento.length === 0
+              ? 'Nada pendiente de cobro en este momento.'
+              : 'Nada en esta ventana de 12 meses.'}
+          </p>
         ) : (
           <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
-            {vencidos.length > 0 && (
+            {paginaMeses === 0 && vencidos.length > 0 && (
               <FilaMes
                 label="Vencido"
                 danger
@@ -159,7 +202,7 @@ export default function IngresosManager({ ingresos, historialAcotado }: Props) {
                 items={vencidos}
               />
             )}
-            {meses.map(m => (
+            {mesesVentana.map(m => (
               <FilaMes
                 key={m.clave}
                 label={m.label}
@@ -170,7 +213,7 @@ export default function IngresosManager({ ingresos, historialAcotado }: Props) {
                 items={m.items}
               />
             ))}
-            {sinVencimiento.length > 0 && (
+            {paginaMeses === 0 && sinVencimiento.length > 0 && (
               <FilaMes
                 label="Sin fecha de vencimiento"
                 totales={sumarPorMoneda(sinVencimiento)}

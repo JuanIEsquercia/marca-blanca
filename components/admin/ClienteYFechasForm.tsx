@@ -16,11 +16,23 @@ export type DatosGenerales = {
   fecha_inicio: string
   fecha_fin_estimada: string
   descripcion: string
+  iva_modo: '0' | '10.5' | '21' | 'personalizado'
+  iva_pct_personalizado: string
 }
 
 export const EMPTY_DATOS_GENERALES: DatosGenerales = {
   cliente_nombre: '', cliente_cuit: '', cliente_email: '', cliente_telefono: '',
   moneda: 'ARS', fecha_inicio: '', fecha_fin_estimada: '', descripcion: '',
+  iva_modo: '0', iva_pct_personalizado: '',
+}
+
+// Convierte el modo elegido acá a lo que se guarda en `iva_pct` (nullable
+// = sin IVA) — mismos presets que IvaCalculator.tsx, para que el % quede
+// precargado al generar el primer cobro/gasto desde un certificado.
+export function ivaPctDeDatosGenerales(form: DatosGenerales): number | null {
+  if (form.iva_modo === '0') return null
+  if (form.iva_modo === 'personalizado') return parseFloat(form.iva_pct_personalizado) || null
+  return parseFloat(form.iva_modo)
 }
 
 interface Props {
@@ -85,6 +97,26 @@ export default function ClienteYFechasForm({ form, onChange, descripcionLabel = 
           <input type="date" value={form.fecha_fin_estimada} onChange={e => set('fecha_fin_estimada', e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
+      </div>
+      <div className={form.iva_modo === 'personalizado' ? 'grid grid-cols-2 gap-4' : ''}>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Condición de IVA</label>
+          <select value={form.iva_modo} onChange={e => set('iva_modo', e.target.value as DatosGenerales['iva_modo'])}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="0">Sin IVA</option>
+            <option value="10.5">+ IVA 10.5%</option>
+            <option value="21">+ IVA 21%</option>
+            <option value="personalizado">Personalizado</option>
+          </select>
+        </div>
+        {form.iva_modo === 'personalizado' && (
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">% de IVA</label>
+            <input type="number" min="0" step="0.01" value={form.iva_pct_personalizado}
+              onChange={e => set('iva_pct_personalizado', e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        )}
       </div>
       <div className="md:col-span-2">
         <label className="block text-xs font-medium text-slate-600 mb-1">{descripcionLabel}</label>

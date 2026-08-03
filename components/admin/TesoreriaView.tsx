@@ -80,9 +80,22 @@ function formatUSD(n: number) {
 const FILTRO_TODOS = 'todos'
 const FILTRO_EMPRESA = 'empresa'
 
+// Ventana de 12 meses hacia adelante para "Por cobrar" — antes la lista
+// traía todo sin límite (una cuota de un plan a 36 meses podía asomar 3
+// años en el futuro y hacer la tabla interminable). Página 0 = todo lo
+// vencido (nunca se esconde, sigue siendo lo más urgente) + los próximos
+// 12 meses desde hoy; cada página siguiente corre la ventana 12 meses más.
+function inicioMes(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 1) }
+function sumarMeses(d: Date, n: number) { return new Date(d.getFullYear(), d.getMonth() + n, 1) }
+function labelVentana(inicio: Date, fin: Date) {
+  const fmt = (d: Date) => d.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })
+  return `${fmt(inicio)} – ${fmt(sumarMeses(fin, -1))}`
+}
+
 export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, gastosPendientes, ingresosPendientes }: Props) {
   const [tab, setTab] = useState<'flujo' | 'porCobrar' | 'porPagar'>('flujo')
   const [proyectoFiltro, setProyectoFiltro] = useState<string>(FILTRO_TODOS)
+  const [paginaCobrar, setPaginaCobrar] = useState(0)
 
   const cuentasARS = cuentas.filter(c => c.moneda === 'ARS')
   const cuentasUSD = cuentas.filter(c => c.moneda === 'USD')
@@ -136,6 +149,20 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
 
   const totalPorCobrarARS = sumarMontos(ingresosPendientesFiltrados.filter(i => i.moneda === 'ARS').map(i => i.monto))
   const totalPorCobrarUSD = sumarMontos(ingresosPendientesFiltrados.filter(i => i.moneda === 'USD').map(i => i.monto))
+
+  // Página 0 arranca en el mes actual; cada página siguiente corre la
+  // ventana 12 meses. Los totales de arriba quedan sin recortar (la deuda
+  // total por cobrar no cambia por cómo se pagina la tabla) — esto solo
+  // filtra qué filas se muestran.
+  const inicioVentana = sumarMeses(inicioMes(new Date()), paginaCobrar * 12)
+  const finVentana = sumarMeses(inicioVentana, 12)
+  const ingresosPendientesVentana = ingresosPendientesFiltrados.filter(i => {
+    if (!i.fecha_vencimiento) return paginaCobrar === 0
+    const f = new Date(i.fecha_vencimiento)
+    if (paginaCobrar === 0 && f < inicioVentana) return true // vencidos: siempre visibles en la primera página
+    return f >= inicioVentana && f < finVentana
+  })
+  const hayPaginaSiguiente = ingresosPendientesFiltrados.some(i => i.fecha_vencimiento && new Date(i.fecha_vencimiento) >= finVentana)
 
   return (
     <div className="space-y-6">
@@ -211,7 +238,7 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
 
           <select
             value={proyectoFiltro}
-            onChange={e => setProyectoFiltro(e.target.value)}
+            onChange={e => { setProyectoFiltro(e.target.value); setPaginaCobrar(0) }}
             className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white
                        focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-auto"
           >
@@ -302,6 +329,24 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
               </div>
             </div>
 
+            <div className="flex items-center justify-between mb-3">
+              <button
+                onClick={() => setPaginaCobrar(p => Math.max(0, p - 1))}
+                disabled={paginaCobrar === 0}
+                className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                ← Anterior
+              </button>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                {paginaCobrar === 0 ? 'Vencidos + próximos 12 meses' : labelVentana(inicioVentana, finVentana)}
+              </p>
+              <button
+                onClick={() => setPaginaCobrar(p => p + 1)}
+                disabled={!hayPaginaSiguiente}
+                className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                Siguiente →
+              </button>
+            </div>
+
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -314,7 +359,7 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {ingresosPendientesFiltrados.map(i => (
+                    {ingresosPendientesVentana.map(i => (
                       <tr key={i.id} className="hover:bg-slate-50">
                         <td className="px-4 py-3 font-medium text-slate-900">{i.descripcion}</td>
                         <td className="px-4 py-3">
@@ -336,8 +381,10 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
                   </tbody>
                 </table>
               </div>
-              {ingresosPendientesFiltrados.length === 0 && (
-                <div className="text-center py-12 text-slate-400 text-sm">No hay cobros pendientes.</div>
+              {ingresosPendientesVentana.length === 0 && (
+                <div className="text-center py-12 text-slate-400 text-sm">
+                  {ingresosPendientesFiltrados.length === 0 ? 'No hay cobros pendientes.' : 'Nada en esta ventana de 12 meses.'}
+                </div>
               )}
             </div>
           </div>

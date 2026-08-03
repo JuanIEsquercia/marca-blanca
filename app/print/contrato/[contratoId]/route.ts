@@ -68,6 +68,7 @@ export async function GET(
       montoContratado: i.monto_contratado,
       origen: i.origen,
     })),
+    ivaPct: contrato.iva_pct,
     codigo,
   })
 

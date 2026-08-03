@@ -20,17 +20,22 @@ export default async function ComprasPage() {
     { data: obras },
     { data: categorias },
     { data: stockResumen },
+    { data: acopios },
+    { data: acopiosResumen },
   ] = await Promise.all([
     supabase
       .from('ordenes_compra')
       .select('*, obras(nombre), orden_compra_items(*, productos(id, nombre, unidad_medida), orden_compra_recepcion_items(cantidad_recibida)), orden_compra_recepciones(*, proveedores(razon_social), orden_compra_recepcion_items(*, orden_compra_items(producto_id, productos(nombre, unidad_medida))))')
       .eq('constructora_id', ctx.constructoraId)
       .order('numero', { ascending: false }),
+    // Sin filtrar por activo=true: un producto desactivado con stock
+    // remanente necesita seguir siendo visible (nombre, reparto) en el tab
+    // Stock y reactivable desde "Administrar productos" — ComprasManager
+    // filtra a solo-activos donde corresponde (selectores de ítem nuevo).
     supabase
       .from('productos')
       .select('*, categorias_costo(nombre, color)')
       .eq('constructora_id', ctx.constructoraId)
-      .eq('activo', true)
       .order('nombre'),
     supabase
       .from('proveedores')
@@ -52,6 +57,14 @@ export default async function ComprasPage() {
     // todo el ledger de stock_movimientos al cliente para sumarlo acá —
     // mismo criterio que resumen_unidades_por_obra en app/admin/page.tsx.
     supabase.rpc('resumen_stock', { p_constructora_id: ctx.constructoraId }),
+    supabase
+      .from('acopios')
+      .select('*, proveedores(razon_social), productos(nombre, unidad_medida), obras(nombre), acopio_retiros(*, productos(nombre, unidad_medida), obras(nombre))')
+      .eq('constructora_id', ctx.constructoraId)
+      .order('numero', { ascending: false }),
+    // Mismo criterio que resumen_stock: el saldo de cada acopio se agrega
+    // en Postgres (migration_062), no se traen todos los retiros para sumar acá.
+    supabase.rpc('resumen_acopios', { p_constructora_id: ctx.constructoraId }),
   ])
 
   return (
@@ -67,6 +80,8 @@ export default async function ComprasPage() {
         obras={obras ?? []}
         categorias={categorias ?? []}
         stockResumen={stockResumen ?? []}
+        acopios={(acopios ?? []) as any}
+        acopiosResumen={acopiosResumen ?? []}
         constructoraId={ctx.constructoraId}
         constructoraNombre={ctx.constructoraNombre}
       />

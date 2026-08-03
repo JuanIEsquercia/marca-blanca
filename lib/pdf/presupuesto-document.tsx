@@ -1,5 +1,5 @@
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from '@react-pdf/renderer'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, redondear2 } from '@/lib/utils'
 
 const INDIGO = '#4338ca'
 const INDIGO_SOFT = '#f4f3fc'
@@ -84,12 +84,15 @@ export interface PresupuestoPdfData {
   moneda: string
   items: PresupuestoPdfItem[]
   total: number
+  ivaPct: number | null
   codigo: string
 }
 
 function PresupuestoDocument(d: PresupuestoPdfData) {
   const fechaInicio = d.fechaInicio ? formatDate(d.fechaInicio) : null
   const fechaFin = d.fechaFinEstimada ? formatDate(d.fechaFinEstimada) : null
+  const iva = d.ivaPct ? redondear2(d.total * d.ivaPct / 100) : 0
+  const totalConIva = redondear2(d.total + iva)
 
   return (
     <Document title={`Presupuesto ${d.clienteNombre}`}>
@@ -164,10 +167,27 @@ function PresupuestoDocument(d: PresupuestoPdfData) {
         </View>
 
         <View style={styles.totalRow}>
-          <View style={styles.totalBox}>
-            <Text style={styles.totalLabel}>TOTAL</Text>
-            <Text style={styles.totalValue}>{formatCurrency(d.total, d.moneda)}</Text>
-          </View>
+          {d.ivaPct ? (
+            <View style={{ alignItems: 'flex-end' }}>
+              <View style={[styles.detalleRow, { marginBottom: 6 }]}>
+                <Text style={styles.detalleKey}>Subtotal</Text>
+                <Text style={styles.detalleVal}>{formatCurrency(d.total, d.moneda)}</Text>
+              </View>
+              <View style={[styles.detalleRow, { marginBottom: 10 }]}>
+                <Text style={styles.detalleKey}>+ IVA ({d.ivaPct}%)</Text>
+                <Text style={styles.detalleVal}>{formatCurrency(iva, d.moneda)}</Text>
+              </View>
+              <View style={styles.totalBox}>
+                <Text style={styles.totalLabel}>TOTAL</Text>
+                <Text style={styles.totalValue}>{formatCurrency(totalConIva, d.moneda)}</Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.totalBox}>
+              <Text style={styles.totalLabel}>TOTAL</Text>
+              <Text style={styles.totalValue}>{formatCurrency(d.total, d.moneda)}</Text>
+            </View>
+          )}
         </View>
 
         {d.notas && (

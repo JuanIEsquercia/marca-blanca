@@ -22,7 +22,7 @@ export default async function CobrosPage({ params }: { params: Promise<{ obraId:
   ] = await Promise.all([
     supabase
       .from('cobros_proyecto')
-      .select('*, certificados_avance(numero, periodo), cuentas_propias(id, nombre, moneda)')
+      .select('*, certificados_avance(numero, periodo), cuentas_propias(id, nombre, moneda), cobro_pagos(*, cuentas_propias(id, nombre, moneda))')
       .eq('obra_id', obraId)
       .order('fecha_vencimiento', { ascending: true, nullsFirst: false }),
     ctx.obraModo === 'especificas'

@@ -1,5 +1,5 @@
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from '@react-pdf/renderer'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, redondear2 } from '@/lib/utils'
 import { sharedStyles, pdfColors, DocHeader, InfoBox, FirmaBlock, formatDate } from './shared'
 
 const styles = StyleSheet.create({
@@ -15,6 +15,9 @@ const styles = StyleSheet.create({
   tdNumeric: { width: 78, fontSize: 9.5, textAlign: 'right' },
   tdNumericBold: { width: 78, fontSize: 9.5, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
   tdUnidad: { fontSize: 8, color: pdfColors.grayLight },
+  desgloseRow: { flexDirection: 'row', marginBottom: 6 },
+  desgloseKey: { fontSize: 9, color: pdfColors.gray, marginRight: 10 },
+  desgloseVal: { fontSize: 9, fontFamily: 'Helvetica-Bold' },
 })
 
 export interface ContratoPdfItem {
@@ -37,6 +40,7 @@ export interface ContratoPdfData {
   fechaFinEstimada: string | null
   descripcion: string | null
   items: ContratoPdfItem[]
+  ivaPct: number | null
   codigo: string
 }
 
@@ -44,6 +48,8 @@ function ContratoDocument(d: ContratoPdfData) {
   const fechaInicio = d.fechaInicio ? formatDate(d.fechaInicio) : null
   const fechaFin = d.fechaFinEstimada ? formatDate(d.fechaFinEstimada) : null
   const hoy = formatDate(new Date().toISOString())
+  const iva = d.ivaPct ? redondear2(d.montoTotal * d.ivaPct / 100) : 0
+  const totalConIva = redondear2(d.montoTotal + iva)
 
   const infoItems = [
     { key: 'CLIENTE', value: d.clienteNombre },
@@ -93,10 +99,27 @@ function ContratoDocument(d: ContratoPdfData) {
         )}
 
         <View style={sharedStyles.totalRow}>
-          <View style={sharedStyles.totalBox}>
-            <Text style={sharedStyles.totalLabel}>PRECIO ACORDADO</Text>
-            <Text style={sharedStyles.totalValue}>{formatCurrency(d.montoTotal, d.moneda)}</Text>
-          </View>
+          {d.ivaPct ? (
+            <View style={{ alignItems: 'flex-end' }}>
+              <View style={styles.desgloseRow}>
+                <Text style={styles.desgloseKey}>Subtotal</Text>
+                <Text style={styles.desgloseVal}>{formatCurrency(d.montoTotal, d.moneda)}</Text>
+              </View>
+              <View style={[styles.desgloseRow, { marginBottom: 10 }]}>
+                <Text style={styles.desgloseKey}>+ IVA ({d.ivaPct}%)</Text>
+                <Text style={styles.desgloseVal}>{formatCurrency(iva, d.moneda)}</Text>
+              </View>
+              <View style={sharedStyles.totalBox}>
+                <Text style={sharedStyles.totalLabel}>PRECIO ACORDADO</Text>
+                <Text style={sharedStyles.totalValue}>{formatCurrency(totalConIva, d.moneda)}</Text>
+              </View>
+            </View>
+          ) : (
+            <View style={sharedStyles.totalBox}>
+              <Text style={sharedStyles.totalLabel}>PRECIO ACORDADO</Text>
+              <Text style={sharedStyles.totalValue}>{formatCurrency(d.montoTotal, d.moneda)}</Text>
+            </View>
+          )}
         </View>
 
         {d.descripcion && (

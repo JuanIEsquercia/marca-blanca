@@ -1,0 +1,11 @@
+-- ------------------------------------------------------------
+-- Fix de UX/trazabilidad en Acopios: al crear un acopio no había forma
+-- de anclar el precio del producto de referencia el día del pago (solo
+-- se cargaban saldo_inicial y monto_pagado por separado) — sin ese
+-- precio, no había ningún valor de partida para completar "precio de
+-- referencia" al registrar el primer retiro con conversión. Se agrega
+-- precio_referencia_inicial (opcional — un acopio "simple" que nunca
+-- retira otro producto no lo necesita) y ahora el saldo_inicial se
+-- puede calcular solo a partir de monto_pagado ÷ este precio.
+-- ------------------------------------------------------------
+ALTER TABLE acopios ADD COLUMN IF NOT EXISTS precio_referencia_inicial NUMERIC(15,2);

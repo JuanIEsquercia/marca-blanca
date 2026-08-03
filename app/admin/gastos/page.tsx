@@ -29,7 +29,7 @@ export default async function GastosPage({ searchParams }: Props) {
   hace12Meses.setMonth(hace12Meses.getMonth() - 12)
   const ventanaInicio = hace12Meses.toISOString().slice(0, 10)
 
-  const GASTOS_SELECT = '*, proveedores(*), cuentas_proveedor(*), categorias_costo(*), cuentas_propias(*)'
+  const GASTOS_SELECT = '*, proveedores(*), cuentas_proveedor(*), categorias_costo(*), cuentas_propias(*), gasto_pagos(*, cuentas_propias(id, nombre, moneda))'
 
   let gastosPagadosQuery = supabase
     .from('gastos')

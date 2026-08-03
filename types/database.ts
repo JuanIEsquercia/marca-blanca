@@ -7,7 +7,7 @@ export type RolMiembro = 'admin' | 'miembro'
 export type TipoProyecto = 'desarrollo' | 'obra'
 export type ModoCuentas = 'empresa' | 'especificas'
 export type EstadoCertificado = 'borrador' | 'presentado' | 'aprobado'
-export type EstadoCobro = 'pendiente' | 'cobrado'
+export type EstadoCobro = 'Pendiente' | 'Cobrado'
 
 // ── Multi-tenant ──────────────────────────────────────────────
 
@@ -122,6 +122,7 @@ export interface ContratoVenta {
   fecha_firma: string
   notas: string | null
   cuenta_propia_id: string | null
+  estado: 'vigente' | 'rescindido'
   created_at: string
   unidades?: Unidad
   compradores?: Comprador
@@ -138,6 +139,11 @@ export interface Cuota {
   fecha_pago: string | null
   notas_pago: string | null
   cuenta_propia_id: string | null
+  monto_neto: number | null
+  iva: number | null
+  percepciones: number | null
+  numero_comprobante: string | null
+  comprobante_url: string | null
   created_at: string
   contratos_venta?: ContratoVenta
 }
@@ -188,6 +194,31 @@ export interface CategoriaCosto {
   created_at: string
 }
 
+// Medio de pago de una cuota de un plan de pago (gasto_pagos/cobro_pagos) —
+// ver migration_064.
+export type MedioPago = 'cheque' | 'transferencia' | 'efectivo' | 'otro'
+
+// Cuota/cheque de un plan de pago opcional de un gasto. Cuando un gasto
+// tiene filas acá, gasto.estado/fecha_pago/cuenta_propia_id dejan de ser
+// editables a mano — los mantiene sincronizados un trigger en base a estas
+// cuotas (ver migration_064: sync_estado_gasto_por_pagos).
+export interface GastoPago {
+  id: string
+  gasto_id: string
+  constructora_id: string
+  medio: MedioPago
+  numero_cheque: string | null
+  banco: string | null
+  monto: number
+  fecha_emision: string | null
+  fecha_pago: string
+  estado: 'Pendiente' | 'Pagado' | 'Rechazado'
+  cuenta_propia_id: string | null
+  notas: string | null
+  created_at: string
+  cuentas_propias?: CuentaPropia
+}
+
 export interface Gasto {
   id: string
   constructora_id: string
@@ -214,6 +245,7 @@ export interface Gasto {
   cuentas_proveedor?: CuentaProveedor
   categorias_costo?: CategoriaCosto
   cuentas_propias?: CuentaPropia
+  gasto_pagos?: GastoPago[]
 }
 
 // Proyección liviana de Gasto para la cuenta corriente por proveedor
@@ -286,6 +318,9 @@ export interface OrdenCompraRecepcion {
   fecha: string
   moneda: string
   notas: string | null
+  iva: number | null
+  percepciones: number | null
+  numero_comprobante: string | null
   created_at: string
   proveedores?: Pick<Proveedor, 'razon_social'>
   orden_compra_recepcion_items?: OrdenCompraRecepcionItem[]
@@ -313,6 +348,48 @@ export interface StockMovimiento {
   tipo: TipoMovimientoStock
   cantidad: number
   origen_recepcion_id: string | null
+  origen_acopio_retiro_id: string | null
+  notas: string | null
+  created_at: string
+  productos?: Pick<Producto, 'nombre' | 'unidad_medida'>
+  obras?: { nombre: string } | null
+}
+
+export type EstadoAcopio = 'activo' | 'cerrado'
+
+export interface Acopio {
+  id: string
+  constructora_id: string
+  obra_id: string | null
+  proveedor_id: string
+  producto_referencia_id: string
+  numero: number
+  saldo_inicial: number
+  monto_pagado: number
+  precio_referencia_inicial: number | null
+  moneda: string
+  fecha: string
+  gasto_id: string | null
+  estado: EstadoAcopio
+  notas: string | null
+  created_at: string
+  proveedores?: Pick<Proveedor, 'razon_social'>
+  productos?: Pick<Producto, 'nombre' | 'unidad_medida'>
+  obras?: { nombre: string } | null
+  acopio_retiros?: AcopioRetiro[]
+}
+
+export interface AcopioRetiro {
+  id: string
+  acopio_id: string
+  constructora_id: string
+  producto_id: string
+  cantidad: number
+  precio_unitario_retiro: number | null
+  precio_unitario_referencia: number | null
+  cantidad_referencia_descontada: number
+  obra_id: string | null
+  fecha: string
   notas: string | null
   created_at: string
   productos?: Pick<Producto, 'nombre' | 'unidad_medida'>
@@ -389,6 +466,7 @@ export interface ContratoObra {
   descripcion: string | null
   estado: 'vigente' | 'terminado' | 'rescindido'
   presupuesto_id: string | null
+  iva_pct: number | null
   created_at: string
   compradores?: Comprador
   proveedores?: Proveedor
@@ -430,6 +508,7 @@ export interface Presupuesto {
   fecha_fin_estimada: string | null
   descripcion: string | null
   notas: string | null
+  iva_pct: number | null
   created_at: string
   presupuesto_items?: PresupuestoItem[]
   obras?: { id: string; nombre: string } | null
@@ -554,6 +633,25 @@ export interface PersonalAsignacion {
   obras?: { id: string; nombre: string }
 }
 
+// Cuota/cheque de un plan de cobro opcional (cheques de terceros, etc.) —
+// mismo criterio que GastoPago, mirror para el lado de cobros.
+export interface CobroPago {
+  id: string
+  cobro_id: string
+  constructora_id: string
+  medio: MedioPago
+  numero_cheque: string | null
+  banco: string | null
+  monto: number
+  fecha_emision: string | null
+  fecha_pago: string
+  estado: 'Pendiente' | 'Cobrado' | 'Rechazado'
+  cuenta_propia_id: string | null
+  notas: string | null
+  created_at: string
+  cuentas_propias?: CuentaPropia
+}
+
 export interface CobroProyecto {
   id: string
   obra_id: string
@@ -571,7 +669,13 @@ export interface CobroProyecto {
   cuenta_propia_id: string | null
   notas: string | null
   created_at: string
+  monto_neto: number | null
+  iva: number | null
+  percepciones: number | null
+  numero_comprobante: string | null
+  comprobante_url: string | null
   certificados_avance?: Pick<CertificadoAvance, 'id' | 'numero' | 'periodo'>
   cuentas_propias?: CuentaPropia
+  cobro_pagos?: CobroPago[]
 }
 

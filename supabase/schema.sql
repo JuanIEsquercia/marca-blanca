@@ -414,7 +414,7 @@ CREATE TABLE IF NOT EXISTS cobros_proyecto (
   fecha_pago         DATE,
   monto              NUMERIC(15,2) NOT NULL,
   moneda             TEXT NOT NULL DEFAULT 'ARS' CHECK (moneda IN ('ARS', 'USD')),
-  estado             TEXT NOT NULL DEFAULT 'cobrado' CHECK (estado IN ('pendiente', 'cobrado')),
+  estado             TEXT NOT NULL DEFAULT 'Pendiente' CHECK (estado IN ('Pendiente', 'Cobrado')),
   cuenta_propia_id   UUID REFERENCES cuentas_propias(id) ON DELETE SET NULL,
   notas              TEXT,
   created_by         UUID REFERENCES auth.users(id),
@@ -584,13 +584,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION marcar_cuotas_vencidas()
-RETURNS void AS $$
-BEGIN
-  UPDATE cuotas SET estado_pago = 'Vencido'
-  WHERE estado_pago = 'Pendiente' AND fecha_vencimiento < CURRENT_DATE;
-END;
-$$ LANGUAGE plpgsql;
+-- marcar_cuotas_vencidas() eliminada en migration_059: código muerto
+-- (nada la llamaba) que persistía un tercer estado ('Vencido') en
+-- cuotas.estado_pago, contradiciendo el criterio general del sistema
+-- (vencido se calcula al vuelo con estaVencido(), nunca se guarda).
 
 CREATE OR REPLACE FUNCTION set_contrato_tenant()
 RETURNS TRIGGER AS $$
@@ -984,7 +981,7 @@ CREATE TRIGGER trg_cobros_proyecto_numero
 DROP TRIGGER IF EXISTS trg_cobros_proyecto_inmutable ON cobros_proyecto;
 CREATE TRIGGER trg_cobros_proyecto_inmutable
   BEFORE UPDATE OR DELETE ON cobros_proyecto
-  FOR EACH ROW WHEN (OLD.estado = 'cobrado')
+  FOR EACH ROW WHEN (OLD.estado = 'Cobrado')
   EXECUTE FUNCTION proteger_registro_financiero_terminal();
 
 DROP TRIGGER IF EXISTS trg_cuotas_inmutable ON cuotas;
@@ -1761,8 +1758,8 @@ BEGIN
     RETURNING id INTO v_cliente_id;
   END IF;
 
-  INSERT INTO contratos_obra (obra_id, constructora_id, tipo, cliente_id, monto_total, moneda, descripcion, presupuesto_id, fecha_inicio, fecha_fin_estimada)
-  VALUES (v_obra_id, v_presupuesto.constructora_id, 'cliente', v_cliente_id, v_monto_total, v_presupuesto.moneda, v_presupuesto.descripcion, p_presupuesto_id, v_presupuesto.fecha_inicio, v_presupuesto.fecha_fin_estimada)
+  INSERT INTO contratos_obra (obra_id, constructora_id, tipo, cliente_id, monto_total, moneda, descripcion, presupuesto_id, fecha_inicio, fecha_fin_estimada, iva_pct)
+  VALUES (v_obra_id, v_presupuesto.constructora_id, 'cliente', v_cliente_id, v_monto_total, v_presupuesto.moneda, v_presupuesto.descripcion, p_presupuesto_id, v_presupuesto.fecha_inicio, v_presupuesto.fecha_fin_estimada, v_presupuesto.iva_pct)
   RETURNING id INTO v_contrato_id;
 
   INSERT INTO contrato_obra_items (contrato_obra_id, constructora_id, orden, rubro, unidad, cantidad, precio_unitario, origen)
@@ -2732,6 +2729,10 @@ CREATE TRIGGER trg_stock_movimiento_tenant
 -- habilitado en ese proyecto, esto falla con el error de RLS de esa
 -- tabla. Documentado como aviso en lib/permisos.ts (MODULOS.compras).
 -- ------------------------------------------------------------
+-- Ver migration_056.sql: monto_neto NO se guarda en orden_compra_recepciones
+-- (siempre es SUM(subtotal) de los ítems, se calcula acá) — iva/percepciones/
+-- numero_comprobante sí, se cargan una vez por recepción (como en una
+-- factura real) y se copian al gasto que se genera al confirmar.
 CREATE OR REPLACE FUNCTION confirmar_recepcion_compra(p_recepcion_id UUID)
 RETURNS UUID
 LANGUAGE plpgsql
@@ -2739,6 +2740,7 @@ AS $$
 DECLARE
   v_recepcion   orden_compra_recepciones%ROWTYPE;
   v_orden       ordenes_compra%ROWTYPE;
+  v_monto_neto  NUMERIC(15,2);
   v_monto_total NUMERIC(15,2);
   v_gasto_id    UUID;
   v_item        RECORD;
@@ -2756,14 +2758,18 @@ BEGIN
     RAISE EXCEPTION 'La orden de compra está cancelada';
   END IF;
 
-  SELECT COALESCE(SUM(subtotal), 0) INTO v_monto_total
+  SELECT COALESCE(SUM(subtotal), 0) INTO v_monto_neto
   FROM orden_compra_recepcion_items WHERE recepcion_id = p_recepcion_id;
 
-  IF v_monto_total <= 0 THEN
+  IF v_monto_neto <= 0 THEN
     RAISE EXCEPTION 'La recepción no tiene ítems cargados';
   END IF;
 
-  INSERT INTO gastos (constructora_id, obra_id, proveedor_id, descripcion, monto, moneda, fecha_vencimiento, estado, notas)
+  -- migration_066: se agrega percepciones — antes solo neto+IVA, y esa
+  -- plata también hay que pagarla al proveedor.
+  v_monto_total := v_monto_neto + COALESCE(v_recepcion.iva, 0) + COALESCE(v_recepcion.percepciones, 0);
+
+  INSERT INTO gastos (constructora_id, obra_id, proveedor_id, descripcion, monto, moneda, fecha_vencimiento, estado, notas, monto_neto, iva, percepciones, numero_comprobante)
   VALUES (
     v_recepcion.constructora_id,
     v_orden.obra_id,
@@ -2773,7 +2779,11 @@ BEGIN
     v_recepcion.moneda,
     v_recepcion.fecha,
     'Pendiente',
-    v_recepcion.notas
+    v_recepcion.notas,
+    v_monto_neto,
+    v_recepcion.iva,
+    v_recepcion.percepciones,
+    v_recepcion.numero_comprobante
   )
   RETURNING id INTO v_gasto_id;
 
@@ -2923,6 +2933,9 @@ BEGIN
   DELETE FROM contratos_obra    WHERE constructora_id = p_constructora_id;
   DELETE FROM presupuestos      WHERE constructora_id = p_constructora_id;
   DELETE FROM equipos           WHERE constructora_id = p_constructora_id;
+  DELETE FROM personal          WHERE constructora_id = p_constructora_id;
+  DELETE FROM cuadrillas        WHERE constructora_id = p_constructora_id;
+  DELETE FROM rubros            WHERE constructora_id = p_constructora_id;
   DELETE FROM contratos_venta   WHERE constructora_id = p_constructora_id;
   DELETE FROM reservas          WHERE constructora_id = p_constructora_id;
   DELETE FROM gastos            WHERE constructora_id = p_constructora_id;
@@ -2988,3 +3001,798 @@ ALTER FUNCTION set_stock_movimiento_tenant() SET search_path = public;
 ALTER FUNCTION confirmar_recepcion_compra(UUID) SET search_path = public;
 ALTER FUNCTION repartir_stock(UUID, UUID, UUID, NUMERIC) SET search_path = public;
 ALTER FUNCTION resumen_stock(UUID) SET search_path = public;
+
+-- ------------------------------------------------------------
+-- migration_054: simetría con gastos — cobros_proyecto suma el mismo
+-- desglose contable (informativo, no afecta cálculos de tesorería/caja).
+-- ------------------------------------------------------------
+ALTER TABLE cobros_proyecto
+  ADD COLUMN IF NOT EXISTS monto_neto         DECIMAL(15,2),
+  ADD COLUMN IF NOT EXISTS iva                DECIMAL(15,2),
+  ADD COLUMN IF NOT EXISTS percepciones       DECIMAL(15,2),
+  ADD COLUMN IF NOT EXISTS numero_comprobante TEXT,
+  ADD COLUMN IF NOT EXISTS comprobante_url    TEXT;
+
+-- ------------------------------------------------------------
+-- migration_055: condición de IVA a nivel contrato/presupuesto — ver
+-- comentario en migration_055.sql. aceptar_presupuesto() ya se
+-- actualizó in-place más arriba para copiar iva_pct.
+-- ------------------------------------------------------------
+ALTER TABLE contratos_obra ADD COLUMN IF NOT EXISTS iva_pct DECIMAL(5,2);
+ALTER TABLE presupuestos   ADD COLUMN IF NOT EXISTS iva_pct DECIMAL(5,2);
+
+-- ------------------------------------------------------------
+-- migration_056: desglose neto/IVA/comprobante para gastos generados
+-- desde Compras — ver comentario en migration_056.sql y en
+-- confirmar_recepcion_compra() más arriba (ya actualizada in-place).
+-- ------------------------------------------------------------
+ALTER TABLE orden_compra_recepciones
+  ADD COLUMN IF NOT EXISTS iva                DECIMAL(15,2),
+  ADD COLUMN IF NOT EXISTS percepciones       DECIMAL(15,2),
+  ADD COLUMN IF NOT EXISTS numero_comprobante TEXT;
+
+-- ------------------------------------------------------------
+-- migration_057: desglose contable para cuotas (cobros de venta de
+-- unidades) — mismo criterio informativo que gastos/cobros_proyecto.
+-- ------------------------------------------------------------
+ALTER TABLE cuotas
+  ADD COLUMN IF NOT EXISTS monto_neto         DECIMAL(15,2),
+  ADD COLUMN IF NOT EXISTS iva                DECIMAL(15,2),
+  ADD COLUMN IF NOT EXISTS percepciones       DECIMAL(15,2),
+  ADD COLUMN IF NOT EXISTS numero_comprobante TEXT,
+  ADD COLUMN IF NOT EXISTS comprobante_url    TEXT;
+
+-- ------------------------------------------------------------
+-- migration_058: estado (vigente/rescindido) en contratos_venta —
+-- ver comentario en migration_058.sql.
+-- ------------------------------------------------------------
+ALTER TABLE contratos_venta
+  ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT 'vigente' CHECK (estado IN ('vigente', 'rescindido'));
+
+-- ------------------------------------------------------------
+-- migration_061: índices faltantes en estado de contratos_venta/
+-- cobros_proyecto — ver comentario en migration_061.sql.
+-- ------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_contratos_venta_estado ON contratos_venta(estado);
+CREATE INDEX IF NOT EXISTS idx_cobros_proyecto_estado ON cobros_proyecto(estado);
+-- ------------------------------------------------------------
+-- Acopios: crédito prepago con un proveedor, denominado en la cantidad
+-- de un "producto de referencia" (kg de acero, unidades de ladrillo,
+-- lo que sea) — no en pesos, para no perder poder de compra cuando ese
+-- producto sube de precio. Vive dentro de Compras, en paralelo a
+-- ordenes_compra (esa tabla asume que sabés de antemano qué pedís; un
+-- acopio es plata ya pagada que se define en qué se convierte después).
+--
+-- La conversión de un retiro es una sola fórmula para los dos casos:
+--   - si el producto retirado ES el de referencia del acopio, se
+--     descuenta 1 a 1 (los precios ni se piden).
+--   - si es OTRO producto, se exige el precio de hoy de ambos y se
+--     convierte: cantidad_descontada = (cantidad × precio_retiro) ÷ precio_referencia.
+-- Esto es justo lo que hace un proveedor cuando indexa un acopio de
+-- acero a otro material: convierte a precio de hoy de los dos lados.
+-- ------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS acopios (
+  id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  constructora_id        UUID NOT NULL REFERENCES constructoras(id),
+  obra_id                UUID REFERENCES obras(id),
+  proveedor_id           UUID NOT NULL REFERENCES proveedores(id),
+  producto_referencia_id UUID NOT NULL REFERENCES productos(id),
+  numero                 INTEGER NOT NULL,
+  saldo_inicial          NUMERIC(15,2) NOT NULL CHECK (saldo_inicial > 0),
+  monto_pagado           NUMERIC(15,2) NOT NULL,
+  moneda                 TEXT NOT NULL DEFAULT 'ARS' CHECK (moneda IN ('ARS', 'USD')),
+  fecha                  DATE NOT NULL DEFAULT CURRENT_DATE,
+  gasto_id               UUID REFERENCES gastos(id) ON DELETE SET NULL,
+  estado                 TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'cerrado')),
+  notas                  TEXT,
+  created_by             UUID REFERENCES auth.users(id),
+  updated_by             UUID REFERENCES auth.users(id),
+  updated_at             TIMESTAMPTZ,
+  created_at             TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (constructora_id, numero)
+);
+
+CREATE INDEX IF NOT EXISTS idx_acopios_constructora ON acopios(constructora_id);
+CREATE INDEX IF NOT EXISTS idx_acopios_obra         ON acopios(obra_id);
+CREATE INDEX IF NOT EXISTS idx_acopios_proveedor     ON acopios(proveedor_id);
+
+-- "Cuánto queda" nunca se guarda — se calcula sumando acopio_retiros
+-- (mismo criterio que stock_movimientos/resumen_stock).
+CREATE TABLE IF NOT EXISTS acopio_retiros (
+  id                             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  acopio_id                      UUID NOT NULL REFERENCES acopios(id) ON DELETE CASCADE,
+  constructora_id                UUID NOT NULL REFERENCES constructoras(id),
+  producto_id                    UUID NOT NULL REFERENCES productos(id),
+  cantidad                       NUMERIC(15,2) NOT NULL CHECK (cantidad > 0),
+  precio_unitario_retiro         NUMERIC(15,2),  -- NULL cuando producto_id = producto de referencia del acopio (no hace falta)
+  precio_unitario_referencia     NUMERIC(15,2),
+  cantidad_referencia_descontada NUMERIC(15,2) NOT NULL,  -- fijo al momento del retiro, no se recalcula después
+  obra_id                        UUID REFERENCES obras(id),
+  fecha                          DATE NOT NULL DEFAULT CURRENT_DATE,
+  notas                          TEXT,
+  created_by                     UUID REFERENCES auth.users(id),
+  created_at                     TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_acopio_retiros_acopio       ON acopio_retiros(acopio_id);
+CREATE INDEX IF NOT EXISTS idx_acopio_retiros_constructora ON acopio_retiros(constructora_id);
+CREATE INDEX IF NOT EXISTS idx_acopio_retiros_producto     ON acopio_retiros(producto_id);
+CREATE INDEX IF NOT EXISTS idx_acopio_retiros_obra         ON acopio_retiros(obra_id);
+
+-- Cada retiro genera stock real, igual que una recepción de compra —
+-- mismo patrón que origen_recepcion_id.
+ALTER TABLE stock_movimientos
+  ADD COLUMN IF NOT EXISTS origen_acopio_retiro_id UUID REFERENCES acopio_retiros(id) ON DELETE SET NULL;
+
+-- ------------------------------------------------------------
+-- Tenant + numeración (mismos patrones que orden_compra_items /
+-- asignar_numero_orden_compra)
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION set_acopio_retiro_tenant()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.constructora_id IS NULL THEN
+    SELECT constructora_id INTO NEW.constructora_id FROM acopios WHERE id = NEW.acopio_id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_acopio_retiro_tenant ON acopio_retiros;
+CREATE TRIGGER trg_acopio_retiro_tenant
+  BEFORE INSERT ON acopio_retiros
+  FOR EACH ROW EXECUTE FUNCTION set_acopio_retiro_tenant();
+
+CREATE OR REPLACE FUNCTION asignar_numero_acopio()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext('acopios:' || NEW.constructora_id::text));
+  SELECT COALESCE(MAX(numero), 0) + 1 INTO NEW.numero
+  FROM acopios WHERE constructora_id = NEW.constructora_id;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_asignar_numero_acopio ON acopios;
+CREATE TRIGGER trg_asignar_numero_acopio
+  BEFORE INSERT ON acopios
+  FOR EACH ROW EXECUTE FUNCTION asignar_numero_acopio();
+
+-- ------------------------------------------------------------
+-- registrar_retiro_acopio(): la única lógica de negocio real. SECURITY
+-- INVOKER a propósito (mismo criterio que confirmar_recepcion_compra/
+-- repartir_stock) — corre bajo el RLS real de quien llama.
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION registrar_retiro_acopio(
+  p_acopio_id UUID,
+  p_producto_id UUID,
+  p_cantidad NUMERIC,
+  p_precio_retiro NUMERIC DEFAULT NULL,
+  p_precio_referencia NUMERIC DEFAULT NULL,
+  p_obra_id UUID DEFAULT NULL,
+  p_notas TEXT DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_acopio              acopios%ROWTYPE;
+  v_cantidad_descontada NUMERIC(15,2);
+  v_retiro_id           UUID;
+BEGIN
+  IF p_cantidad <= 0 THEN
+    RAISE EXCEPTION 'La cantidad retirada debe ser mayor a cero';
+  END IF;
+
+  SELECT * INTO v_acopio FROM acopios WHERE id = p_acopio_id;
+  IF v_acopio.id IS NULL THEN
+    RAISE EXCEPTION 'Acopio no encontrado';
+  END IF;
+
+  IF p_producto_id = v_acopio.producto_referencia_id THEN
+    v_cantidad_descontada := p_cantidad;
+  ELSE
+    IF p_precio_retiro IS NULL OR p_precio_retiro <= 0 OR p_precio_referencia IS NULL OR p_precio_referencia <= 0 THEN
+      RAISE EXCEPTION 'Para retirar un producto distinto al de referencia hace falta el precio de hoy de los dos';
+    END IF;
+    v_cantidad_descontada := (p_cantidad * p_precio_retiro) / p_precio_referencia;
+  END IF;
+
+  INSERT INTO acopio_retiros (
+    acopio_id, constructora_id, producto_id, cantidad, precio_unitario_retiro,
+    precio_unitario_referencia, cantidad_referencia_descontada, obra_id, notas, created_by
+  )
+  VALUES (
+    p_acopio_id, v_acopio.constructora_id, p_producto_id, p_cantidad, p_precio_retiro,
+    p_precio_referencia, v_cantidad_descontada, p_obra_id, p_notas, auth.uid()
+  )
+  RETURNING id INTO v_retiro_id;
+
+  INSERT INTO stock_movimientos (constructora_id, producto_id, obra_id, tipo, cantidad, origen_acopio_retiro_id, created_by)
+  VALUES (v_acopio.constructora_id, p_producto_id, p_obra_id, 'entrada', p_cantidad, v_retiro_id, auth.uid());
+
+  RETURN v_retiro_id;
+END;
+$$;
+
+-- Agregado en Postgres (no traer todos los retiros al cliente solo para
+-- sumarlos) — mismo criterio que resumen_stock.
+CREATE OR REPLACE FUNCTION resumen_acopios(p_constructora_id UUID)
+RETURNS TABLE(acopio_id UUID, saldo_actual NUMERIC)
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT
+    a.id,
+    a.saldo_inicial - COALESCE(SUM(r.cantidad_referencia_descontada), 0)
+  FROM acopios a
+  LEFT JOIN acopio_retiros r ON r.acopio_id = a.id
+  WHERE a.constructora_id = p_constructora_id
+  GROUP BY a.id, a.saldo_inicial;
+$$;
+
+ALTER FUNCTION set_acopio_retiro_tenant() SET search_path = public;
+ALTER FUNCTION asignar_numero_acopio() SET search_path = public;
+ALTER FUNCTION registrar_retiro_acopio(UUID, UUID, NUMERIC, NUMERIC, NUMERIC, UUID, TEXT) SET search_path = public;
+ALTER FUNCTION resumen_acopios(UUID) SET search_path = public;
+
+-- ------------------------------------------------------------
+-- RLS — mismo patrón que el resto de Compras (tiene_permiso('compras')).
+-- ------------------------------------------------------------
+ALTER TABLE acopios        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE acopio_retiros ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "acopios_tenant" ON acopios;
+CREATE POLICY "acopios_tenant" ON acopios
+  FOR ALL TO authenticated
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('compras'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('compras'));
+
+DROP POLICY IF EXISTS "acopio_retiros_tenant" ON acopio_retiros;
+CREATE POLICY "acopio_retiros_tenant" ON acopio_retiros
+  FOR ALL TO authenticated
+  USING      (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('compras'))
+  WITH CHECK (constructora_id IN (SELECT mis_constructoras()) AND tiene_permiso('compras'));
+
+-- ------------------------------------------------------------
+-- Purgas: sumar acopios/acopio_retiros (antes de borrar productos/
+-- proveedores/gastos, que los referencian).
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION purgar_constructora_completa(p_constructora_id UUID)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM set_config('app.bypass_inmutable', 'true', true);
+
+  DELETE FROM acopio_retiros    WHERE constructora_id = p_constructora_id;
+  DELETE FROM acopios           WHERE constructora_id = p_constructora_id;
+  DELETE FROM stock_movimientos WHERE constructora_id = p_constructora_id;
+  DELETE FROM ordenes_compra    WHERE constructora_id = p_constructora_id;
+  DELETE FROM productos         WHERE constructora_id = p_constructora_id;
+
+  DELETE FROM cobros_proyecto   WHERE constructora_id = p_constructora_id;
+  DELETE FROM contratos_obra    WHERE constructora_id = p_constructora_id;
+  DELETE FROM presupuestos      WHERE constructora_id = p_constructora_id;
+  DELETE FROM equipos           WHERE constructora_id = p_constructora_id;
+  DELETE FROM personal          WHERE constructora_id = p_constructora_id;
+  DELETE FROM cuadrillas        WHERE constructora_id = p_constructora_id;
+  DELETE FROM rubros            WHERE constructora_id = p_constructora_id;
+  DELETE FROM contratos_venta   WHERE constructora_id = p_constructora_id;
+  DELETE FROM reservas          WHERE constructora_id = p_constructora_id;
+  DELETE FROM gastos            WHERE constructora_id = p_constructora_id;
+  DELETE FROM compradores       WHERE constructora_id = p_constructora_id;
+  DELETE FROM unidades          WHERE constructora_id = p_constructora_id;
+  DELETE FROM proveedores       WHERE constructora_id = p_constructora_id;
+  DELETE FROM categorias_costo  WHERE constructora_id = p_constructora_id;
+  DELETE FROM cuentas_propias   WHERE constructora_id = p_constructora_id;
+  DELETE FROM tipologias        WHERE constructora_id = p_constructora_id;
+  DELETE FROM amenities         WHERE constructora_id = p_constructora_id;
+  DELETE FROM auditoria         WHERE constructora_id = p_constructora_id;
+  DELETE FROM constructoras     WHERE id = p_constructora_id;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION purgar_constructora_completa(UUID) FROM PUBLIC, authenticated, anon;
+
+CREATE OR REPLACE FUNCTION purgar_obra_completa(p_obra_id UUID)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  PERFORM set_config('app.bypass_inmutable', 'true', true);
+
+  DELETE FROM acopio_retiros    WHERE obra_id = p_obra_id;
+  DELETE FROM acopios           WHERE obra_id = p_obra_id;
+  DELETE FROM stock_movimientos WHERE obra_id = p_obra_id;
+  DELETE FROM ordenes_compra    WHERE obra_id = p_obra_id;
+
+  DELETE FROM contratos_venta   WHERE obra_id = p_obra_id;
+  DELETE FROM reservas          WHERE obra_id = p_obra_id;
+  DELETE FROM unidades          WHERE obra_id = p_obra_id;
+  DELETE FROM tipologias        WHERE obra_id = p_obra_id;
+  DELETE FROM amenities         WHERE obra_id = p_obra_id;
+
+  DELETE FROM cobros_proyecto     WHERE obra_id = p_obra_id;
+  DELETE FROM certificados_avance WHERE obra_id = p_obra_id;
+  DELETE FROM contratos_obra      WHERE obra_id = p_obra_id;
+
+  DELETE FROM equipo_asignaciones   WHERE obra_id = p_obra_id;
+  DELETE FROM personal_asignaciones WHERE obra_id = p_obra_id;
+  DELETE FROM gastos                WHERE obra_id = p_obra_id;
+
+  -- cuentas_propias NO se borra: su FK (obra_id ON DELETE SET NULL) la
+  -- desvincula sola al llegar al DELETE FROM obras — sobrevive como
+  -- cuenta de empresa en vez de perderse (representa un saldo_inicial
+  -- real, no un dato de ejecución del proyecto).
+
+  DELETE FROM obras WHERE id = p_obra_id;
+END;
+$$;
+
+-- ------------------------------------------------------------
+-- migration_063: precio_referencia_inicial en acopios — ver comentario
+-- en migration_063.sql.
+-- ------------------------------------------------------------
+ALTER TABLE acopios ADD COLUMN IF NOT EXISTS precio_referencia_inicial NUMERIC(15,2);
+
+-- ============================================================
+-- MIGRATION 064: plan de pago (cuotas/cheques) para gastos y cobros —
+-- ver comentario completo en migration_064.sql.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS gasto_pagos (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  gasto_id         UUID NOT NULL REFERENCES gastos(id) ON DELETE CASCADE,
+  constructora_id  UUID NOT NULL REFERENCES constructoras(id),
+  medio            TEXT NOT NULL DEFAULT 'cheque' CHECK (medio IN ('cheque', 'transferencia', 'efectivo', 'otro')),
+  numero_cheque    TEXT,
+  banco            TEXT,
+  monto            DECIMAL(15,2) NOT NULL CHECK (monto > 0),
+  fecha_emision    DATE,
+  fecha_pago       DATE NOT NULL,
+  estado           TEXT NOT NULL DEFAULT 'Pendiente' CHECK (estado IN ('Pendiente', 'Pagado', 'Rechazado')),
+  cuenta_propia_id UUID REFERENCES cuentas_propias(id) ON DELETE SET NULL,
+  notas            TEXT,
+  created_by       UUID REFERENCES auth.users(id),
+  updated_by       UUID REFERENCES auth.users(id),
+  updated_at       TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_gasto_pagos_gasto  ON gasto_pagos(gasto_id);
+CREATE INDEX IF NOT EXISTS idx_gasto_pagos_estado ON gasto_pagos(estado);
+
+CREATE TABLE IF NOT EXISTS cobro_pagos (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  cobro_id         UUID NOT NULL REFERENCES cobros_proyecto(id) ON DELETE CASCADE,
+  constructora_id  UUID NOT NULL REFERENCES constructoras(id),
+  medio            TEXT NOT NULL DEFAULT 'cheque' CHECK (medio IN ('cheque', 'transferencia', 'efectivo', 'otro')),
+  numero_cheque    TEXT,
+  banco            TEXT,
+  monto            DECIMAL(15,2) NOT NULL CHECK (monto > 0),
+  fecha_emision    DATE,
+  fecha_pago       DATE NOT NULL,
+  estado           TEXT NOT NULL DEFAULT 'Pendiente' CHECK (estado IN ('Pendiente', 'Cobrado', 'Rechazado')),
+  cuenta_propia_id UUID REFERENCES cuentas_propias(id) ON DELETE SET NULL,
+  notas            TEXT,
+  created_by       UUID REFERENCES auth.users(id),
+  updated_by       UUID REFERENCES auth.users(id),
+  updated_at       TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cobro_pagos_cobro  ON cobro_pagos(cobro_id);
+CREATE INDEX IF NOT EXISTS idx_cobro_pagos_estado ON cobro_pagos(estado);
+
+CREATE OR REPLACE FUNCTION set_gasto_pago_tenant()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.constructora_id IS NULL THEN
+    SELECT constructora_id INTO NEW.constructora_id FROM gastos WHERE id = NEW.gasto_id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_gasto_pago_tenant ON gasto_pagos;
+CREATE TRIGGER trg_gasto_pago_tenant
+  BEFORE INSERT ON gasto_pagos
+  FOR EACH ROW EXECUTE FUNCTION set_gasto_pago_tenant();
+
+CREATE OR REPLACE FUNCTION set_cobro_pago_tenant()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.constructora_id IS NULL THEN
+    SELECT constructora_id INTO NEW.constructora_id FROM cobros_proyecto WHERE id = NEW.cobro_id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_cobro_pago_tenant ON cobro_pagos;
+CREATE TRIGGER trg_cobro_pago_tenant
+  BEFORE INSERT ON cobro_pagos
+  FOR EACH ROW EXECUTE FUNCTION set_cobro_pago_tenant();
+
+DROP TRIGGER IF EXISTS trg_auditoria_campos ON gasto_pagos;
+CREATE TRIGGER trg_auditoria_campos
+  BEFORE INSERT OR UPDATE ON gasto_pagos
+  FOR EACH ROW EXECUTE FUNCTION set_auditoria_campos();
+
+DROP TRIGGER IF EXISTS trg_registrar_auditoria ON gasto_pagos;
+CREATE TRIGGER trg_registrar_auditoria
+  AFTER INSERT OR UPDATE OR DELETE ON gasto_pagos
+  FOR EACH ROW EXECUTE FUNCTION registrar_auditoria();
+
+DROP TRIGGER IF EXISTS trg_auditoria_campos ON cobro_pagos;
+CREATE TRIGGER trg_auditoria_campos
+  BEFORE INSERT OR UPDATE ON cobro_pagos
+  FOR EACH ROW EXECUTE FUNCTION set_auditoria_campos();
+
+DROP TRIGGER IF EXISTS trg_registrar_auditoria ON cobro_pagos;
+CREATE TRIGGER trg_registrar_auditoria
+  AFTER INSERT OR UPDATE OR DELETE ON cobro_pagos
+  FOR EACH ROW EXECUTE FUNCTION registrar_auditoria();
+
+DROP TRIGGER IF EXISTS trg_gasto_pagos_inmutable ON gasto_pagos;
+CREATE TRIGGER trg_gasto_pagos_inmutable
+  BEFORE UPDATE OR DELETE ON gasto_pagos
+  FOR EACH ROW WHEN (OLD.estado = 'Pagado')
+  EXECUTE FUNCTION proteger_registro_financiero_terminal();
+
+DROP TRIGGER IF EXISTS trg_cobro_pagos_inmutable ON cobro_pagos;
+CREATE TRIGGER trg_cobro_pagos_inmutable
+  BEFORE UPDATE OR DELETE ON cobro_pagos
+  FOR EACH ROW WHEN (OLD.estado = 'Cobrado')
+  EXECUTE FUNCTION proteger_registro_financiero_terminal();
+
+CREATE OR REPLACE FUNCTION bloquear_escritura_proyecto_cerrado_gasto_pago()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_obra_id UUID;
+  v_estado  TEXT;
+BEGIN
+  IF current_setting('app.bypass_inmutable', true) = 'true' THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+  SELECT obra_id INTO v_obra_id FROM gastos WHERE id = COALESCE(NEW.gasto_id, OLD.gasto_id);
+  IF v_obra_id IS NULL THEN RETURN COALESCE(NEW, OLD); END IF;
+  SELECT estado INTO v_estado FROM obras WHERE id = v_obra_id;
+  IF v_estado = 'finalizada' THEN
+    RAISE EXCEPTION 'El proyecto está cerrado. Reactivalo para poder modificar sus datos.';
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_bloquear_cerrado ON gasto_pagos;
+CREATE TRIGGER trg_bloquear_cerrado
+  BEFORE INSERT OR UPDATE OR DELETE ON gasto_pagos
+  FOR EACH ROW EXECUTE FUNCTION bloquear_escritura_proyecto_cerrado_gasto_pago();
+
+CREATE OR REPLACE FUNCTION bloquear_escritura_proyecto_cerrado_cobro_pago()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_obra_id UUID;
+  v_estado  TEXT;
+BEGIN
+  IF current_setting('app.bypass_inmutable', true) = 'true' THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+  SELECT obra_id INTO v_obra_id FROM cobros_proyecto WHERE id = COALESCE(NEW.cobro_id, OLD.cobro_id);
+  IF v_obra_id IS NULL THEN RETURN COALESCE(NEW, OLD); END IF;
+  SELECT estado INTO v_estado FROM obras WHERE id = v_obra_id;
+  IF v_estado = 'finalizada' THEN
+    RAISE EXCEPTION 'El proyecto está cerrado. Reactivalo para poder modificar sus datos.';
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_bloquear_cerrado ON cobro_pagos;
+CREATE TRIGGER trg_bloquear_cerrado
+  BEFORE INSERT OR UPDATE OR DELETE ON cobro_pagos
+  FOR EACH ROW EXECUTE FUNCTION bloquear_escritura_proyecto_cerrado_cobro_pago();
+
+CREATE OR REPLACE FUNCTION sync_estado_gasto_por_pagos()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_gasto_id  UUID := COALESCE(NEW.gasto_id, OLD.gasto_id);
+  v_total     INTEGER;
+  v_pagadas   INTEGER;
+  v_max_fecha DATE;
+BEGIN
+  SELECT COUNT(*), COUNT(*) FILTER (WHERE estado = 'Pagado'), MAX(fecha_pago) FILTER (WHERE estado = 'Pagado')
+    INTO v_total, v_pagadas, v_max_fecha
+  FROM gasto_pagos WHERE gasto_id = v_gasto_id;
+
+  PERFORM set_config('app.bypass_inmutable', 'true', true);
+  IF v_total > 0 AND v_total = v_pagadas THEN
+    UPDATE gastos SET estado = 'Pagado', fecha_pago = v_max_fecha, cuenta_propia_id = NULL WHERE id = v_gasto_id;
+  ELSE
+    UPDATE gastos SET estado = 'Pendiente', fecha_pago = NULL, cuenta_propia_id = NULL WHERE id = v_gasto_id;
+  END IF;
+  PERFORM set_config('app.bypass_inmutable', 'false', true);
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sync_estado_gasto_por_pagos ON gasto_pagos;
+CREATE TRIGGER trg_sync_estado_gasto_por_pagos
+  AFTER INSERT OR UPDATE OR DELETE ON gasto_pagos
+  FOR EACH ROW EXECUTE FUNCTION sync_estado_gasto_por_pagos();
+
+CREATE OR REPLACE FUNCTION sync_estado_cobro_por_pagos()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_cobro_id  UUID := COALESCE(NEW.cobro_id, OLD.cobro_id);
+  v_total     INTEGER;
+  v_cobradas  INTEGER;
+  v_max_fecha DATE;
+BEGIN
+  SELECT COUNT(*), COUNT(*) FILTER (WHERE estado = 'Cobrado'), MAX(fecha_pago) FILTER (WHERE estado = 'Cobrado')
+    INTO v_total, v_cobradas, v_max_fecha
+  FROM cobro_pagos WHERE cobro_id = v_cobro_id;
+
+  PERFORM set_config('app.bypass_inmutable', 'true', true);
+  IF v_total > 0 AND v_total = v_cobradas THEN
+    UPDATE cobros_proyecto SET estado = 'Cobrado', fecha_pago = v_max_fecha, cuenta_propia_id = NULL WHERE id = v_cobro_id;
+  ELSE
+    UPDATE cobros_proyecto SET estado = 'Pendiente', fecha_pago = NULL, cuenta_propia_id = NULL WHERE id = v_cobro_id;
+  END IF;
+  PERFORM set_config('app.bypass_inmutable', 'false', true);
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sync_estado_cobro_por_pagos ON cobro_pagos;
+CREATE TRIGGER trg_sync_estado_cobro_por_pagos
+  AFTER INSERT OR UPDATE OR DELETE ON cobro_pagos
+  FOR EACH ROW EXECUTE FUNCTION sync_estado_cobro_por_pagos();
+
+ALTER FUNCTION set_gasto_pago_tenant() SET search_path = public;
+ALTER FUNCTION set_cobro_pago_tenant() SET search_path = public;
+ALTER FUNCTION bloquear_escritura_proyecto_cerrado_gasto_pago() SET search_path = public;
+ALTER FUNCTION bloquear_escritura_proyecto_cerrado_cobro_pago() SET search_path = public;
+ALTER FUNCTION sync_estado_gasto_por_pagos() SET search_path = public;
+ALTER FUNCTION sync_estado_cobro_por_pagos() SET search_path = public;
+
+ALTER TABLE gasto_pagos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cobro_pagos ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "gasto_pagos_tenant" ON gasto_pagos;
+CREATE POLICY "gasto_pagos_tenant" ON gasto_pagos
+  FOR ALL TO authenticated
+  USING (
+    constructora_id IN (SELECT mis_constructoras()) AND EXISTS (
+      SELECT 1 FROM gastos g WHERE g.id = gasto_pagos.gasto_id AND (
+        (g.obra_id IS NULL AND es_admin())
+        OR (g.obra_id IS NOT NULL AND tiene_permiso_proyecto(g.obra_id, 'gastos'))
+      )
+    )
+  )
+  WITH CHECK (
+    constructora_id IN (SELECT mis_constructoras()) AND EXISTS (
+      SELECT 1 FROM gastos g WHERE g.id = gasto_pagos.gasto_id AND (
+        (g.obra_id IS NULL AND es_admin())
+        OR (g.obra_id IS NOT NULL AND tiene_permiso_proyecto(g.obra_id, 'gastos'))
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "cobro_pagos_tenant" ON cobro_pagos;
+CREATE POLICY "cobro_pagos_tenant" ON cobro_pagos
+  FOR ALL TO authenticated
+  USING (
+    constructora_id IN (SELECT mis_constructoras()) AND EXISTS (
+      SELECT 1 FROM cobros_proyecto c WHERE c.id = cobro_pagos.cobro_id AND tiene_permiso_proyecto(c.obra_id, 'cobros')
+    )
+  )
+  WITH CHECK (
+    constructora_id IN (SELECT mis_constructoras()) AND EXISTS (
+      SELECT 1 FROM cobros_proyecto c WHERE c.id = cobro_pagos.cobro_id AND tiene_permiso_proyecto(c.obra_id, 'cobros')
+    )
+  );
+
+-- ------------------------------------------------------------
+-- migration_065.sql — guardar_plan_pago: DELETE+INSERT atómico del plan
+-- de pago (antes eran dos round-trips separados desde el cliente, con
+-- riesgo de perder las cuotas viejas si el INSERT fallaba). Valida
+-- además que la cuenta elegida por cuota coincida en moneda con el
+-- gasto/cobro — antes solo se filtraba en el <select> del modal.
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION guardar_plan_pago(
+  p_entidad TEXT,   -- 'gasto' | 'cobro'
+  p_id      UUID,   -- gasto_id o cobro_id
+  p_cuotas  JSONB    -- array de {monto, fecha_pago, medio, numero_cheque, banco, cuenta_propia_id, notas}
+)
+RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE
+  v_estado_liquidado TEXT;
+  v_moneda           TEXT;
+  v_cuota            JSONB;
+  v_cuenta_id        UUID;
+  v_cuenta_moneda    TEXT;
+BEGIN
+  IF p_entidad = 'gasto' THEN
+    v_estado_liquidado := 'Pagado';
+    SELECT moneda INTO v_moneda FROM gastos WHERE id = p_id;
+    IF v_moneda IS NULL THEN RAISE EXCEPTION 'Gasto no encontrado'; END IF;
+    DELETE FROM gasto_pagos WHERE gasto_id = p_id AND estado <> v_estado_liquidado;
+  ELSIF p_entidad = 'cobro' THEN
+    v_estado_liquidado := 'Cobrado';
+    SELECT moneda INTO v_moneda FROM cobros_proyecto WHERE id = p_id;
+    IF v_moneda IS NULL THEN RAISE EXCEPTION 'Cobro no encontrado'; END IF;
+    DELETE FROM cobro_pagos WHERE cobro_id = p_id AND estado <> v_estado_liquidado;
+  ELSE
+    RAISE EXCEPTION 'Entidad inválida: %', p_entidad;
+  END IF;
+
+  FOR v_cuota IN SELECT * FROM jsonb_array_elements(p_cuotas)
+  LOOP
+    v_cuenta_id := NULLIF(v_cuota->>'cuenta_propia_id', '')::UUID;
+
+    IF v_cuenta_id IS NOT NULL THEN
+      SELECT moneda INTO v_cuenta_moneda FROM cuentas_propias WHERE id = v_cuenta_id;
+      IF v_cuenta_moneda IS DISTINCT FROM v_moneda THEN
+        RAISE EXCEPTION 'La cuenta elegida es en % y el % es en % — no coinciden', v_cuenta_moneda, p_entidad, v_moneda;
+      END IF;
+    END IF;
+
+    IF p_entidad = 'gasto' THEN
+      INSERT INTO gasto_pagos (gasto_id, monto, fecha_pago, medio, numero_cheque, banco, cuenta_propia_id, notas)
+      VALUES (
+        p_id,
+        (v_cuota->>'monto')::DECIMAL,
+        (v_cuota->>'fecha_pago')::DATE,
+        COALESCE(v_cuota->>'medio', 'cheque'),
+        NULLIF(v_cuota->>'numero_cheque', ''),
+        NULLIF(v_cuota->>'banco', ''),
+        v_cuenta_id,
+        NULLIF(v_cuota->>'notas', '')
+      );
+    ELSE
+      INSERT INTO cobro_pagos (cobro_id, monto, fecha_pago, medio, numero_cheque, banco, cuenta_propia_id, notas)
+      VALUES (
+        p_id,
+        (v_cuota->>'monto')::DECIMAL,
+        (v_cuota->>'fecha_pago')::DATE,
+        COALESCE(v_cuota->>'medio', 'cheque'),
+        NULLIF(v_cuota->>'numero_cheque', ''),
+        NULLIF(v_cuota->>'banco', ''),
+        v_cuenta_id,
+        NULLIF(v_cuota->>'notas', '')
+      );
+    END IF;
+  END LOOP;
+END;
+$$;
+
+ALTER FUNCTION guardar_plan_pago(TEXT, UUID, JSONB) SET search_path = public;
+
+-- ------------------------------------------------------------
+-- migration_066.sql — tope de sobre-recepción: la suma de cantidad_recibida
+-- de un ítem, entre todas sus recepciones, no puede superar lo pedido (antes
+-- solo se validaba en el frontend). El fix de percepciones en
+-- confirmar_recepcion_compra() ya quedó aplicado in-place más arriba.
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION validar_recepcion_no_supera_solicitado()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_solicitada  NUMERIC(15,2);
+  v_total_otros NUMERIC(15,2);
+BEGIN
+  SELECT cantidad_solicitada INTO v_solicitada FROM orden_compra_items WHERE id = NEW.orden_compra_item_id;
+
+  SELECT COALESCE(SUM(cantidad_recibida), 0) INTO v_total_otros
+  FROM orden_compra_recepcion_items
+  WHERE orden_compra_item_id = NEW.orden_compra_item_id AND id <> NEW.id;
+
+  IF v_total_otros + NEW.cantidad_recibida > v_solicitada THEN
+    RAISE EXCEPTION 'La cantidad recibida (%) supera lo pendiente de este ítem (quedan % de % solicitadas)',
+      NEW.cantidad_recibida, (v_solicitada - v_total_otros), v_solicitada;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_validar_recepcion_no_supera_solicitado ON orden_compra_recepcion_items;
+CREATE TRIGGER trg_validar_recepcion_no_supera_solicitado
+  BEFORE INSERT OR UPDATE ON orden_compra_recepcion_items
+  FOR EACH ROW EXECUTE FUNCTION validar_recepcion_no_supera_solicitado();
+
+ALTER FUNCTION validar_recepcion_no_supera_solicitado() SET search_path = public;
+
+-- ------------------------------------------------------------
+-- migration_067.sql — tope de cobro/pago contra el monto del contrato, y
+-- monotonía del avance certificado (ver comentario completo en el archivo
+-- de migración).
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION validar_monto_cobrado_contrato()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_monto_total NUMERIC(15,2);
+  v_suma_otros  NUMERIC(15,2);
+BEGIN
+  IF NEW.contrato_obra_id IS NULL THEN RETURN NEW; END IF;
+
+  SELECT monto_total INTO v_monto_total FROM contratos_obra WHERE id = NEW.contrato_obra_id;
+  IF v_monto_total IS NULL OR v_monto_total <= 0 THEN RETURN NEW; END IF;
+
+  SELECT COALESCE(SUM(monto), 0) INTO v_suma_otros
+  FROM cobros_proyecto
+  WHERE contrato_obra_id = NEW.contrato_obra_id AND id <> NEW.id;
+
+  IF (v_suma_otros + NEW.monto) > v_monto_total THEN
+    RAISE EXCEPTION 'La suma de cobros (%) superaría el monto del contrato (%)', (v_suma_otros + NEW.monto), v_monto_total;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_validar_monto_cobrado_contrato ON cobros_proyecto;
+CREATE TRIGGER trg_validar_monto_cobrado_contrato
+  BEFORE INSERT OR UPDATE ON cobros_proyecto
+  FOR EACH ROW EXECUTE FUNCTION validar_monto_cobrado_contrato();
+
+CREATE OR REPLACE FUNCTION validar_monto_pagado_contrato()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_contrato_id UUID;
+  v_monto_total NUMERIC(15,2);
+  v_suma_otros  NUMERIC(15,2);
+BEGIN
+  SELECT contrato_obra_id INTO v_contrato_id FROM certificados_avance WHERE id = NEW.certificado_id;
+  IF v_contrato_id IS NULL THEN RETURN NEW; END IF;
+
+  SELECT monto_total INTO v_monto_total FROM contratos_obra WHERE id = v_contrato_id;
+  IF v_monto_total IS NULL OR v_monto_total <= 0 THEN RETURN NEW; END IF;
+
+  SELECT COALESCE(SUM(g.monto), 0) INTO v_suma_otros
+  FROM gastos g
+  JOIN certificados_avance ca ON ca.id = g.certificado_id
+  WHERE ca.contrato_obra_id = v_contrato_id AND g.id <> NEW.id;
+
+  IF (v_suma_otros + NEW.monto) > v_monto_total THEN
+    RAISE EXCEPTION 'La suma de pagos (%) superaría el monto del contrato con el subcontratista (%)', (v_suma_otros + NEW.monto), v_monto_total;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_validar_monto_pagado_contrato ON gastos;
+CREATE TRIGGER trg_validar_monto_pagado_contrato
+  BEFORE INSERT OR UPDATE ON gastos
+  FOR EACH ROW WHEN (NEW.certificado_id IS NOT NULL)
+  EXECUTE FUNCTION validar_monto_pagado_contrato();
+
+CREATE OR REPLACE FUNCTION validar_avance_no_retrocede()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_max_previo NUMERIC(5,2);
+BEGIN
+  SELECT MAX(pct_avance_acumulado) INTO v_max_previo
+  FROM certificado_items
+  WHERE contrato_obra_item_id = NEW.contrato_obra_item_id AND id <> NEW.id;
+
+  IF v_max_previo IS NOT NULL AND NEW.pct_avance_acumulado < v_max_previo THEN
+    RAISE EXCEPTION 'El avance acumulado (% de avance) no puede ser menor al ya certificado antes (% de avance)', NEW.pct_avance_acumulado, v_max_previo;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_validar_avance_no_retrocede ON certificado_items;
+CREATE TRIGGER trg_validar_avance_no_retrocede
+  BEFORE INSERT OR UPDATE ON certificado_items
+  FOR EACH ROW EXECUTE FUNCTION validar_avance_no_retrocede();
+
+ALTER FUNCTION validar_monto_cobrado_contrato() SET search_path = public;
+ALTER FUNCTION validar_monto_pagado_contrato() SET search_path = public;
+ALTER FUNCTION validar_avance_no_retrocede() SET search_path = public;

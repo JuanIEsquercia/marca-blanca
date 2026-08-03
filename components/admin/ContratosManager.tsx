@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { cn, estaVencido, formatCurrency, formatDate, redondear2, sumarMontos, ESTADO_COLORS } from '@/lib/utils'
 import SaleForm from './SaleForm'
 import ConfirmModal from './ConfirmModal'
+import IvaCalculator from './IvaCalculator'
 import type { Unidad, Tipologia, Comprador, Cuota, CuentaPropia } from '@/types/database'
 
 type UnidadConTipologia = Unidad & { tipologias: Tipologia }
@@ -18,6 +19,7 @@ type ContratoRow = {
   cantidad_cuotas: number
   fecha_firma: string
   notas: string | null
+  estado: 'vigente' | 'rescindido'
   compradores: Comprador | null
   unidades: (Unidad & { tipologias: { nombre: string } }) | null
   cuotas: Cuota[]
@@ -56,6 +58,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
   const [showUnitPicker, setShowUnitPicker] = useState(false)
   const [unidadSeleccionada, setUnidadSeleccionada] = useState<UnidadConTipologia | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
+  const [rescindirTarget, setRescindirTarget] = useState<DeleteTarget | null>(null)
   const [editState, setEditState] = useState<EditState | null>(null)
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
@@ -70,6 +73,10 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
   const [pagoCuenta, setPagoCuenta] = useState('')
   const [pagoFecha, setPagoFecha] = useState(today)
   const [pagoMonto, setPagoMonto] = useState('')
+  const [pagoNeto, setPagoNeto] = useState('')
+  const [pagoIva, setPagoIva] = useState('')
+  const [pagoPercepciones, setPagoPercepciones] = useState('')
+  const [pagoComprobante, setPagoComprobante] = useState('')
   const [loadingPago, setLoadingPago] = useState(false)
 
   const rows = contratos.map((c) => {
@@ -120,6 +127,10 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     setPagoCuenta('')
     setPagoFecha(today)
     setPagoMonto(String(monto))
+    setPagoNeto(String(monto))
+    setPagoIva('')
+    setPagoPercepciones('')
+    setPagoComprobante('')
   }
 
   async function confirmarPago() {
@@ -133,6 +144,10 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
         fecha_pago: pagoFecha,
         monto_cobrado: redondear2(parseFloat(pagoMonto) || pagoModal.monto),
         cuenta_propia_id: pagoCuenta || null,
+        monto_neto: pagoNeto ? redondear2(parseFloat(pagoNeto)) : null,
+        iva: pagoIva ? redondear2(parseFloat(pagoIva)) : null,
+        percepciones: pagoPercepciones ? redondear2(parseFloat(pagoPercepciones)) : null,
+        numero_comprobante: pagoComprobante.trim() || null,
       })
       .eq('id', pagoModal.cuotaId)
     setLoadingPago(false)
@@ -223,6 +238,10 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     <div class="row"><span class="label">Monto base de cuota</span><span class="value">${fmt(cuota.monto_base)}</span></div>
     <div class="row"><span class="label">Fecha de vencimiento</span><span class="value">${fmtDate(cuota.fecha_vencimiento)}</span></div>
     <div class="row"><span class="label">Fecha de pago</span><span class="value">${fmtDate(cuota.fecha_pago!)}</span></div>
+    ${cuota.numero_comprobante ? `<div class="row"><span class="label">N° comprobante</span><span class="value">${cuota.numero_comprobante}</span></div>` : ''}
+    ${cuota.monto_neto != null ? `<div class="row"><span class="label">Neto</span><span class="value">${fmt(cuota.monto_neto)}</span></div>` : ''}
+    ${cuota.iva != null ? `<div class="row"><span class="label">IVA</span><span class="value">${fmt(cuota.iva)}</span></div>` : ''}
+    ${cuota.percepciones != null ? `<div class="row"><span class="label">Percepciones</span><span class="value">${fmt(cuota.percepciones)}</span></div>` : ''}
   </div>
   <div class="footer">Recibo Nº ${cuota.id.slice(0, 8).toUpperCase()} · Emitido el ${fmtDate(new Date().toISOString())}</div>
 </body>
@@ -466,6 +485,21 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     refresh()
   }
 
+  // A diferencia de handleDelete, no borra las cuotas — el historial de
+  // pagos queda intacto (mismo espíritu que "Cerrar proyecto" en obras,
+  // ver migration_058). Se usa cuando la venta cae pero ya hubo cobros
+  // reales, y perderlos no tiene sentido.
+  async function handleRescindir() {
+    if (!rescindirTarget) return
+    const supabase = createClient()
+    const { error: errContrato } = await supabase.from('contratos_venta').update({ estado: 'rescindido' }).eq('id', rescindirTarget.contratoId)
+    if (errContrato) throw new Error(errContrato.message)
+    const { error: errUnidad } = await supabase.from('unidades').update({ estado_comercial: 'Disponible' }).eq('id', rescindirTarget.unidadId)
+    if (errUnidad) throw new Error(errUnidad.message)
+    setRescindirTarget(null)
+    refresh()
+  }
+
   function handleVentaSuccess() {
     setUnidadSeleccionada(null)
     refresh()
@@ -565,7 +599,12 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                 return (
                   <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-slate-900">{comprador?.nombre_completo}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-medium text-slate-900">{comprador?.nombre_completo}</p>
+                        {c.estado === 'rescindido' && (
+                          <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">Rescindido</span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-400 font-mono">{comprador?.dni_cuit}</p>
                     </td>
                     <td className="px-4 py-3 text-slate-600">
@@ -607,6 +646,19 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
+                          </button>
+                        )}
+                        {!readOnly && c.estado === 'vigente' && (
+                          <button
+                            onClick={() => setRescindirTarget({
+                              contratoId: c.id,
+                              compradorNombre: comprador?.nombre_completo ?? '',
+                              unidadId: c.unidad_id,
+                            })}
+                            title="Rescindir contrato — la venta cayó, pero conserva el historial de cuotas"
+                            className="text-xs font-medium text-slate-400 hover:text-amber-700 hover:bg-amber-50 rounded-lg px-2 py-1 transition-colors"
+                          >
+                            Rescindir
                           </button>
                         )}
                         {!readOnly && (
@@ -824,15 +876,24 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
               </p>
             </div>
             <div className="p-6 space-y-4">
+              <IvaCalculator
+                montoNeto={pagoNeto} iva={pagoIva} monto={pagoMonto}
+                onChangeMontoNeto={setPagoNeto} onChangeIva={setPagoIva} onChangeMonto={setPagoMonto}
+              />
+              <p className="text-[10px] text-slate-400 -mt-2">El total es el &quot;Monto cobrado&quot; — modificalo si se cobró un monto diferente al base.</p>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Monto cobrado *</label>
-                <input
-                  type="number" min="0" step="0.01" value={pagoMonto}
-                  onChange={e => setPagoMonto(e.target.value)}
+                <label className="block text-xs font-medium text-slate-600 mb-1">Percepciones</label>
+                <input type="number" min="0" step="0.01" value={pagoPercepciones}
+                  onChange={e => setPagoPercepciones(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
-                             focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">Modificá si se cobró un monto diferente al base</p>
+                             focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">N° comprobante</label>
+                <input value={pagoComprobante}
+                  onChange={e => setPagoComprobante(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
+                             focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta donde se recibió</label>
@@ -1013,10 +1074,22 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
       {deleteTarget && (
         <ConfirmModal
           title="Eliminar venta"
-          message={`¿Eliminar la venta de ${deleteTarget.compradorNombre}? Se borrarán todas las cuotas asociadas y la unidad volverá a estar disponible.`}
+          message={`¿Eliminar la venta de ${deleteTarget.compradorNombre}? Se borrarán todas las cuotas asociadas y la unidad volverá a estar disponible. Si ya hubo cobros reales, mejor usá "Rescindir" para conservar el historial.`}
           confirmLabel="Eliminar venta"
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {/* Confirmar rescisión */}
+      {rescindirTarget && (
+        <ConfirmModal
+          title="Rescindir contrato"
+          message={`¿Rescindir la venta de ${rescindirTarget.compradorNombre}? La unidad vuelve a estar disponible, pero las cuotas no se borran — quedan como historial.`}
+          confirmLabel="Rescindir"
+          danger={false}
+          onConfirm={handleRescindir}
+          onCancel={() => setRescindirTarget(null)}
         />
       )}
 

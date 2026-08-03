@@ -43,24 +43,37 @@ export default async function TesoreriaPage() {
     { data: obras },
     { data: cuotas },
     { data: contratos },
-    { data: gastosPagados },
-    { data: gastosPendientesRaw },
+    { data: gastos },
     { data: cobrosProyecto },
     cuentasConSaldo,
     ingresosConsolidados,
   ] = await Promise.all([
     supabase.from('obras').select('id, nombre').eq('constructora_id', ctx.constructoraId).order('nombre'),
     supabase.from('cuotas')
-      .select('monto_base, monto_cobrado, fecha_pago, estado_pago, contratos_venta(obra_id)')
-      .eq('constructora_id', ctx.constructoraId).eq('estado_pago', 'Pagado').gte('fecha_pago', ventanaInicio),
+      .select('monto_base, monto_cobrado, fecha_pago, estado_pago, contratos_venta!inner(obra_id, estado)')
+      .eq('constructora_id', ctx.constructoraId).eq('estado_pago', 'Pagado').gte('fecha_pago', ventanaInicio)
+      .eq('contratos_venta.estado', 'vigente'),
     supabase.from('contratos_venta').select('entrega_efectiva, fecha_firma, obra_id')
-      .eq('constructora_id', ctx.constructoraId).gte('fecha_firma', ventanaInicio),
-    supabase.from('gastos').select('*, proveedores(razon_social), categorias_costo(nombre, color)')
-      .eq('constructora_id', ctx.constructoraId).eq('estado', 'Pagado').gte('fecha_pago', ventanaInicio),
-    supabase.from('gastos').select('*, proveedores(razon_social), categorias_costo(nombre, color)')
-      .eq('constructora_id', ctx.constructoraId).eq('estado', 'Pendiente'),
-    supabase.from('cobros_proyecto').select('monto, moneda, fecha_pago, fecha, obra_id')
-      .eq('constructora_id', ctx.constructoraId).eq('estado', 'cobrado').gte('fecha', ventanaInicio),
+      .eq('constructora_id', ctx.constructoraId).eq('estado', 'vigente').gte('fecha_firma', ventanaInicio),
+    // Un gasto con plan de pago (migration_064) sigue "Pendiente" a nivel de
+    // fila hasta que TODAS sus cuotas cierran — así que filtrar por
+    // estado='Pagado' + ventana de fecha_pago (como antes) dejaba afuera
+    // cheques ya pagados de un plan parcialmente cumplido. Se trae en una
+    // sola query (Pendiente sin ventana, igual que siempre + Pagado dentro
+    // de la ventana) con las cuotas anidadas, y se expande cuota por cuota
+    // más abajo (mismo criterio que movimientosLiquidados/Pendientes de
+    // lib/tesoreria.ts, acá inline porque necesitamos la fecha de cada
+    // cuota para ubicarla en el mes correcto del flujo).
+    supabase.from('gastos')
+      .select('*, proveedores(razon_social), categorias_costo(nombre, color), pagos:gasto_pagos(estado, monto, fecha_pago)')
+      .eq('constructora_id', ctx.constructoraId)
+      .or(`estado.eq.Pendiente,fecha_pago.gte.${ventanaInicio}`),
+    // Mismo criterio que gastos: un cobro con plan de pago parcial sigue
+    // "Pendiente" hasta que cierra del todo.
+    supabase.from('cobros_proyecto')
+      .select('monto, moneda, fecha_pago, fecha, obra_id, estado, pagos:cobro_pagos(estado, monto, fecha_pago)')
+      .eq('constructora_id', ctx.constructoraId)
+      .or(`estado.eq.Pendiente,fecha.gte.${ventanaInicio}`),
     calcularCajaEmpresa(supabase, ctx.constructoraId),
     // Los pendientes de cobro (cuotas + cobros de obra) SIEMPRE se traen
     // completos acá, sin recortar por ventana — igual criterio que los
@@ -68,7 +81,23 @@ export default async function TesoreriaPage() {
     obtenerIngresos(supabase, ctx.constructoraId, true),
   ])
 
-  const gastos = [...(gastosPagados ?? []), ...(gastosPendientesRaw ?? [])]
+  type PagoConFecha = { estado: string; monto: number; fecha_pago: string }
+
+  // Expande un gasto/cobro a sus movimientos reales: si tiene plan de pago,
+  // cada cuota es su propio movimiento (con su propia fecha) — si no, el
+  // gasto/cobro entero cuenta por su estado/fecha de siempre.
+  function expandirGasto(g: { estado: string; monto: number | null; fecha_pago: string | null; fecha_vencimiento: string; pagos?: PagoConFecha[] | null }) {
+    const pagos = g.pagos ?? []
+    if (pagos.length > 0) {
+      return pagos.map(p => ({ liquidado: p.estado === 'Pagado', monto: p.monto, fecha: p.fecha_pago }))
+    }
+    return [{ liquidado: g.estado === 'Pagado', monto: g.monto ?? 0, fecha: g.estado === 'Pagado' ? g.fecha_pago : g.fecha_vencimiento }]
+  }
+  function expandirCobro(c: { estado: string; monto: number | null; fecha_pago: string | null; fecha: string; pagos?: PagoConFecha[] | null }) {
+    const pagos = c.pagos ?? []
+    if (pagos.length > 0) return pagos.filter(p => p.estado === 'Cobrado').map(p => ({ monto: p.monto, fecha: p.fecha_pago }))
+    return c.estado === 'Cobrado' ? [{ monto: c.monto ?? 0, fecha: c.fecha_pago ?? c.fecha }] : []
+  }
 
   // Serie normalizada de movimientos con su obra_id — antes el "Flujo
   // mensual" sumaba todo junto sin distinguir de qué proyecto venía cada
@@ -83,32 +112,44 @@ export default async function TesoreriaPage() {
       tipo: 'ingreso' as const, moneda: 'USD', monto: c.entrega_efectiva ?? 0,
       fecha: c.fecha_firma, obraId: c.obra_id,
     })),
-    ...(cobrosProyecto ?? []).map(c => ({
-      tipo: 'ingreso' as const, moneda: c.moneda, monto: c.monto ?? 0,
-      fecha: c.fecha_pago ?? c.fecha, obraId: c.obra_id,
-    })),
-    ...(gastos ?? []).map(g => ({
-      tipo: (g.estado === 'Pagado' ? 'egreso' : 'comprometido') as 'egreso' | 'comprometido',
-      moneda: g.moneda, monto: g.monto ?? 0,
-      fecha: g.estado === 'Pagado' ? g.fecha_pago : g.fecha_vencimiento,
-      obraId: g.obra_id,
-    })),
+    ...(cobrosProyecto ?? []).flatMap(c => expandirCobro(c).map(mov => ({
+      tipo: 'ingreso' as const, moneda: c.moneda, monto: mov.monto, fecha: mov.fecha, obraId: c.obra_id,
+    }))),
+    ...(gastos ?? []).flatMap(g => expandirGasto(g).map(mov => ({
+      tipo: (mov.liquidado ? 'egreso' : 'comprometido') as 'egreso' | 'comprometido',
+      moneda: g.moneda, monto: mov.monto, fecha: mov.fecha, obraId: g.obra_id,
+    }))),
   ]
 
   const gastosPendientes = (gastos ?? [])
-    .filter(g => g.estado === 'Pendiente')
+    .flatMap(g => {
+      const pagos = (g.pagos ?? []) as PagoConFecha[]
+      if (pagos.length > 0) {
+        return pagos.filter(p => p.estado !== 'Pagado').map((p, idx) => ({
+          id: `${g.id}-cuota-${idx}`,
+          descripcion: `${g.descripcion} (cuota)`,
+          monto: p.monto,
+          moneda: g.moneda,
+          fecha_vencimiento: p.fecha_pago,
+          proveedor: g.proveedores?.razon_social ?? null,
+          categoria: g.categorias_costo?.nombre ?? null,
+          categoria_color: g.categorias_costo?.color ?? null,
+          obraId: g.obra_id,
+        }))
+      }
+      return g.estado === 'Pendiente' ? [{
+        id: g.id,
+        descripcion: g.descripcion,
+        monto: g.monto,
+        moneda: g.moneda,
+        fecha_vencimiento: g.fecha_vencimiento,
+        proveedor: g.proveedores?.razon_social ?? null,
+        categoria: g.categorias_costo?.nombre ?? null,
+        categoria_color: g.categorias_costo?.color ?? null,
+        obraId: g.obra_id,
+      }] : []
+    })
     .sort((a, b) => a.fecha_vencimiento.localeCompare(b.fecha_vencimiento))
-    .map(g => ({
-      id: g.id,
-      descripcion: g.descripcion,
-      monto: g.monto,
-      moneda: g.moneda,
-      fecha_vencimiento: g.fecha_vencimiento,
-      proveedor: g.proveedores?.razon_social ?? null,
-      categoria: g.categorias_costo?.nombre ?? null,
-      categoria_color: g.categorias_costo?.color ?? null,
-      obraId: g.obra_id,
-    }))
 
   const ingresosPendientes = ingresosConsolidados
     .filter(i => !i.pagado)

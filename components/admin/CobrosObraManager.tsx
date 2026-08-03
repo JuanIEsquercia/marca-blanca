@@ -1,12 +1,16 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { uploadToCloudinary } from '@/lib/cloudinary'
 import { cn, estaVencido, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
+import IvaCalculator from './IvaCalculator'
+import PlanDePagoModal from './PlanDePagoModal'
+import CuotasList from './CuotasList'
 import type { CobroProyecto, CuentaPropia } from '@/types/database'
 
-type FiltroCobro = 'todos' | 'pendiente' | 'cobrado'
+type FiltroCobro = 'todos' | 'Pendiente' | 'Cobrado'
 
 type CobroConCertificado = CobroProyecto & {
   certificados_avance: { numero: number; periodo: string } | null
@@ -27,7 +31,10 @@ interface Props {
 }
 
 const EMPTY_PAGO = { fecha_pago: new Date().toISOString().split('T')[0], cuenta_propia_id: '' }
-const mkEmptyCobro = (contratoId: string, moneda: string) => ({ monto: '', fecha_vencimiento: '', certificado_id: '', contrato_obra_id: contratoId, moneda, notas: '' })
+const mkEmptyCobro = (contratoId: string, moneda: string) => ({
+  monto: '', fecha_vencimiento: '', certificado_id: '', contrato_obra_id: contratoId, moneda, notas: '',
+  monto_neto: '', iva: '', percepciones: '', numero_comprobante: '',
+})
 
 export default function CobrosObraManager({ cobros, cuentasPropias, certificados, contratos, obraId, constructoraId, readOnly = false }: Props) {
   const router = useRouter()
@@ -36,11 +43,17 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
   const [busqueda, setBusqueda] = useState('')
   const [pagoTarget, setPagoTarget]       = useState<CobroConCertificado | null>(null)
   const [pagoForm, setPagoForm]           = useState(EMPTY_PAGO)
+  // Plan de cobro (cuotas/cheques) — alternativa al cobro único de arriba.
+  const [planDePagoTarget, setPlanDePagoTarget] = useState<CobroConCertificado | null>(null)
+  const [expandedCobroId, setExpandedCobroId]   = useState<string | null>(null)
   const [showNuevo, setShowNuevo]         = useState(false)
   const [nuevoForm, setNuevoForm]         = useState(() => mkEmptyCobro(contratos[0]?.id ?? '', contratos[0]?.moneda ?? 'ARS'))
   const [deleteTarget, setDeleteTarget]   = useState<CobroConCertificado | null>(null)
   const [loading, setLoading]             = useState(false)
   const [error, setError]                 = useState<string | null>(null)
+  const [comprobanteUrl, setComprobanteUrl] = useState('')
+  const [uploadingComp, setUploadingComp]   = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const nombreContrato = (c: ContratoRef) => c.compradores?.nombre_completo
     ? `${c.compradores.nombre_completo}${c.descripcion ? ` — ${c.descripcion}` : ''}`
@@ -51,12 +64,24 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
   function refresh() { startTransition(() => router.refresh()) }
 
   function esVencido(c: CobroConCertificado) {
-    return estaVencido(c.fecha_vencimiento, c.estado, 'pendiente')
+    return estaVencido(c.fecha_vencimiento, c.estado, 'Pendiente')
+  }
+
+  async function handleUploadComp(file: File) {
+    setUploadingComp(true)
+    try {
+      const result = await uploadToCloudinary(file, 'renders')
+      setComprobanteUrl(result.secure_url)
+    } catch {
+      setError('Error al subir el comprobante')
+    } finally {
+      setUploadingComp(false)
+    }
   }
 
   const vencidos   = cobros.filter(c => esVencido(c))
-  const pendientes = cobros.filter(c => c.estado === 'pendiente' && !esVencido(c))
-  const cobrados   = cobros.filter(c => c.estado === 'cobrado')
+  const pendientes = cobros.filter(c => c.estado === 'Pendiente' && !esVencido(c))
+  const cobrados   = cobros.filter(c => c.estado === 'Cobrado')
 
   // Los cobros de un mismo proyecto pueden estar en distinta moneda (el
   // selector de "Nuevo cobro" lo permite) — se agrupa por moneda en vez de
@@ -72,9 +97,9 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
     vencidosCount: vencidos.filter(c => c.moneda === m).length,
   }]))
 
-  const porEstado = filtro === 'pendiente'
+  const porEstado = filtro === 'Pendiente'
     ? [...vencidos, ...pendientes]
-    : filtro === 'cobrado'
+    : filtro === 'Cobrado'
       ? cobrados
       : [...vencidos, ...pendientes, ...cobrados]
 
@@ -96,7 +121,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
     const { error: err } = await supabase
       .from('cobros_proyecto')
       .update({
-        estado:           'cobrado',
+        estado:           'Cobrado',
         fecha_pago:       pagoForm.fecha_pago,
         cuenta_propia_id: pagoForm.cuenta_propia_id || null,
       })
@@ -142,12 +167,18 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
         fecha_vencimiento: nuevoForm.fecha_vencimiento,
         fecha:             nuevoForm.fecha_vencimiento, // legacy
         notas:             nuevoForm.notas.trim() || null,
-        estado:            'pendiente',
+        estado:            'Pendiente',
+        monto_neto:         nuevoForm.monto_neto ? redondear2(parseFloat(nuevoForm.monto_neto)) : null,
+        iva:                nuevoForm.iva ? redondear2(parseFloat(nuevoForm.iva)) : null,
+        percepciones:       nuevoForm.percepciones ? redondear2(parseFloat(nuevoForm.percepciones)) : null,
+        numero_comprobante: nuevoForm.numero_comprobante.trim() || null,
+        comprobante_url:    comprobanteUrl || null,
       })
     setLoading(false)
     if (err) { setError(err.message); return }
     setShowNuevo(false)
     setNuevoForm(mkEmptyCobro(contratos[0]?.id ?? '', contratos[0]?.moneda ?? 'ARS'))
+    setComprobanteUrl('')
     refresh()
   }
 
@@ -165,7 +196,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
                 <div className="bg-white border border-slate-200 rounded-2xl p-5">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Cobrado</p>
                   <p className="text-xl sm:text-2xl font-bold text-emerald-600 truncate" title={formatCurrency(t.cobrado, m)}>{formatCurrency(t.cobrado, m)}</p>
-                  <p className="text-xs text-slate-400 mt-1">{t.cobradosCount} pago{t.cobradosCount !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-slate-400 mt-1">{t.cobradosCount} cobro{t.cobradosCount !== 1 ? 's' : ''}</p>
                 </div>
                 <div className="bg-white border border-amber-200 rounded-2xl p-5">
                   <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-1">Pendiente</p>
@@ -204,8 +235,8 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
         <div className="flex items-center gap-2">
           {([
             { key: 'todos', label: 'Todos' },
-            { key: 'pendiente', label: 'Pendientes' },
-            { key: 'cobrado', label: 'Cobrados' },
+            { key: 'Pendiente', label: 'Pendientes' },
+            { key: 'Cobrado', label: 'Cobrados' },
           ] as { key: FiltroCobro; label: string }[]).map(f => (
             <button key={f.key} onClick={() => setFiltro(f.key)}
               className={cn(
@@ -219,7 +250,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
           ))}
         </div>
         {!readOnly && <button
-          onClick={() => { setShowNuevo(true); setNuevoForm(mkEmptyCobro(contratos[0]?.id ?? '', contratos[0]?.moneda ?? 'ARS')); setError(null) }}
+          onClick={() => { setShowNuevo(true); setNuevoForm(mkEmptyCobro(contratos[0]?.id ?? '', contratos[0]?.moneda ?? 'ARS')); setComprobanteUrl(''); setError(null) }}
           disabled={contratos.length === 0}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors">
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -238,13 +269,15 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
         <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100 overflow-hidden">
           {filtrados.map(cobro => {
             const vencido = esVencido(cobro)
+            const cuotas = cobro.cobro_pagos ?? []
             return (
-              <div key={cobro.id}
+              <div key={cobro.id}>
+              <div
                 className={cn('px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4', vencido && 'bg-red-50/50')}>
                 <div className="flex items-start gap-3 flex-1 min-w-0">
                   <div className={cn(
                     'w-2.5 h-2.5 rounded-full shrink-0 mt-1.5',
-                    cobro.estado === 'cobrado' ? 'bg-emerald-500' :
+                    cobro.estado === 'Cobrado' ? 'bg-emerald-500' :
                     vencido ? 'bg-red-500' : 'bg-amber-400'
                   )} />
 
@@ -263,15 +296,21 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
                       )}
                       <span className={cn(
                         'text-xs px-2 py-0.5 rounded font-medium',
-                        cobro.estado === 'cobrado' ? 'bg-emerald-100 text-emerald-700' :
+                        cobro.estado === 'Cobrado' ? 'bg-emerald-100 text-emerald-700' :
                         vencido ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                       )}>
-                        {cobro.estado === 'cobrado' ? 'Cobrado' : vencido ? 'Vencido' : 'Pendiente'}
+                        {cobro.estado === 'Cobrado' ? 'Cobrado' : vencido ? 'Vencido' : 'Pendiente'}
                       </span>
+                      {cuotas.length > 0 && (
+                        <button onClick={() => setExpandedCobroId(id => id === cobro.id ? null : cobro.id)}
+                          className="text-[11px] text-indigo-600 hover:text-indigo-800">
+                          {cuotas.filter(c => c.estado === 'Cobrado').length}/{cuotas.length} cobradas {expandedCobroId === cobro.id ? '▲' : '▼'}
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-400">
-                      {cobro.estado === 'cobrado' && cobro.fecha_pago && (
-                        <span>Pagado: {formatDate(cobro.fecha_pago)}</span>
+                      {cobro.estado === 'Cobrado' && cobro.fecha_pago && (
+                        <span>Cobrado: {formatDate(cobro.fecha_pago)}</span>
                       )}
                       {cobro.fecha_vencimiento && (
                         <span className={vencido ? 'text-red-500' : ''}>
@@ -285,17 +324,24 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                  {!readOnly && cobro.estado === 'pendiente' && (
+                  {!readOnly && cobro.estado === 'Pendiente' && cuotas.length === 0 && (
                     <button
                       onClick={() => { setPagoTarget(cobro); setPagoForm(EMPTY_PAGO); setError(null) }}
                       className={cn(
                         'text-xs px-3 py-1.5 rounded-lg font-medium transition-colors text-white',
                         vencido ? 'bg-red-600 hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'
                       )}>
-                      Registrar pago
+                      Registrar cobro
                     </button>
                   )}
-                  {cobro.estado === 'cobrado' && (
+                  {!readOnly && cobro.estado === 'Pendiente' && (
+                    <button
+                      onClick={() => setPlanDePagoTarget(cobro)}
+                      className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors border border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+                      {cuotas.length > 0 ? 'Editar plan' : 'Plan de cobro'}
+                    </button>
+                  )}
+                  {cobro.estado === 'Cobrado' && (
                     <button
                       onClick={() => window.open(`/print/cobro/${cobro.id}`, '_blank')}
                       title="Imprimir recibo"
@@ -314,6 +360,13 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
                     </svg>
                   </button>}
                 </div>
+              </div>
+              {expandedCobroId === cobro.id && (
+                <div className="px-5 pb-4">
+                  <CuotasList entidad="cobro" cuotas={cuotas} moneda={cobro.moneda}
+                    cuentasPropias={cuentasPropias} readOnly={readOnly} onChanged={refresh} />
+                </div>
+              )}
               </div>
             )
           })}
@@ -357,7 +410,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <form onSubmit={handleNuevoSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleNuevoSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               {contratos.length > 1 && (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Contrato *</label>
@@ -373,29 +426,62 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
                   </select>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Monto *</label>
-                  <input required type="number" min="0" step="0.01" value={nuevoForm.monto}
-                    onChange={e => setNuevoForm(f => ({ ...f, monto: e.target.value }))}
-                    placeholder="Ej: 500000"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Moneda *</label>
-                  <select value={nuevoForm.moneda}
-                    onChange={e => setNuevoForm(f => ({ ...f, moneda: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="ARS">ARS — Pesos</option>
-                    <option value="USD">USD — Dólares</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Moneda *</label>
+                <select value={nuevoForm.moneda}
+                  onChange={e => setNuevoForm(f => ({ ...f, moneda: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="ARS">ARS — Pesos</option>
+                  <option value="USD">USD — Dólares</option>
+                </select>
+              </div>
+              <IvaCalculator
+                montoNeto={nuevoForm.monto_neto} iva={nuevoForm.iva} monto={nuevoForm.monto}
+                onChangeMontoNeto={v => setNuevoForm(f => ({ ...f, monto_neto: v }))}
+                onChangeIva={v => setNuevoForm(f => ({ ...f, iva: v }))}
+                onChangeMonto={v => setNuevoForm(f => ({ ...f, monto: v }))}
+              />
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Percepciones</label>
+                <input type="number" min="0" step="0.01" value={nuevoForm.percepciones}
+                  onChange={e => setNuevoForm(f => ({ ...f, percepciones: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de vencimiento *</label>
                 <input required type="date" value={nuevoForm.fecha_vencimiento}
                   onChange={e => setNuevoForm(f => ({ ...f, fecha_vencimiento: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">N° comprobante</label>
+                <input value={nuevoForm.numero_comprobante}
+                  onChange={e => setNuevoForm(f => ({ ...f, numero_comprobante: e.target.value }))}
+                  placeholder="Factura A 0001-00012345"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Foto comprobante</label>
+                {comprobanteUrl ? (
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                    <a href={comprobanteUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-indigo-600 hover:underline truncate flex-1">
+                      Ver comprobante adjunto
+                    </a>
+                    <button type="button" onClick={() => setComprobanteUrl('')}
+                      className="text-xs text-red-400 hover:text-red-600">Quitar</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => fileRef.current?.click()}
+                    disabled={uploadingComp}
+                    className="w-full h-16 border-2 border-dashed border-slate-300 rounded-lg text-slate-400 text-xs
+                               hover:border-indigo-400 hover:text-indigo-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                    {uploadingComp ? 'Subiendo...' : '+ Adjuntar foto de comprobante'}
+                  </button>
+                )}
+                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadComp(f); e.target.value = '' }} />
               </div>
               {certificadosDelContrato.length > 0 && (
                 <div>
@@ -433,13 +519,13 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
         </div>
       )}
 
-      {/* MODAL: Registrar pago */}
+      {/* MODAL: Registrar cobro */}
       {pagoTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-200">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Registrar pago</h2>
+                <h2 className="text-lg font-bold text-slate-900">Registrar cobro</h2>
                 <p className="text-sm text-slate-500 mt-0.5">{formatCurrency(pagoTarget.monto, pagoTarget.moneda)}</p>
               </div>
               <button onClick={() => setPagoTarget(null)} className="text-slate-400 hover:text-slate-600">
@@ -448,7 +534,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
             </div>
             <form onSubmit={handlePagoSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de pago *</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de cobro *</label>
                 <input required type="date" value={pagoForm.fecha_pago}
                   onChange={e => setPagoForm(f => ({ ...f, fecha_pago: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -475,12 +561,25 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
                   className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
                 <button type="submit" disabled={loading}
                   className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
-                  {loading ? 'Guardando...' : 'Confirmar pago'}
+                  {loading ? 'Guardando...' : 'Confirmar cobro'}
                 </button>
               </div>
             </form>
           </div>
         </div>
+      )}
+
+      {/* MODAL: Plan de cobro */}
+      {planDePagoTarget && (
+        <PlanDePagoModal
+          entidad="cobro"
+          id={planDePagoTarget.id}
+          montoTotal={planDePagoTarget.monto}
+          moneda={planDePagoTarget.moneda}
+          cuotasExistentes={planDePagoTarget.cobro_pagos ?? []}
+          onClose={() => setPlanDePagoTarget(null)}
+          onSaved={() => { setExpandedCobroId(planDePagoTarget.id); setPlanDePagoTarget(null); refresh() }}
+        />
       )}
     </div>
   )

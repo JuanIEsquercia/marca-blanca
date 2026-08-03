@@ -71,6 +71,7 @@ export async function GET(
       subtotal: i.subtotal,
     })),
     total,
+    ivaPct: presupuesto.iva_pct,
     codigo,
   })
 

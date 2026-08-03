@@ -21,16 +21,54 @@ export interface MovimientoConCuenta {
   moneda: string | null // null = sin moneda propia, se asume USD (ver nota arriba)
 }
 
-export interface GastoParaCaja {
+export interface PagoDeCuota {
+  estado: string
+  monto: number
+  cuenta_propia_id: string | null
+}
+
+// Gasto/cobro con su plan de pago opcional embebido (migration_064):
+// `pagos` vacío/undefined = sin plan, se usa el propio monto/estado/
+// cuenta_propia_id (el flujo de siempre). Con `pagos`, cada cuota es su
+// propio movimiento de caja — puede haber cuotas ya Pagadas/Cobradas
+// aunque el padre siga Pendiente (plan cumplido a medias: 2 de 3
+// cheques cobrados), porque el padre solo pasa a Pagado/Cobrado cuando
+// TODAS cierran (ver sync_estado_gasto_por_pagos/sync_estado_cobro_por_pagos).
+// Por eso estas filas nunca deben venir pre-filtradas por el estado del
+// padre — hay que traer todas y dejar que las funciones de abajo decidan.
+export interface MovimientoConPagos {
   estado: string | null
-  moneda: string
   monto: number | null
   cuenta_propia_id: string | null
+  moneda: string | null
+  pagos?: PagoDeCuota[] | null
+}
+
+export interface GastoParaCaja extends MovimientoConPagos {
+  moneda: string
 }
 
 function perteneceACuenta(mov: MovimientoConCuenta, cuenta: { id: string; moneda: string }): boolean {
   if (mov.cuenta_propia_id !== cuenta.id) return false
   return (mov.moneda ?? 'USD') === cuenta.moneda
+}
+
+function cuotaOMonto(f: MovimientoConPagos, incluir: (estado: string | null) => boolean): MovimientoConCuenta[] {
+  const pagos = f.pagos ?? []
+  if (pagos.length > 0) {
+    return pagos.filter(p => incluir(p.estado)).map(p => ({ monto: p.monto, cuenta_propia_id: p.cuenta_propia_id, moneda: f.moneda }))
+  }
+  return incluir(f.estado) ? [{ monto: f.monto ?? 0, cuenta_propia_id: f.cuenta_propia_id, moneda: f.moneda }] : []
+}
+
+// Gastos y cobros comparten exactamente esta lógica de expansión — por eso
+// es una sola función para los dos lados en vez de duplicarla en cada uno.
+export function movimientosLiquidados(filas: MovimientoConPagos[], estadoLiquidado: string): MovimientoConCuenta[] {
+  return filas.flatMap(f => cuotaOMonto(f, e => e === estadoLiquidado))
+}
+
+export function movimientosPendientes(filas: MovimientoConPagos[], estadoLiquidado: string): MovimientoConCuenta[] {
+  return filas.flatMap(f => cuotaOMonto(f, e => e !== estadoLiquidado))
 }
 
 export interface CuentaConSaldoEmpresa extends CuentaPropia {
@@ -66,10 +104,17 @@ export async function calcularSaldosDeCuentas(
     { data: cobrosProyecto },
     { data: reservas },
   ] = await Promise.all([
-    supabase.from('cuotas').select('monto_base, monto_cobrado, estado_pago, cuenta_propia_id').eq('constructora_id', constructoraId).eq('estado_pago', 'Pagado'),
-    supabase.from('contratos_venta').select('entrega_efectiva, cuenta_propia_id').eq('constructora_id', constructoraId),
-    supabase.from('gastos').select('monto, moneda, estado, cuenta_propia_id').eq('constructora_id', constructoraId).eq('estado', 'Pagado'),
-    supabase.from('cobros_proyecto').select('monto, moneda, cuenta_propia_id').eq('constructora_id', constructoraId).eq('estado', 'cobrado'),
+    // contratos_venta!inner(estado) + el filtro de abajo: una cuota de un
+    // contrato rescindido deja de contar como ingreso real (el contrato
+    // cayó, no hubo tal cobro a nivel de negocio) — ver migration_058.
+    supabase.from('cuotas').select('monto_base, monto_cobrado, estado_pago, cuenta_propia_id, contratos_venta!inner(estado)').eq('constructora_id', constructoraId).eq('estado_pago', 'Pagado').eq('contratos_venta.estado', 'vigente'),
+    supabase.from('contratos_venta').select('entrega_efectiva, cuenta_propia_id').eq('constructora_id', constructoraId).eq('estado', 'vigente'),
+    // Sin filtro de estado acá a propósito: un gasto con plan de pago
+    // parcialmente cumplido sigue Pendiente pero puede tener cuotas ya
+    // Pagadas — movimientosLiquidados() decide fila por fila (ver
+    // MovimientoConPagos más arriba).
+    supabase.from('gastos').select('monto, moneda, estado, cuenta_propia_id, pagos:gasto_pagos(estado, monto, cuenta_propia_id)').eq('constructora_id', constructoraId),
+    supabase.from('cobros_proyecto').select('monto, moneda, estado, cuenta_propia_id, pagos:cobro_pagos(estado, monto, cuenta_propia_id)').eq('constructora_id', constructoraId),
     supabase.from('reservas').select('monto_sena, cuenta_propia_id').eq('constructora_id', constructoraId).eq('estado', 'Vigente').not('monto_sena', 'is', null),
   ])
 
@@ -79,15 +124,14 @@ export async function calcularSaldosDeCuentas(
     ...(cuotas ?? []).map(c => ({ monto: c.monto_cobrado ?? c.monto_base ?? 0, cuenta_propia_id: c.cuenta_propia_id, moneda: null })),
     ...(contratos ?? []).map(c => ({ monto: c.entrega_efectiva ?? 0, cuenta_propia_id: c.cuenta_propia_id, moneda: null })),
     ...(reservas ?? []).map(r => ({ monto: r.monto_sena ?? 0, cuenta_propia_id: r.cuenta_propia_id, moneda: null })),
-    ...(cobrosProyecto ?? []).map(c => ({ monto: c.monto ?? 0, cuenta_propia_id: c.cuenta_propia_id, moneda: c.moneda })),
+    ...movimientosLiquidados((cobrosProyecto ?? []) as MovimientoConPagos[], 'Cobrado'),
   ]
+  const egresos = movimientosLiquidados((gastos ?? []) as MovimientoConPagos[], 'Pagado')
 
   const resultado: Record<string, SaldoCuenta> = {}
   for (const cuenta of cuentas) {
     const ingresosCuenta = sumarMontos(ingresos.filter(m => perteneceACuenta(m, cuenta)).map(m => m.monto))
-    const egresosCuenta = sumarMontos(
-      (gastos ?? []).filter(g => g.cuenta_propia_id === cuenta.id && g.moneda === cuenta.moneda).map(g => g.monto ?? 0)
-    )
+    const egresosCuenta = sumarMontos(egresos.filter(m => perteneceACuenta(m, cuenta)).map(m => m.monto))
     resultado[cuenta.id] = {
       ingresos: ingresosCuenta,
       egresos: egresosCuenta,
@@ -146,11 +190,19 @@ export function calcularTotalesYSaldos(
   gastos: GastoParaCaja[],
   ingresos: MovimientoConCuenta[]
 ): CajaProyecto {
+  // Un gasto sin plan de pago cuenta entero por su propio estado (como
+  // siempre); uno con plan expande cada cuota — así un plan cumplido a
+  // medias (2 de 3 cheques ya pagados) aporta esos 2 a "pagado" y solo el
+  // 3ro a "pendiente", en vez de que el gasto completo cuente para un lado
+  // o el otro (ver movimientosLiquidados/movimientosPendientes arriba).
+  const egresosLiquidados = movimientosLiquidados(gastos, 'Pagado')
+  const egresosPendientesMov = movimientosPendientes(gastos, 'Pagado')
+
   const totalesPorMoneda: Record<string, TotalesMoneda> = {}
   for (const moneda of MONEDAS) {
     const ingresosMoneda = sumarMontos(ingresos.filter(i => (i.moneda ?? 'USD') === moneda).map(i => i.monto))
-    const egresosPagados = sumarMontos(gastos.filter(g => g.estado === 'Pagado' && g.moneda === moneda).map(g => g.monto ?? 0))
-    const egresosPendientes = sumarMontos(gastos.filter(g => g.estado === 'Pendiente' && g.moneda === moneda).map(g => g.monto ?? 0))
+    const egresosPagados = sumarMontos(egresosLiquidados.filter(m => (m.moneda ?? 'USD') === moneda).map(m => m.monto))
+    const egresosPendientes = sumarMontos(egresosPendientesMov.filter(m => (m.moneda ?? 'USD') === moneda).map(m => m.monto))
     if (ingresosMoneda !== 0 || egresosPagados !== 0 || egresosPendientes !== 0) {
       totalesPorMoneda[moneda] = { ingresos: ingresosMoneda, egresosPagados, egresosPendientes }
     }
@@ -158,9 +210,7 @@ export function calcularTotalesYSaldos(
 
   const cuentasConSaldo = cuentas.map(cuenta => {
     const ingresosCuenta = sumarMontos(ingresos.filter(i => perteneceACuenta(i, cuenta)).map(i => i.monto))
-    const egresosCuenta = sumarMontos(
-      gastos.filter(g => g.cuenta_propia_id === cuenta.id && g.estado === 'Pagado' && g.moneda === cuenta.moneda).map(g => g.monto ?? 0)
-    )
+    const egresosCuenta = sumarMontos(egresosLiquidados.filter(m => perteneceACuenta(m, cuenta)).map(m => m.monto))
     return { id: cuenta.id, nombre: cuenta.nombre, tipo: cuenta.tipo, moneda: cuenta.moneda, saldo_actual: redondear2(cuenta.saldo_inicial + ingresosCuenta - egresosCuenta) }
   })
 
@@ -181,13 +231,15 @@ async function obtenerIngresosProyecto(
     const [{ data: cuotas }, { data: contratos }, { data: reservas }] = await Promise.all([
       supabase
         .from('cuotas')
-        .select('monto_base, monto_cobrado, cuenta_propia_id, contratos_venta!inner(unidades!inner(obra_id))')
+        .select('monto_base, monto_cobrado, cuenta_propia_id, contratos_venta!inner(estado, unidades!inner(obra_id))')
         .eq('estado_pago', 'Pagado')
-        .eq('contratos_venta.unidades.obra_id', ctx.obraId),
+        .eq('contratos_venta.unidades.obra_id', ctx.obraId)
+        .eq('contratos_venta.estado', 'vigente'),
       supabase
         .from('contratos_venta')
         .select('entrega_efectiva, cuenta_propia_id, unidades!inner(obra_id)')
         .eq('unidades.obra_id', ctx.obraId)
+        .eq('estado', 'vigente')
         .not('entrega_efectiva', 'is', null),
       supabase
         .from('reservas')
@@ -204,13 +256,15 @@ async function obtenerIngresosProyecto(
     ]
   }
 
+  // Sin filtro de estado acá a propósito — igual que en
+  // calcularSaldosDeCuentas, un cobro con plan de pago parcialmente
+  // cumplido sigue Pendiente pero puede tener cuotas ya Cobradas.
   const { data: cobros } = await supabase
     .from('cobros_proyecto')
-    .select('monto, moneda, cuenta_propia_id')
+    .select('monto, moneda, estado, cuenta_propia_id, pagos:cobro_pagos(estado, monto, cuenta_propia_id)')
     .eq('obra_id', ctx.obraId)
-    .eq('estado', 'cobrado')
 
-  return (cobros ?? []).map(c => ({ monto: c.monto, cuenta_propia_id: c.cuenta_propia_id ?? null, moneda: c.moneda }))
+  return movimientosLiquidados((cobros ?? []) as MovimientoConPagos[], 'Cobrado')
 }
 
 export async function calcularCajaProyecto(
@@ -225,7 +279,7 @@ export async function calcularCajaProyecto(
 
   const gastosQuery = supabase
     .from('gastos')
-    .select('*')
+    .select('*, pagos:gasto_pagos(estado, monto, cuenta_propia_id)')
     .eq('constructora_id', ctx.constructoraId)
     .eq('obra_id', ctx.obraId)
 
@@ -235,7 +289,7 @@ export async function calcularCajaProyecto(
     obtenerIngresosProyecto(supabase, ctx),
   ])
 
-  return calcularTotalesYSaldos(cuentas ?? [], gastos ?? [], ingresos)
+  return calcularTotalesYSaldos(cuentas ?? [], (gastos ?? []) as unknown as GastoParaCaja[], ingresos)
 }
 
 export interface CuentaSimple {

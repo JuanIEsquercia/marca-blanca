@@ -31,6 +31,9 @@ export interface CobroPdfData {
   certificadoNumero: number | null
   certificadoPeriodo: string | null
   notas: string | null
+  montoNeto: number | null
+  iva: number | null
+  percepciones: number | null
 }
 
 function CobroDocument(d: CobroPdfData) {
@@ -43,6 +46,12 @@ function CobroDocument(d: CobroPdfData) {
     ...(d.cuentaNombre ? [{ key: 'ACREDITADO EN', value: `${d.cuentaNombre} (${d.cuentaTipo} · ${d.cuentaMoneda})` }] : []),
     ...(d.certificadoNumero ? [{ key: 'CERTIFICADO N.º', value: `${d.certificadoNumero} — ${d.certificadoPeriodo}` }] : []),
     { key: 'OBRA', value: d.obraNombre },
+    // Desglose informativo — solo si se cargó al registrar el cobro (ver
+    // IvaCalculator), los recibos viejos sin el dato siguen mostrando
+    // únicamente el total, como siempre.
+    ...(d.montoNeto != null ? [{ key: 'NETO', value: formatCurrency(d.montoNeto, d.moneda) }] : []),
+    ...(d.iva != null ? [{ key: 'IVA', value: formatCurrency(d.iva, d.moneda) }] : []),
+    ...(d.percepciones != null ? [{ key: 'PERCEPCIONES', value: formatCurrency(d.percepciones, d.moneda) }] : []),
   ]
 
   return (

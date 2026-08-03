@@ -215,6 +215,11 @@ export default function PresupuestosManager({ presupuestos, obrasDisponibles, co
                     <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
                       <span>{items.length} ítem{items.length !== 1 ? 's' : ''}</span>
                       <span className="font-medium text-slate-700">{formatCurrency(total, p.moneda)}</span>
+                      {p.iva_pct ? (
+                        <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">+ IVA {p.iva_pct}%</span>
+                      ) : (
+                        <span className="text-slate-400">Sin IVA</span>
+                      )}
                       <span>{formatDate(p.created_at)}</span>
                     </div>
                   </div>

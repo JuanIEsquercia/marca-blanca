@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, redondear2 } from '@/lib/utils'
+import CuentaPropiaSelect from './CuentaPropiaSelect'
 import type { Unidad, Tipologia, CuentaPropia } from '@/types/database'
 
 interface CompradorPreFill {
@@ -39,6 +40,7 @@ export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compra
   const [cantCuotas, setCantCuotas] = useState(String(unidad.max_cuotas))
   const [fechaFirma, setFechaFirma] = useState(new Date().toISOString().split('T')[0])
   const [cuentaPropiaId, setCuentaPropiaId] = useState('')
+  const [cuentasNuevas, setCuentasNuevas] = useState<CuentaPropia[]>([])
   const [notas, setNotas] = useState('')
   const [senaPrevia, setSenaPrevia] = useState<number | null>(null)
 
@@ -244,13 +246,13 @@ export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compra
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   Cuenta donde ingresa la entrega
                 </label>
-                <select value={cuentaPropiaId} onChange={e => setCuentaPropiaId(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="">Sin asignar</option>
-                  {cuentasPropias.map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>
-                  ))}
-                </select>
+                <CuentaPropiaSelect
+                  cuentas={[...cuentasPropias, ...cuentasNuevas]}
+                  onCreated={c => setCuentasNuevas(prev => [...prev, c])}
+                  value={cuentaPropiaId}
+                  onChange={setCuentaPropiaId}
+                  constructoraId={constructoraId ?? ''}
+                  emptyLabel="Sin asignar" />
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>

@@ -6,11 +6,13 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
+import { crearProveedorRapido } from '@/lib/proveedores'
 import type { Gasto, Proveedor, CuentaProveedor, CategoriaCosto, CuentaPropia } from '@/types/database'
 import ConfirmModal from './ConfirmModal'
 import PlanDePagoModal from './PlanDePagoModal'
 import CuotasList from './CuotasList'
 import IvaCalculator from './IvaCalculator'
+import CuentaPropiaSelect from './CuentaPropiaSelect'
 
 type ConfirmModalState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
 
@@ -87,6 +89,16 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   const [avisoEscaneo, setAvisoEscaneo] = useState<{ tipo: 'ok' | 'error'; mensaje: string } | null>(null)
   const scanFileRef = useRef<HTMLInputElement>(null)
 
+  // "+ Agregar proveedor nuevo" en el selector: en vez de cortar la carga
+  // del gasto para ir a Proveedores, el select se convierte en un mini-form
+  // (solo razón social) sin perder lo ya completado — mismo criterio que
+  // "+ Agregar producto nuevo" en Compras.
+  const [proveedoresNuevos, setProveedoresNuevos] = useState<Proveedor[]>([])
+  const [creandoProveedor, setCreandoProveedor] = useState(false)
+  const [nuevoProveedorNombre, setNuevoProveedorNombre] = useState('')
+  const [creandoProveedorLoading, setCreandoProveedorLoading] = useState(false)
+  const [cuentasNuevas, setCuentasNuevas] = useState<CuentaPropia[]>([])
+
   // Pago modal
   const [pagandoGasto, setPagandoGasto] = useState<Gasto | null>(null)
   const [pagoForm, setPagoForm] = useState({ cuenta_propia_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
@@ -107,6 +119,34 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   const [pagoLoteError, setPagoLoteError] = useState<string | null>(null)
 
   function refresh() { startTransition(() => router.refresh()) }
+
+  const proveedoresDisponibles = [...proveedores.filter(p => p.activo), ...proveedoresNuevos]
+
+  function elegirProveedor(valor: string) {
+    if (valor === '__nuevo__') {
+      setCreandoProveedor(true)
+      setForm(f => ({ ...f, proveedor_id: '', cuenta_proveedor_id: '', certificado_id: '' }))
+    } else {
+      setForm(f => ({ ...f, proveedor_id: valor, cuenta_proveedor_id: '', certificado_id: '' }))
+    }
+  }
+
+  function cancelarNuevoProveedor() {
+    setCreandoProveedor(false)
+    setNuevoProveedorNombre('')
+  }
+
+  async function crearProveedorInline() {
+    if (!nuevoProveedorNombre.trim()) return
+    setCreandoProveedorLoading(true)
+    const nuevo = await crearProveedorRapido(constructoraId, nuevoProveedorNombre)
+    setCreandoProveedorLoading(false)
+    if (!nuevo) { setError('Error al crear el proveedor'); return }
+    setProveedoresNuevos(prev => [...prev, nuevo])
+    setForm(f => ({ ...f, proveedor_id: nuevo.id }))
+    setCreandoProveedor(false)
+    setNuevoProveedorNombre('')
+  }
 
   // Cuentas del proveedor seleccionado
   const ctasProveedor: CuentaProveedor[] = form.proveedor_id
@@ -135,6 +175,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
     setComprobanteUrl('')
     setError(null)
     setAvisoEscaneo(null)
+    cancelarNuevoProveedor()
     setShowForm(true)
   }
 
@@ -165,6 +206,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
     setComprobanteUrl(g.comprobante_url ?? '')
     setError(null)
     setAvisoEscaneo(null)
+    cancelarNuevoProveedor()
     setShowForm(true)
   }
 
@@ -648,7 +690,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   <tr>
                     <td colSpan={readOnly ? 7 : 8} className="px-4 py-3 bg-slate-50/50">
                       <CuotasList entidad="gasto" cuotas={g.gasto_pagos ?? []} moneda={g.moneda}
-                        cuentasPropias={cuentasPropias} readOnly={readOnly} onChanged={refresh} />
+                        cuentasPropias={cuentasPropias} constructoraId={constructoraId} readOnly={readOnly} onChanged={refresh} />
                     </td>
                   </tr>
                 )}
@@ -677,20 +719,14 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta desde la que se pagó *</label>
-                <select
+                <CuentaPropiaSelect
+                  cuentas={[...cuentasPropias.filter(c => c.activa), ...cuentasNuevas]}
+                  onCreated={c => setCuentasNuevas(prev => [...prev, c])}
                   value={pagoForm.cuenta_propia_id}
-                  onChange={e => setPagoForm(f => ({ ...f, cuenta_propia_id: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="">Seleccionar cuenta...</option>
-                  {cuentasPropias
-                    .filter(c => c.activa && c.moneda === pagandoGasto.moneda)
-                    .map(c => (
-                      <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>
-                    ))}
-                </select>
-                {cuentasPropias.some(c => c.activa && c.moneda === pagandoGasto.moneda) === false && (
-                  <p className="text-xs text-amber-600 mt-1">No hay cuentas en {pagandoGasto.moneda} configuradas.</p>
-                )}
+                  onChange={id => setPagoForm(f => ({ ...f, cuenta_propia_id: id }))}
+                  constructoraId={constructoraId}
+                  moneda={pagandoGasto.moneda}
+                  emptyLabel="Seleccionar cuenta..." />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de pago *</label>
@@ -738,17 +774,14 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta desde la que se pagó *</label>
-                <select
+                <CuentaPropiaSelect
+                  cuentas={[...cuentasPropias.filter(c => c.activa), ...cuentasNuevas]}
+                  onCreated={c => setCuentasNuevas(prev => [...prev, c])}
                   value={pagoLoteForm.cuenta_propia_id}
-                  onChange={e => setPagoLoteForm(f => ({ ...f, cuenta_propia_id: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="">Seleccionar cuenta...</option>
-                  {cuentasPropias
-                    .filter(c => c.activa && c.moneda === monedaLote)
-                    .map(c => (
-                      <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>
-                    ))}
-                </select>
+                  onChange={id => setPagoLoteForm(f => ({ ...f, cuenta_propia_id: id }))}
+                  constructoraId={constructoraId}
+                  moneda={monedaLote}
+                  emptyLabel="Seleccionar cuenta..." />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de pago *</label>
@@ -853,14 +886,30 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
 
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Proveedor</label>
-                <select value={form.proveedor_id}
-                  onChange={e => setForm(f => ({ ...f, proveedor_id: e.target.value, cuenta_proveedor_id: '', certificado_id: '' }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="">Sin proveedor</option>
-                  {proveedores.filter(p => p.activo).map(p => (
-                    <option key={p.id} value={p.id}>{p.razon_social}</option>
-                  ))}
-                </select>
+                {creandoProveedor ? (
+                  <div className="flex gap-2">
+                    <input autoFocus value={nuevoProveedorNombre}
+                      onChange={e => setNuevoProveedorNombre(e.target.value)}
+                      placeholder="Razón social"
+                      className="flex-1 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <button type="button" onClick={crearProveedorInline} disabled={creandoProveedorLoading || !nuevoProveedorNombre.trim()}
+                      className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                      {creandoProveedorLoading ? '...' : 'Crear'}
+                    </button>
+                    <button type="button" onClick={cancelarNuevoProveedor}
+                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-600">Cancelar</button>
+                  </div>
+                ) : (
+                  <select value={form.proveedor_id}
+                    onChange={e => elegirProveedor(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Sin proveedor</option>
+                    {proveedoresDisponibles.map(p => (
+                      <option key={p.id} value={p.id}>{p.razon_social}</option>
+                    ))}
+                    <option value="__nuevo__">+ Agregar proveedor nuevo</option>
+                  </select>
+                )}
               </div>
 
               {form.proveedor_id && certificadosDelProveedor.length > 0 && (
@@ -1051,6 +1100,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
           moneda={planDePagoTarget.moneda}
           cuotasExistentes={planDePagoTarget.gasto_pagos ?? []}
           cuentasPropias={cuentasPropias}
+          constructoraId={constructoraId}
           onClose={() => setPlanDePagoTarget(null)}
           onSaved={() => { setPlanDePagoTarget(null); setExpandedGastoId(planDePagoTarget.id); refresh() }}
         />

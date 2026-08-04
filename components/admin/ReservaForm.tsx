@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency } from '@/lib/utils'
+import CuentaPropiaSelect from './CuentaPropiaSelect'
 import type { Unidad, Tipologia, CuentaPropia } from '@/types/database'
 
 interface Props {
@@ -16,6 +17,7 @@ export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cuentasPropias, setCuentasPropias] = useState<CuentaPropia[]>([])
+  const [cuentasNuevas, setCuentasNuevas] = useState<CuentaPropia[]>([])
 
   // Comprador
   const [nombre, setNombre] = useState('')
@@ -197,13 +199,13 @@ export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta donde ingresa</label>
-                <select value={cuentaPropiaId} onChange={e => setCuentaPropiaId(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="">Sin asignar</option>
-                  {cuentasPropias.map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>
-                  ))}
-                </select>
+                <CuentaPropiaSelect
+                  cuentas={[...cuentasPropias, ...cuentasNuevas]}
+                  onCreated={c => setCuentasNuevas(prev => [...prev, c])}
+                  value={cuentaPropiaId}
+                  onChange={setCuentaPropiaId}
+                  constructoraId={constructoraId ?? ''}
+                  emptyLabel="Sin asignar" />
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>

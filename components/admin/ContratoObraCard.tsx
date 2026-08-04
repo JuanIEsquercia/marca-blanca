@@ -7,6 +7,7 @@ import { obtenerOCrearRubro } from '@/lib/rubros'
 import ConfirmModal from './ConfirmModal'
 import IvaCalculator, { modoDePct, type ModoIva } from './IvaCalculator'
 import ItemsRubroTable, { nuevaFilaItem, type FilaItem } from './ItemsRubroTable'
+import CuentaPropiaSelect from './CuentaPropiaSelect'
 import type { ContratoObra, CertificadoAvance, CobroProyecto, Gasto, CuentaPropia, EstadoCertificado, ContratoObraItem, CertificadoItem } from '@/types/database'
 
 type ConfirmState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
@@ -59,6 +60,7 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [estadoError, setEstadoError] = useState<string | null>(null)
+  const [cuentasNuevas, setCuentasNuevas] = useState<CuentaPropia[]>([])
 
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showCertForm, setShowCertForm] = useState(false)
@@ -1048,17 +1050,16 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                   onChange={e => setRegistrarPagoForm(f => ({ ...f, fecha_pago: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              {cuentasPropias.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">{pagoCobroTarget ? 'Acreditado en' : 'Pagado desde'}</label>
-                  <select value={registrarPagoForm.cuenta_propia_id}
-                    onChange={e => setRegistrarPagoForm(f => ({ ...f, cuenta_propia_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">— Sin cuenta asignada —</option>
-                    {cuentasPropias.map(c => <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>)}
-                  </select>
-                </div>
-              )}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">{pagoCobroTarget ? 'Acreditado en' : 'Pagado desde'}</label>
+                <CuentaPropiaSelect
+                  cuentas={[...cuentasPropias, ...cuentasNuevas]}
+                  onCreated={c => setCuentasNuevas(prev => [...prev, c])}
+                  value={registrarPagoForm.cuenta_propia_id}
+                  onChange={id => setRegistrarPagoForm(f => ({ ...f, cuenta_propia_id: id }))}
+                  constructoraId={constructoraId}
+                  emptyLabel="— Sin cuenta asignada —" />
+              </div>
               {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => { setPagoCobroTarget(null); setPagarGastoTarget(null) }}

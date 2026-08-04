@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
+import CuentaPropiaSelect from './CuentaPropiaSelect'
 import type { CuentaPropia, GastoPago, CobroPago, MedioPago } from '@/types/database'
 
 type Entidad = 'gasto' | 'cobro'
@@ -20,6 +21,7 @@ interface Props {
   // recién al marcarlo pagado. En cobros no aplica — la cuenta ahí es
   // adonde se DEPOSITA el cheque de un tercero, no algo que se planifique.
   cuentasPropias?: CuentaPropia[]
+  constructoraId: string
   onClose: () => void
   onSaved: () => void
 }
@@ -64,7 +66,8 @@ function nuevaCuota(fecha: string, monto = ''): CuotaDraft {
 // Pagadas/Cobradas son inmutables (la base las protege, ver
 // migration_064) y se muestran fijas; las Pendientes o Rechazadas se
 // reemplazan enteras al guardar.
-export default function PlanDePagoModal({ entidad, id, montoTotal, moneda, cuotasExistentes, cuentasPropias = [], onClose, onSaved }: Props) {
+export default function PlanDePagoModal({ entidad, id, montoTotal, moneda, cuotasExistentes, cuentasPropias = [], constructoraId, onClose, onSaved }: Props) {
+  const [cuentasNuevas, setCuentasNuevas] = useState<CuentaPropia[]>([])
   const estadoLiquidado = entidad === 'gasto' ? 'Pagado' : 'Cobrado'
   const verbo = entidad === 'gasto' ? 'pago' : 'cobro'
 
@@ -260,16 +263,15 @@ export default function PlanDePagoModal({ entidad, id, montoTotal, moneda, cuota
                 {entidad === 'gasto' && (
                   <div>
                     <label className="block text-[11px] text-slate-500 mb-1">Sale de la cuenta</label>
-                    <select value={f.cuenta_propia_id} onChange={e => actualizarFila(i, { cuenta_propia_id: e.target.value })}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                      <option value="">Sin definir todavía</option>
-                      {cuentasPropias.filter(c => c.activa && c.moneda === moneda).map(c => (
-                        <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>
-                      ))}
-                    </select>
-                    {cuentasPropias.some(c => c.activa && c.moneda === moneda) === false && (
-                      <p className="text-[11px] text-amber-600 mt-1">No hay cuentas en {moneda} configuradas.</p>
-                    )}
+                    <CuentaPropiaSelect
+                      cuentas={[...cuentasPropias.filter(c => c.activa), ...cuentasNuevas]}
+                      onCreated={c => setCuentasNuevas(prev => [...prev, c])}
+                      value={f.cuenta_propia_id}
+                      onChange={id => actualizarFila(i, { cuenta_propia_id: id })}
+                      constructoraId={constructoraId}
+                      moneda={moneda}
+                      emptyLabel="Sin definir todavía"
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 )}
                 <div className="flex justify-end">

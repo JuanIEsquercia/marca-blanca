@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn, redondear2 } from '@/lib/utils'
 import { obtenerOCrearRubro } from '@/lib/rubros'
+import { crearProveedorRapido } from '@/lib/proveedores'
 import ClienteYFechasForm, { EMPTY_DATOS_GENERALES, ivaPctDeDatosGenerales, type DatosGenerales } from './ClienteYFechasForm'
 import ItemsRubroTable, { nuevaFilaItem, totalFilasItem, type FilaItem } from './ItemsRubroTable'
 import ContratoObraCard from './ContratoObraCard'
@@ -40,6 +41,31 @@ export default function CertificadosManager({ contratos, certificados, contratoO
   const [contratoFilas, setContratoFilas] = useState<FilaItem[]>([nuevaFilaItem()])
   const totalContratoFilas = totalFilasItem(contratoFilas)
 
+  // "+ Agregar proveedor nuevo" en el selector de subcontratista — mismo
+  // criterio que en Gastos/Compras, para no obligar a ir a Proveedores
+  // primero en medio de armar el contrato.
+  const [proveedoresNuevos, setProveedoresNuevos] = useState<Proveedor[]>([])
+  const [creandoProveedor, setCreandoProveedor] = useState(false)
+  const [nuevoProveedorNombre, setNuevoProveedorNombre] = useState('')
+  const [creandoProveedorLoading, setCreandoProveedorLoading] = useState(false)
+  const proveedoresDisponibles = [...proveedores, ...proveedoresNuevos]
+
+  function cancelarNuevoProveedor() {
+    setCreandoProveedor(false)
+    setNuevoProveedorNombre('')
+  }
+
+  async function crearProveedorInline() {
+    if (!nuevoProveedorNombre.trim()) return
+    setCreandoProveedorLoading(true)
+    const nuevo = await crearProveedorRapido(constructoraId, nuevoProveedorNombre)
+    setCreandoProveedorLoading(false)
+    if (!nuevo) { setError('Error al crear el proveedor'); return }
+    setProveedoresNuevos(prev => [...prev, nuevo])
+    setContratoProveedorId(nuevo.id)
+    cancelarNuevoProveedor()
+  }
+
   function refresh() { startTransition(() => router.refresh()) }
 
   // Agrupa certificados/ítems (que llegan planos, de todos los contratos del
@@ -70,6 +96,7 @@ export default function CertificadosManager({ contratos, certificados, contratoO
     setContratoForm(EMPTY_DATOS_GENERALES)
     setContratoFilas([nuevaFilaItem()])
     setError(null)
+    cancelarNuevoProveedor()
     setShowContratoForm(true)
   }
 
@@ -231,27 +258,38 @@ export default function CertificadosManager({ contratos, certificados, contratoO
             )}
 
             {contratoTipo === 'subcontratista' ? (
-              proveedores.length === 0 ? (
-                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  Todavía no tenés proveedores cargados — creá uno en <strong>Proveedores</strong> primero.
-                </p>
-              ) : (
-                <ClienteYFechasForm
-                  form={contratoForm}
-                  onChange={setContratoForm}
-                  descripcionLabel="Descripción del trabajo subcontratado"
-                  identidad={
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Proveedor *</label>
-                      <select required value={contratoProveedorId} onChange={e => setContratoProveedorId(e.target.value)}
+              <ClienteYFechasForm
+                form={contratoForm}
+                onChange={setContratoForm}
+                descripcionLabel="Descripción del trabajo subcontratado"
+                identidad={
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Proveedor *</label>
+                    {creandoProveedor ? (
+                      <div className="flex gap-2">
+                        <input autoFocus value={nuevoProveedorNombre}
+                          onChange={e => setNuevoProveedorNombre(e.target.value)}
+                          placeholder="Razón social"
+                          className="flex-1 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                        <button type="button" onClick={crearProveedorInline} disabled={creandoProveedorLoading || !nuevoProveedorNombre.trim()}
+                          className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                          {creandoProveedorLoading ? '...' : 'Crear'}
+                        </button>
+                        <button type="button" onClick={cancelarNuevoProveedor}
+                          className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-600">Cancelar</button>
+                      </div>
+                    ) : (
+                      <select required value={contratoProveedorId}
+                        onChange={e => e.target.value === '__nuevo__' ? setCreandoProveedor(true) : setContratoProveedorId(e.target.value)}
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="">Elegir proveedor...</option>
-                        {proveedores.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
+                        {proveedoresDisponibles.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
+                        <option value="__nuevo__">+ Agregar proveedor nuevo</option>
                       </select>
-                    </div>
-                  }
-                />
-              )
+                    )}
+                  </div>
+                }
+              />
             ) : (
               <ClienteYFechasForm form={contratoForm} onChange={setContratoForm} descripcionLabel="Descripción del objeto del contrato" />
             )}

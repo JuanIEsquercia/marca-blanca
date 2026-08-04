@@ -8,6 +8,7 @@ import { cn, estaVencido, formatCurrency, formatDate, redondear2, sumarMontos } 
 import IvaCalculator from './IvaCalculator'
 import PlanDePagoModal from './PlanDePagoModal'
 import CuotasList from './CuotasList'
+import CuentaPropiaSelect from './CuentaPropiaSelect'
 import type { CobroProyecto, CuentaPropia } from '@/types/database'
 
 type FiltroCobro = 'todos' | 'Pendiente' | 'Cobrado'
@@ -43,6 +44,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
   const [busqueda, setBusqueda] = useState('')
   const [pagoTarget, setPagoTarget]       = useState<CobroConCertificado | null>(null)
   const [pagoForm, setPagoForm]           = useState(EMPTY_PAGO)
+  const [cuentasNuevas, setCuentasNuevas] = useState<CuentaPropia[]>([])
   // Plan de cobro (cuotas/cheques) — alternativa al cobro único de arriba.
   const [planDePagoTarget, setPlanDePagoTarget] = useState<CobroConCertificado | null>(null)
   const [expandedCobroId, setExpandedCobroId]   = useState<string | null>(null)
@@ -364,7 +366,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
               {expandedCobroId === cobro.id && (
                 <div className="px-5 pb-4">
                   <CuotasList entidad="cobro" cuotas={cuotas} moneda={cobro.moneda}
-                    cuentasPropias={cuentasPropias} readOnly={readOnly} onChanged={refresh} />
+                    cuentasPropias={cuentasPropias} constructoraId={constructoraId} readOnly={readOnly} onChanged={refresh} />
                 </div>
               )}
               </div>
@@ -539,22 +541,17 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
                   onChange={e => setPagoForm(f => ({ ...f, fecha_pago: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              {cuentasPropias.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Acreditado en</label>
-                  <select value={pagoForm.cuenta_propia_id}
-                    onChange={e => setPagoForm(f => ({ ...f, cuenta_propia_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">— Sin cuenta asignada —</option>
-                    {cuentasPropias.filter(c => c.moneda === pagoTarget.moneda).map(c => (
-                      <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>
-                    ))}
-                  </select>
-                  {cuentasPropias.some(c => c.moneda === pagoTarget.moneda) === false && (
-                    <p className="text-xs text-amber-600 mt-1">No hay cuentas en {pagoTarget.moneda} configuradas.</p>
-                  )}
-                </div>
-              )}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Acreditado en</label>
+                <CuentaPropiaSelect
+                  cuentas={[...cuentasPropias, ...cuentasNuevas]}
+                  onCreated={c => setCuentasNuevas(prev => [...prev, c])}
+                  value={pagoForm.cuenta_propia_id}
+                  onChange={id => setPagoForm(f => ({ ...f, cuenta_propia_id: id }))}
+                  constructoraId={constructoraId}
+                  moneda={pagoTarget.moneda}
+                  emptyLabel="— Sin cuenta asignada —" />
+              </div>
               {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setPagoTarget(null)}
@@ -577,6 +574,7 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
           montoTotal={planDePagoTarget.monto}
           moneda={planDePagoTarget.moneda}
           cuotasExistentes={planDePagoTarget.cobro_pagos ?? []}
+          constructoraId={constructoraId}
           onClose={() => setPlanDePagoTarget(null)}
           onSaved={() => { setExpandedCobroId(planDePagoTarget.id); setPlanDePagoTarget(null); refresh() }}
         />

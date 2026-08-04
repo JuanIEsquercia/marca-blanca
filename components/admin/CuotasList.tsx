@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import CuentaPropiaSelect from './CuentaPropiaSelect'
 import type { CuentaPropia, GastoPago, CobroPago } from '@/types/database'
 
 type Entidad = 'gasto' | 'cobro'
@@ -13,6 +14,7 @@ interface Props {
   cuotas: Cuota[]
   moneda: string
   cuentasPropias: CuentaPropia[]
+  constructoraId: string
   readOnly?: boolean
   onChanged: () => void
 }
@@ -20,13 +22,14 @@ interface Props {
 // Detalle de las cuotas de un plan de pago, compartido por gastos y cobros
 // — mismo componente, cada uno pasa su tabla/estado vía `entidad`. Vive
 // expandido debajo de la fila del gasto/cobro en el manager correspondiente.
-export default function CuotasList({ entidad, cuotas, moneda, cuentasPropias, readOnly, onChanged }: Props) {
+export default function CuotasList({ entidad, cuotas, moneda, cuentasPropias, constructoraId, readOnly, onChanged }: Props) {
   const tabla = entidad === 'gasto' ? 'gasto_pagos' : 'cobro_pagos'
   const estadoLiquidado = entidad === 'gasto' ? 'Pagado' : 'Cobrado'
   const verbo = entidad === 'gasto' ? 'Pagar' : 'Cobrar'
 
   const [liquidando, setLiquidando] = useState<Cuota | null>(null)
   const [form, setForm] = useState({ fecha_pago: '', cuenta_propia_id: '' })
+  const [cuentasNuevas, setCuentasNuevas] = useState<CuentaPropia[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -101,16 +104,14 @@ export default function CuotasList({ entidad, cuotas, moneda, cuentasPropias, re
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta *</label>
-                <select value={form.cuenta_propia_id} onChange={e => setForm(f => ({ ...f, cuenta_propia_id: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="">Seleccionar cuenta...</option>
-                  {cuentasPropias.filter(c => c.activa && c.moneda === moneda).map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>
-                  ))}
-                </select>
-                {cuentasPropias.some(c => c.activa && c.moneda === moneda) === false && (
-                  <p className="text-xs text-amber-600 mt-1">No hay cuentas en {moneda} configuradas.</p>
-                )}
+                <CuentaPropiaSelect
+                  cuentas={[...cuentasPropias.filter(c => c.activa), ...cuentasNuevas]}
+                  onCreated={c => setCuentasNuevas(prev => [...prev, c])}
+                  value={form.cuenta_propia_id}
+                  onChange={id => setForm(f => ({ ...f, cuenta_propia_id: id }))}
+                  constructoraId={constructoraId}
+                  moneda={moneda}
+                  emptyLabel="Seleccionar cuenta..." />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Fecha *</label>

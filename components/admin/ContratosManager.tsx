@@ -7,6 +7,7 @@ import { cn, estaVencido, formatCurrency, formatDate, redondear2, sumarMontos, E
 import SaleForm from './SaleForm'
 import ConfirmModal from './ConfirmModal'
 import IvaCalculator from './IvaCalculator'
+import CuentaPropiaSelect from './CuentaPropiaSelect'
 import type { Unidad, Tipologia, Comprador, Cuota, CuentaPropia } from '@/types/database'
 
 type UnidadConTipologia = Unidad & { tipologias: Tipologia }
@@ -72,6 +73,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
   const [pagoModal, setPagoModal] = useState<{ cuotaId: string; monto: number } | null>(null)
   const [pagoCuenta, setPagoCuenta] = useState('')
   const [pagoFecha, setPagoFecha] = useState(today)
+  const [cuentasNuevas, setCuentasNuevas] = useState<CuentaPropia[]>([])
   const [pagoMonto, setPagoMonto] = useState('')
   const [pagoNeto, setPagoNeto] = useState('')
   const [pagoIva, setPagoIva] = useState('')
@@ -897,20 +899,14 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta donde se recibió</label>
-                <select
+                <CuentaPropiaSelect
+                  cuentas={[...cuentasPropias.filter(c => c.activa), ...cuentasNuevas]}
+                  onCreated={c => setCuentasNuevas(prev => [...prev, c])}
                   value={pagoCuenta}
-                  onChange={e => setPagoCuenta(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
-                             focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">Sin asignar</option>
-                  {cuentasPropias.filter(c => c.activa && c.moneda === 'USD').map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>
-                  ))}
-                </select>
-                {cuentasPropias.some(c => c.activa && c.moneda === 'USD') === false && (
-                  <p className="text-[10px] text-amber-600 mt-1">No hay cuentas en USD configuradas (los contratos se cobran en USD).</p>
-                )}
+                  onChange={setPagoCuenta}
+                  constructoraId={constructoraId}
+                  moneda="USD"
+                  emptyLabel="Sin asignar" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de cobro *</label>

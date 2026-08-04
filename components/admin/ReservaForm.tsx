@@ -144,7 +144,7 @@ export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId
             <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
               Datos del Interesado
             </h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-600 mb-1">Nombre completo *</label>
                 <input required value={nombre} onChange={e => setNombre(e.target.value)}
@@ -173,7 +173,7 @@ export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId
             <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
               Condiciones de la Reserva
             </h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   Vencimiento de la reserva *

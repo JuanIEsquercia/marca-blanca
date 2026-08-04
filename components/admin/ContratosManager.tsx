@@ -954,7 +954,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                 </svg>
               </button>
             </div>
-            <div className="p-4 overflow-y-auto grid grid-cols-2 gap-3">
+            <div className="p-4 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-3">
               {unidadesDisponibles.map(u => (
                 <button
                   key={u.id}

@@ -299,7 +299,7 @@ export default function InventarioManager({ equipos, obras, constructoraId }: Pr
                   placeholder="Ej: Martillo demoledor Bosch"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
                   <input value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
@@ -312,7 +312,7 @@ export default function InventarioManager({ equipos, obras, constructoraId }: Pr
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Marca</label>
                   <input value={form.marca} onChange={e => setForm(f => ({ ...f, marca: e.target.value }))}

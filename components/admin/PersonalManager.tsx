@@ -452,7 +452,7 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
                 <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">DNI</label>
                   <input value={form.dni} onChange={e => setForm(f => ({ ...f, dni: e.target.value }))}
@@ -470,7 +470,7 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Tipo de contratación</label>
                   <select value={form.tipo_contratacion} onChange={e => setForm(f => ({ ...f, tipo_contratacion: e.target.value as TipoContratacion }))}
@@ -496,7 +496,7 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
                 </select>
                 <p className="text-xs text-slate-400 mt-1">Asignar la cuadrilla completa a un proyecto asigna a esta persona junto con el resto.</p>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Jornal (costo/día)</label>
                   <input type="number" min="0" step="0.01" value={form.jornal} onChange={e => setForm(f => ({ ...f, jornal: e.target.value }))}

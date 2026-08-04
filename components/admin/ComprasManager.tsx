@@ -1528,7 +1528,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                   {productosConStock.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Desde</label>
                   <select value={repartoForm.obra_origen} onChange={e => setRepartoForm(f => ({ ...f, obra_origen: e.target.value }))}
@@ -1601,7 +1601,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-white border border-slate-200 rounded-xl p-4">
                   <p className="text-xs text-slate-400 mb-1">Saldo actual</p>
                   <p className={cn('text-xl font-bold', saldoDeAcopio(detalleAcopioActual.id) < 0 ? 'text-red-600' : 'text-slate-900')}>
@@ -1721,7 +1721,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Monto pagado *</label>
                     <input required type="number" min="0" step="0.01" value={acopioForm.monto_pagado}
@@ -1748,7 +1748,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                       : 'Si cargás el precio de referencia de arriba, esto se calcula solo.'}
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
                     <select value={acopioForm.moneda} onChange={e => setAcopioForm(f => ({ ...f, moneda: e.target.value }))}
@@ -1850,7 +1850,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
               </div>
 
               {retiroForm.producto_id && retiroForm.producto_id !== retiroAcopio.producto_referencia_id && (
-                <div className="grid grid-cols-2 gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
                   <div>
                     <label className="block text-xs font-medium text-amber-800 mb-1">Precio de hoy de lo retirado *</label>
                     <input required type="number" min="0" step="0.01" value={retiroForm.precio_retiro}

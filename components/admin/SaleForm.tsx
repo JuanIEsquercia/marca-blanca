@@ -182,7 +182,7 @@ export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compra
             <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3">
               Datos del Comprador
             </h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-600 mb-1">Nombre completo *</label>
                 <input required value={nombre} onChange={e => setNombre(e.target.value)}
@@ -211,7 +211,7 @@ export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compra
             <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3">
               Términos del Contrato
             </h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Precio final (USD) *</label>
                 <input required type="number" min="0" step="0.01" value={precioFinal}

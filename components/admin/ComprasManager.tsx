@@ -4,10 +4,10 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatCurrency, formatDate, redondear2 } from '@/lib/utils'
-import { crearProveedorRapido } from '@/lib/proveedores'
 import type { Producto, EstadoOrdenCompra, EstadoAcopio } from '@/types/database'
 import ConfirmModal from './ConfirmModal'
 import IvaCalculator from './IvaCalculator'
+import ProveedorSelect from './ProveedorSelect'
 
 type ItemRow = {
   id: string
@@ -174,13 +174,9 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
   // real de `productos` en cuanto el próximo refresh los trae).
   const [productosNuevos, setProductosNuevos] = useState<ProductoConCategoria[]>([])
 
-  // "+ Agregar proveedor nuevo" — mismo criterio que productosNuevos:
-  // compartido entre el selector de "Registrar recepción" y "Nuevo acopio"
-  // (solo uno de los dos modales puede estar abierto a la vez).
+  // "+ Agregar proveedor nuevo" (ProveedorSelect) — compartido entre el
+  // selector de "Registrar recepción" y "Nuevo acopio".
   const [proveedoresNuevos, setProveedoresNuevos] = useState<{ id: string; razon_social: string }[]>([])
-  const [creandoProveedor, setCreandoProveedor] = useState<'recepcion' | 'acopio' | null>(null)
-  const [nuevoProveedorNombre, setNuevoProveedorNombre] = useState('')
-  const [creandoProveedorLoading, setCreandoProveedorLoading] = useState(false)
   const [creandoProductoLoading, setCreandoProductoLoading] = useState(false)
   const [creandoProductoError, setCreandoProductoError] = useState<string | null>(null)
 
@@ -247,27 +243,6 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
   // ver/repartir un producto discontinuado con remanente).
   const productosDisponibles = [...productos.filter(p => p.activo), ...productosNuevos.filter(pn => !productos.some(p => p.id === pn.id))]
   const proveedoresDisponibles = [...proveedores, ...proveedoresNuevos]
-
-  function cancelarNuevoProveedor() {
-    setCreandoProveedor(null)
-    setNuevoProveedorNombre('')
-  }
-
-  async function crearProveedorInline() {
-    if (!nuevoProveedorNombre.trim() || !creandoProveedor) return
-    setCreandoProveedorLoading(true)
-    const nuevo = await crearProveedorRapido(constructoraId, nuevoProveedorNombre)
-    setCreandoProveedorLoading(false)
-    if (!nuevo) {
-      if (creandoProveedor === 'recepcion') setRecepcionError('Error al crear el proveedor')
-      else setAcopioError('Error al crear el proveedor')
-      return
-    }
-    setProveedoresNuevos(prev => [...prev, { id: nuevo.id, razon_social: nuevo.razon_social }])
-    if (creandoProveedor === 'recepcion') setRecepcionForm(f => ({ ...f, proveedor_id: nuevo.id }))
-    else setAcopioForm(f => ({ ...f, proveedor_id: nuevo.id }))
-    cancelarNuevoProveedor()
-  }
 
   const ordenesFiltradas = ordenes
     .filter(o => filtroEstado === 'todos' || o.estado === filtroEstado)
@@ -553,7 +528,6 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
     setRecepcionForm({ proveedor_id: '', fecha: new Date().toISOString().split('T')[0], moneda: 'ARS', notas: '', iva: '', percepciones: '', numero_comprobante: '', monto: '' })
     setRecepcionItems({})
     setRecepcionError(null)
-    cancelarNuevoProveedor()
   }
 
   function actualizarRecepcionItem(itemId: string, campo: 'cantidad' | 'precio', valor: string) {
@@ -747,7 +721,6 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
   function openNuevoAcopio() {
     setAcopioForm(EMPTY_ACOPIO_FORM)
     setAcopioError(null)
-    cancelarNuevoProveedor()
     setShowAcopioForm(true)
   }
 
@@ -1438,28 +1411,15 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Proveedor *</label>
-                    {creandoProveedor === 'recepcion' ? (
-                      <div className="flex gap-2">
-                        <input autoFocus value={nuevoProveedorNombre}
-                          onChange={e => setNuevoProveedorNombre(e.target.value)}
-                          placeholder="Razón social"
-                          className="flex-1 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                        <button type="button" onClick={crearProveedorInline} disabled={creandoProveedorLoading || !nuevoProveedorNombre.trim()}
-                          className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
-                          {creandoProveedorLoading ? '...' : 'Crear'}
-                        </button>
-                        <button type="button" onClick={cancelarNuevoProveedor}
-                          className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-600">Cancelar</button>
-                      </div>
-                    ) : (
-                      <select required value={recepcionForm.proveedor_id}
-                        onChange={e => e.target.value === '__nuevo__' ? setCreandoProveedor('recepcion') : setRecepcionForm(f => ({ ...f, proveedor_id: e.target.value }))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="">Elegir...</option>
-                        {proveedoresDisponibles.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
-                        <option value="__nuevo__">+ Agregar proveedor nuevo</option>
-                      </select>
-                    )}
+                    <ProveedorSelect
+                      proveedores={proveedoresDisponibles}
+                      onCreated={p => setProveedoresNuevos(prev => [...prev, { id: p.id, razon_social: p.razon_social }])}
+                      value={recepcionForm.proveedor_id}
+                      onChange={id => setRecepcionForm(f => ({ ...f, proveedor_id: id }))}
+                      constructoraId={constructoraId}
+                      required
+                      emptyLabel="Elegir..."
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Fecha *</label>
@@ -1721,28 +1681,15 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Proveedor *</label>
-                    {creandoProveedor === 'acopio' ? (
-                      <div className="flex gap-1">
-                        <input autoFocus value={nuevoProveedorNombre}
-                          onChange={e => setNuevoProveedorNombre(e.target.value)}
-                          placeholder="Razón social"
-                          className="flex-1 min-w-0 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                        <button type="button" onClick={crearProveedorInline} disabled={creandoProveedorLoading || !nuevoProveedorNombre.trim()}
-                          className="px-2 py-2 bg-indigo-600 text-white rounded-lg text-xs font-medium disabled:opacity-50">
-                          {creandoProveedorLoading ? '...' : 'Crear'}
-                        </button>
-                        <button type="button" onClick={cancelarNuevoProveedor}
-                          className="px-2 py-2 border border-slate-300 rounded-lg text-xs text-slate-600">✕</button>
-                      </div>
-                    ) : (
-                      <select required value={acopioForm.proveedor_id}
-                        onChange={e => e.target.value === '__nuevo__' ? setCreandoProveedor('acopio') : setAcopioForm(f => ({ ...f, proveedor_id: e.target.value }))}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="">Elegir...</option>
-                        {proveedoresDisponibles.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
-                        <option value="__nuevo__">+ Agregar proveedor nuevo</option>
-                      </select>
-                    )}
+                    <ProveedorSelect
+                      proveedores={proveedoresDisponibles}
+                      onCreated={p => setProveedoresNuevos(prev => [...prev, { id: p.id, razon_social: p.razon_social }])}
+                      value={acopioForm.proveedor_id}
+                      onChange={id => setAcopioForm(f => ({ ...f, proveedor_id: id }))}
+                      constructoraId={constructoraId}
+                      required
+                      emptyLabel="Elegir..."
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Proyecto</label>

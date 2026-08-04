@@ -35,6 +35,7 @@ export default function CuentaPropiaSelect({
   const [nombre, setNombre] = useState('')
   const [tipo, setTipo] = useState<'banco' | 'caja'>('banco')
   const [monedaNueva, setMonedaNueva] = useState<'ARS' | 'USD'>(moneda === 'USD' ? 'USD' : 'ARS')
+  const [saldoInicial, setSaldoInicial] = useState('0')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -45,6 +46,7 @@ export default function CuentaPropiaSelect({
     setNombre('')
     setTipo('banco')
     setMonedaNueva(moneda === 'USD' ? 'USD' : 'ARS')
+    setSaldoInicial('0')
     setError(null)
   }
 
@@ -52,7 +54,10 @@ export default function CuentaPropiaSelect({
     if (!nombre.trim()) return
     setLoading(true)
     setError(null)
-    const nueva = await crearCuentaPropiaRapida(constructoraId, nombre, tipo, (moneda ?? monedaNueva) as 'ARS' | 'USD', obraId)
+    const nueva = await crearCuentaPropiaRapida(
+      constructoraId, nombre, tipo, (moneda ?? monedaNueva) as 'ARS' | 'USD', obraId,
+      parseFloat(saldoInicial) || 0
+    )
     setLoading(false)
     if (!nueva) { setError('Error al crear la cuenta'); return }
     onCreated?.(nueva)
@@ -66,7 +71,7 @@ export default function CuentaPropiaSelect({
         <div className={cn('grid gap-2', moneda ? 'grid-cols-2' : 'grid-cols-3')}>
           <input autoFocus value={nombre} onChange={e => setNombre(e.target.value)}
             placeholder="Nombre de la cuenta"
-            className={cn(moneda ? 'col-span-1' : 'col-span-1', 'px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500')} />
+            className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           <select value={tipo} onChange={e => setTipo(e.target.value as 'banco' | 'caja')}
             className="px-2 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
             <option value="banco">Banco</option>
@@ -79,6 +84,11 @@ export default function CuentaPropiaSelect({
               <option value="USD">USD</option>
             </select>
           )}
+          <div className={moneda ? 'col-span-2' : 'col-span-3'}>
+            <input type="number" step="0.01" value={saldoInicial} onChange={e => setSaldoInicial(e.target.value)}
+              placeholder="Saldo inicial"
+              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={crear} disabled={loading || !nombre.trim()}

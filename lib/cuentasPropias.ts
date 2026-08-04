@@ -11,7 +11,8 @@ export async function crearCuentaPropiaRapida(
   nombre: string,
   tipo: 'banco' | 'caja',
   moneda: 'ARS' | 'USD',
-  obraId?: string | null
+  obraId?: string | null,
+  saldoInicial?: number
 ): Promise<CuentaPropia | null> {
   const nombreLimpio = nombre.trim()
   if (!nombreLimpio) return null
@@ -24,7 +25,7 @@ export async function crearCuentaPropiaRapida(
       nombre: nombreLimpio,
       tipo,
       moneda,
-      saldo_inicial: 0,
+      saldo_inicial: saldoInicial ?? 0,
     })
     .select('*')
     .single()

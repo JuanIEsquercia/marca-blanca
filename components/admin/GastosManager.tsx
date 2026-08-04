@@ -6,13 +6,13 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
-import { crearProveedorRapido } from '@/lib/proveedores'
 import type { Gasto, Proveedor, CuentaProveedor, CategoriaCosto, CuentaPropia } from '@/types/database'
 import ConfirmModal from './ConfirmModal'
 import PlanDePagoModal from './PlanDePagoModal'
 import CuotasList from './CuotasList'
 import IvaCalculator from './IvaCalculator'
 import CuentaPropiaSelect from './CuentaPropiaSelect'
+import ProveedorSelect from './ProveedorSelect'
 
 type ConfirmModalState = { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => Promise<void> }
 
@@ -91,12 +91,9 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
 
   // "+ Agregar proveedor nuevo" en el selector: en vez de cortar la carga
   // del gasto para ir a Proveedores, el select se convierte en un mini-form
-  // (solo razón social) sin perder lo ya completado — mismo criterio que
-  // "+ Agregar producto nuevo" en Compras.
+  // (ProveedorSelect, mismos campos que el alta completa) sin perder lo ya
+  // completado — mismo criterio que "+ Agregar producto nuevo" en Compras.
   const [proveedoresNuevos, setProveedoresNuevos] = useState<Proveedor[]>([])
-  const [creandoProveedor, setCreandoProveedor] = useState(false)
-  const [nuevoProveedorNombre, setNuevoProveedorNombre] = useState('')
-  const [creandoProveedorLoading, setCreandoProveedorLoading] = useState(false)
   const [cuentasNuevas, setCuentasNuevas] = useState<CuentaPropia[]>([])
 
   // Pago modal
@@ -119,34 +116,6 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   const [pagoLoteError, setPagoLoteError] = useState<string | null>(null)
 
   function refresh() { startTransition(() => router.refresh()) }
-
-  const proveedoresDisponibles = [...proveedores.filter(p => p.activo), ...proveedoresNuevos]
-
-  function elegirProveedor(valor: string) {
-    if (valor === '__nuevo__') {
-      setCreandoProveedor(true)
-      setForm(f => ({ ...f, proveedor_id: '', cuenta_proveedor_id: '', certificado_id: '' }))
-    } else {
-      setForm(f => ({ ...f, proveedor_id: valor, cuenta_proveedor_id: '', certificado_id: '' }))
-    }
-  }
-
-  function cancelarNuevoProveedor() {
-    setCreandoProveedor(false)
-    setNuevoProveedorNombre('')
-  }
-
-  async function crearProveedorInline() {
-    if (!nuevoProveedorNombre.trim()) return
-    setCreandoProveedorLoading(true)
-    const nuevo = await crearProveedorRapido(constructoraId, nuevoProveedorNombre)
-    setCreandoProveedorLoading(false)
-    if (!nuevo) { setError('Error al crear el proveedor'); return }
-    setProveedoresNuevos(prev => [...prev, nuevo])
-    setForm(f => ({ ...f, proveedor_id: nuevo.id }))
-    setCreandoProveedor(false)
-    setNuevoProveedorNombre('')
-  }
 
   // Cuentas del proveedor seleccionado
   const ctasProveedor: CuentaProveedor[] = form.proveedor_id
@@ -175,7 +144,6 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
     setComprobanteUrl('')
     setError(null)
     setAvisoEscaneo(null)
-    cancelarNuevoProveedor()
     setShowForm(true)
   }
 
@@ -206,7 +174,6 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
     setComprobanteUrl(g.comprobante_url ?? '')
     setError(null)
     setAvisoEscaneo(null)
-    cancelarNuevoProveedor()
     setShowForm(true)
   }
 
@@ -886,30 +853,13 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
 
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Proveedor</label>
-                {creandoProveedor ? (
-                  <div className="flex gap-2">
-                    <input autoFocus value={nuevoProveedorNombre}
-                      onChange={e => setNuevoProveedorNombre(e.target.value)}
-                      placeholder="Razón social"
-                      className="flex-1 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                    <button type="button" onClick={crearProveedorInline} disabled={creandoProveedorLoading || !nuevoProveedorNombre.trim()}
-                      className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
-                      {creandoProveedorLoading ? '...' : 'Crear'}
-                    </button>
-                    <button type="button" onClick={cancelarNuevoProveedor}
-                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-600">Cancelar</button>
-                  </div>
-                ) : (
-                  <select value={form.proveedor_id}
-                    onChange={e => elegirProveedor(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">Sin proveedor</option>
-                    {proveedoresDisponibles.map(p => (
-                      <option key={p.id} value={p.id}>{p.razon_social}</option>
-                    ))}
-                    <option value="__nuevo__">+ Agregar proveedor nuevo</option>
-                  </select>
-                )}
+                <ProveedorSelect
+                  proveedores={[...proveedores.filter(p => p.activo), ...proveedoresNuevos]}
+                  onCreated={p => setProveedoresNuevos(prev => [...prev, p])}
+                  value={form.proveedor_id}
+                  onChange={id => setForm(f => ({ ...f, proveedor_id: id, cuenta_proveedor_id: '', certificado_id: '' }))}
+                  constructoraId={constructoraId}
+                  emptyLabel="Sin proveedor" />
               </div>
 
               {form.proveedor_id && certificadosDelProveedor.length > 0 && (

@@ -39,7 +39,7 @@ export default async function GastosPage({ searchParams }: Props) {
     .order('fecha_vencimiento', { ascending: true })
   if (!verHistorialCompleto) gastosPagadosQuery = gastosPagadosQuery.gte('fecha_pago', ventanaInicio)
 
-  const [{ data: gastosPagados }, { data: gastosPendientes }, { data: proveedores }, { data: categorias }, { data: cuentasPropias }] =
+  const [{ data: gastosPagados }, { data: gastosPendientes }, { data: proveedores }, { data: categorias }, { data: cuentasPropias }, { data: obras }] =
     await Promise.all([
       gastosPagadosQuery,
       supabase
@@ -59,10 +59,18 @@ export default async function GastosPage({ searchParams }: Props) {
         .eq('constructora_id', ctx.constructoraId)
         .order('nombre'),
       supabase.from('cuentas_propias').select('*').eq('constructora_id', ctx.constructoraId).eq('activa', true).order('nombre'),
+      // Esta vista mezcla gastos de TODOS los proyectos — a diferencia de
+      // /admin/proyectos/[obraId]/gastos (que ya filtra cuentas según el
+      // modo_cuentas de ESA obra), acá GastosManager necesita saber el modo
+      // de CADA obra para no ofrecer, al pagar un gasto puntual, las cuentas
+      // específicas de un proyecto que no tiene nada que ver.
+      supabase.from('obras').select('id, modo_cuentas').eq('constructora_id', ctx.constructoraId),
     ])
 
   const gastos = [...(gastosPendientes ?? []), ...(gastosPagados ?? [])]
     .sort((a, b) => a.fecha_vencimiento.localeCompare(b.fecha_vencimiento))
+
+  const obrasModoCuentas = Object.fromEntries((obras ?? []).map(o => [o.id, o.modo_cuentas]))
 
   return (
     <div>
@@ -75,6 +83,7 @@ export default async function GastosPage({ searchParams }: Props) {
         proveedores={proveedores ?? []}
         categorias={categorias ?? []}
         cuentasPropias={cuentasPropias ?? []}
+        obrasModoCuentas={obrasModoCuentas}
         constructoraId={ctx.constructoraId}
         readOnly={!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'gastos', null)}
         historialAcotado={!verHistorialCompleto}

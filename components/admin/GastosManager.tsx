@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
-import type { Gasto, Proveedor, CuentaProveedor, CategoriaCosto, CuentaPropia } from '@/types/database'
+import type { Gasto, Proveedor, CuentaProveedor, CategoriaCosto, CuentaPropia, ModoCuentas } from '@/types/database'
 import ConfirmModal from './ConfirmModal'
 import PlanDePagoModal from './PlanDePagoModal'
 import CuotasList from './CuotasList'
@@ -28,6 +28,14 @@ interface Props {
   proveedores: Proveedor[]
   categorias: CategoriaCosto[]
   cuentasPropias: CuentaPropia[]
+  // Modo de cada obra (empresa = pool compartido, específicas = cuentas
+  // propias de ese proyecto) — solo lo pasa la vista de empresa
+  // (app/admin/gastos/page.tsx), que mezcla gastos de todos los proyectos y
+  // por eso necesita filtrar qué cuentas corresponden a CADA gasto puntual
+  // al pagarlo. La vista por proyecto ya viene con cuentasPropias
+  // pre-filtrada a un solo proyecto (ver su página), así que no lo pasa —
+  // el default {} hace que cuentasPermitidasParaObra() no restrinja nada.
+  obrasModoCuentas?: Record<string, ModoCuentas>
   constructoraId: string
   obraId?: string
   readOnly?: boolean
@@ -75,7 +83,7 @@ function pctDesdeNetoEIva(neto: number | null | undefined, iva: number | null | 
   return redondear2((iva / neto) * 100)
 }
 
-export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias, constructoraId, obraId, readOnly, historialAcotado, contratosSubcontratista = [], puedeCrearProveedor, puedeCrearCuenta }: Props) {
+export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias, obrasModoCuentas = {}, constructoraId, obraId, readOnly, historialAcotado, contratosSubcontratista = [], puedeCrearProveedor, puedeCrearCuenta }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [, startTransition] = useTransition()
@@ -122,6 +130,21 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   const [pagoLoteError, setPagoLoteError] = useState<string | null>(null)
 
   function refresh() { startTransition(() => router.refresh()) }
+
+  // Qué cuentas corresponden a un gasto puntual — en la vista de empresa
+  // (obrasModoCuentas viene poblado) un gasto de una obra "específicas" solo
+  // puede pagarse con SUS propias cuentas, nunca con las de otro proyecto ni
+  // con el pool; un gasto sin obra (o de una obra "empresa") solo con el
+  // pool. En la vista por proyecto (obrasModoCuentas = {}) no hay info para
+  // decidir esto acá — cuentasPropias ya viene pre-filtrada por la página,
+  // así que no se restringe de nuevo.
+  function cuentasPermitidasParaObra(obraId: string | null): CuentaPropia[] {
+    if (obraId === null) return cuentasPropias.filter(c => c.activa && c.obra_id === null)
+    const modo = obrasModoCuentas[obraId]
+    if (modo === undefined) return cuentasPropias.filter(c => c.activa)
+    if (modo === 'especificas') return cuentasPropias.filter(c => c.activa && c.obra_id === obraId)
+    return cuentasPropias.filter(c => c.activa && c.obra_id === null)
+  }
 
   // Cuentas del proveedor seleccionado
   const ctasProveedor: CuentaProveedor[] = form.proveedor_id
@@ -419,6 +442,18 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   const obraIdLote = obrasSeleccionadas.length === 1 ? obrasSeleccionadas[0] : null
   const monedaLote = monedasSeleccionadas.length === 1 ? monedasSeleccionadas[0] : null
 
+  // Cuentas válidas para TODOS los gastos del lote a la vez — intersección
+  // de lo permitido por cada obra involucrada (mismo criterio que
+  // cuentasPermitidasParaObra). Si el lote mezcla proyectos con cuentas
+  // específicas distintas, la intersección da vacío — correcto: no existe
+  // una única cuenta válida para pagarlos juntos.
+  function cuentasPermitidasParaLote(): CuentaPropia[] {
+    if (obrasSeleccionadas.length === 0) return []
+    const idsPorObra = obrasSeleccionadas.map(o => new Set(cuentasPermitidasParaObra(o).map(c => c.id)))
+    const idsComunes = idsPorObra.reduce((acc, ids) => new Set([...acc].filter(id => ids.has(id))))
+    return cuentasPropias.filter(c => idsComunes.has(c.id))
+  }
+
   function abrirPagoLote() {
     setPagoLoteForm({ cuenta_propia_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
     setPagoLoteError(null)
@@ -668,7 +703,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   <tr>
                     <td colSpan={readOnly ? 7 : 8} className="px-4 py-3 bg-slate-50/50">
                       <CuotasList entidad="gasto" cuotas={g.gasto_pagos ?? []} moneda={g.moneda}
-                        cuentasPropias={cuentasPropias} constructoraId={constructoraId} obraId={g.obra_id}
+                        cuentasPropias={cuentasPermitidasParaObra(g.obra_id)} constructoraId={constructoraId} obraId={g.obra_id}
                         puedeCrearCuenta={puedeCrearCuenta} readOnly={readOnly} onChanged={refresh} />
                     </td>
                   </tr>
@@ -699,7 +734,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta desde la que se pagó *</label>
                 <CuentaPropiaSelect
-                  cuentas={[...cuentasPropias.filter(c => c.activa), ...cuentasNuevas]}
+                  cuentas={[...cuentasPermitidasParaObra(pagandoGasto.obra_id), ...cuentasNuevas]}
                   onCreated={c => setCuentasNuevas(prev => [...prev, c])}
                   value={pagoForm.cuenta_propia_id}
                   onChange={id => setPagoForm(f => ({ ...f, cuenta_propia_id: id }))}
@@ -756,7 +791,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta desde la que se pagó *</label>
                 <CuentaPropiaSelect
-                  cuentas={[...cuentasPropias.filter(c => c.activa), ...cuentasNuevas]}
+                  cuentas={[...cuentasPermitidasParaLote(), ...cuentasNuevas]}
                   onCreated={c => setCuentasNuevas(prev => [...prev, c])}
                   value={pagoLoteForm.cuenta_propia_id}
                   onChange={id => setPagoLoteForm(f => ({ ...f, cuenta_propia_id: id }))}
@@ -1066,7 +1101,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
           montoTotal={planDePagoTarget.monto}
           moneda={planDePagoTarget.moneda}
           cuotasExistentes={planDePagoTarget.gasto_pagos ?? []}
-          cuentasPropias={cuentasPropias}
+          cuentasPropias={cuentasPermitidasParaObra(planDePagoTarget.obra_id)}
           constructoraId={constructoraId}
           obraId={planDePagoTarget.obra_id}
           puedeCrearCuenta={puedeCrearCuenta}

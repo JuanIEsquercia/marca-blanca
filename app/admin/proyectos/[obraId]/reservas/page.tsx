@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getProyectoContext } from '@/lib/tenant'
+import { puedeAcceder } from '@/lib/permisos'
 import ReservasManager from '@/components/admin/ReservasManager'
 import type { Metadata } from 'next'
 
@@ -34,6 +35,7 @@ export default async function ReservasPage({ params }: { params: Promise<{ obraI
         cuentasPropias={cuentasPropias ?? []}
         constructoraId={ctx.constructoraId}
         readOnly={ctx.obraEstado === 'finalizada'}
+        puedeCrearCuenta={puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'cuentas', obraId)}
       />
     </div>
   )

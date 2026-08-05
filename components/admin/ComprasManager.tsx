@@ -109,6 +109,9 @@ interface Props {
   acopiosResumen: AcopioResumenRow[]
   constructoraId: string
   constructoraNombre: string
+  // 'proveedores' es un módulo de empresa aparte de 'compras' — ver
+  // ProveedorSelect.tsx.
+  puedeCrearProveedor: boolean
 }
 
 type ConfirmState = { title: string; message: string; confirmLabel?: string; onConfirm: () => Promise<void> }
@@ -150,7 +153,7 @@ const EMPTY_RETIRO_FORM = {
   creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad',
 }
 
-export default function ComprasManager({ ordenes, productos, proveedores, obras, categorias, stockResumen, acopios, acopiosResumen, constructoraId, constructoraNombre }: Props) {
+export default function ComprasManager({ ordenes, productos, proveedores, obras, categorias, stockResumen, acopios, acopiosResumen, constructoraId, constructoraNombre, puedeCrearProveedor }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
@@ -1417,6 +1420,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                       value={recepcionForm.proveedor_id}
                       onChange={id => setRecepcionForm(f => ({ ...f, proveedor_id: id }))}
                       constructoraId={constructoraId}
+                      puedeCrear={puedeCrearProveedor}
                       required
                       emptyLabel="Elegir..."
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -1687,6 +1691,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                       value={acopioForm.proveedor_id}
                       onChange={id => setAcopioForm(f => ({ ...f, proveedor_id: id }))}
                       constructoraId={constructoraId}
+                      puedeCrear={puedeCrearProveedor}
                       required
                       emptyLabel="Elegir..."
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getProyectoContext } from '@/lib/tenant'
+import { puedeAcceder } from '@/lib/permisos'
 import CobrosObraManager from '@/components/admin/CobrosObraManager'
 import type { Metadata } from 'next'
 
@@ -70,6 +71,7 @@ export default async function CobrosPage({ params }: { params: Promise<{ obraId:
         obraId={obraId}
         constructoraId={ctx.constructoraId}
         readOnly={ctx.obraEstado === 'finalizada'}
+        puedeCrearCuenta={puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'cuentas', obraId)}
       />
     </div>
   )

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getProyectoContext } from '@/lib/tenant'
+import { puedeAcceder } from '@/lib/permisos'
 import ContratosManager from '@/components/admin/ContratosManager'
 import type { Metadata } from 'next'
 
@@ -41,7 +42,9 @@ export default async function ContratosPage({ params }: { params: Promise<{ obra
       unidadesDisponibles={unidadesDisponibles ?? []}
       cuentasPropias={cuentasPropias ?? []}
       constructoraId={ctx.constructoraId}
+      obraId={obraId}
       readOnly={ctx.obraEstado === 'finalizada'}
+      puedeCrearCuenta={puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'cuentas', obraId)}
     />
   )
 }

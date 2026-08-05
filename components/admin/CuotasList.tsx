@@ -15,6 +15,8 @@ interface Props {
   moneda: string
   cuentasPropias: CuentaPropia[]
   constructoraId: string
+  obraId: string | null
+  puedeCrearCuenta: boolean
   readOnly?: boolean
   onChanged: () => void
 }
@@ -22,7 +24,7 @@ interface Props {
 // Detalle de las cuotas de un plan de pago, compartido por gastos y cobros
 // — mismo componente, cada uno pasa su tabla/estado vía `entidad`. Vive
 // expandido debajo de la fila del gasto/cobro en el manager correspondiente.
-export default function CuotasList({ entidad, cuotas, moneda, cuentasPropias, constructoraId, readOnly, onChanged }: Props) {
+export default function CuotasList({ entidad, cuotas, moneda, cuentasPropias, constructoraId, obraId, puedeCrearCuenta, readOnly, onChanged }: Props) {
   const tabla = entidad === 'gasto' ? 'gasto_pagos' : 'cobro_pagos'
   const estadoLiquidado = entidad === 'gasto' ? 'Pagado' : 'Cobrado'
   const verbo = entidad === 'gasto' ? 'Pagar' : 'Cobrar'
@@ -110,6 +112,8 @@ export default function CuotasList({ entidad, cuotas, moneda, cuentasPropias, co
                   value={form.cuenta_propia_id}
                   onChange={id => setForm(f => ({ ...f, cuenta_propia_id: id }))}
                   constructoraId={constructoraId}
+                  obraId={obraId}
+                  puedeCrear={puedeCrearCuenta}
                   moneda={moneda}
                   emptyLabel="Seleccionar cuenta..." />
               </div>

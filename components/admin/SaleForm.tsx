@@ -20,9 +20,10 @@ interface Props {
   reservaId?: string
   compradorPreFill?: CompradorPreFill
   constructoraId?: string
+  puedeCrearCuenta: boolean
 }
 
-export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compradorPreFill, constructoraId }: Props) {
+export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compradorPreFill, constructoraId, puedeCrearCuenta }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cuentasPropias, setCuentasPropias] = useState<CuentaPropia[]>([])
@@ -252,6 +253,8 @@ export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compra
                   value={cuentaPropiaId}
                   onChange={setCuentaPropiaId}
                   constructoraId={constructoraId ?? ''}
+                  obraId={unidad.obra_id}
+                  puedeCrear={puedeCrearCuenta}
                   emptyLabel="Sin asignar" />
               </div>
               <div className="col-span-2">

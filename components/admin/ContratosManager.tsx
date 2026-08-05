@@ -33,6 +33,8 @@ interface Props {
   unidadesDisponibles: UnidadConTipologia[]
   cuentasPropias: CuentaPropia[]
   constructoraId: string
+  obraId: string
+  puedeCrearCuenta: boolean
   readOnly?: boolean
 }
 
@@ -50,7 +52,7 @@ interface EditState {
   notas: string
 }
 
-export default function ContratosManager({ contratos, unidadesDisponibles, cuentasPropias, constructoraId, readOnly = false }: Props) {
+export default function ContratosManager({ contratos, unidadesDisponibles, cuentasPropias, constructoraId, obraId, puedeCrearCuenta, readOnly = false }: Props) {
   const router = useRouter()
   const today = new Date().toISOString().split('T')[0]
   const [, startTransition] = useTransition()
@@ -905,6 +907,8 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                   value={pagoCuenta}
                   onChange={setPagoCuenta}
                   constructoraId={constructoraId}
+                  obraId={obraId}
+                  puedeCrear={puedeCrearCuenta}
                   moneda="USD"
                   emptyLabel="Sin asignar" />
               </div>
@@ -1063,6 +1067,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
           onClose={() => setUnidadSeleccionada(null)}
           onSuccess={handleVentaSuccess}
           constructoraId={constructoraId}
+          puedeCrearCuenta={puedeCrearCuenta}
         />
       )}
 

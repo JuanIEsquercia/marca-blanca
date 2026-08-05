@@ -11,9 +11,10 @@ interface Props {
   onClose: () => void
   onSuccess: () => void
   constructoraId?: string
+  puedeCrearCuenta: boolean
 }
 
-export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId }: Props) {
+export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId, puedeCrearCuenta }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cuentasPropias, setCuentasPropias] = useState<CuentaPropia[]>([])
@@ -205,6 +206,8 @@ export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId
                   value={cuentaPropiaId}
                   onChange={setCuentaPropiaId}
                   constructoraId={constructoraId ?? ''}
+                  obraId={unidad.obra_id}
+                  puedeCrear={puedeCrearCuenta}
                   emptyLabel="Sin asignar" />
               </div>
               <div className="col-span-2">

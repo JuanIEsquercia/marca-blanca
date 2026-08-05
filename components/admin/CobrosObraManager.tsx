@@ -28,6 +28,7 @@ interface Props {
   contratos: ContratoRef[]
   obraId: string
   constructoraId: string
+  puedeCrearCuenta: boolean
   readOnly?: boolean
 }
 
@@ -37,7 +38,7 @@ const mkEmptyCobro = (contratoId: string, moneda: string) => ({
   monto_neto: '', iva: '', percepciones: '', numero_comprobante: '',
 })
 
-export default function CobrosObraManager({ cobros, cuentasPropias, certificados, contratos, obraId, constructoraId, readOnly = false }: Props) {
+export default function CobrosObraManager({ cobros, cuentasPropias, certificados, contratos, obraId, constructoraId, puedeCrearCuenta, readOnly = false }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [filtro, setFiltro] = useState<FiltroCobro>('todos')
@@ -366,7 +367,8 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
               {expandedCobroId === cobro.id && (
                 <div className="px-5 pb-4">
                   <CuotasList entidad="cobro" cuotas={cuotas} moneda={cobro.moneda}
-                    cuentasPropias={cuentasPropias} constructoraId={constructoraId} readOnly={readOnly} onChanged={refresh} />
+                    cuentasPropias={cuentasPropias} constructoraId={constructoraId} obraId={obraId}
+                    puedeCrearCuenta={puedeCrearCuenta} readOnly={readOnly} onChanged={refresh} />
                 </div>
               )}
               </div>
@@ -549,6 +551,8 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
                   value={pagoForm.cuenta_propia_id}
                   onChange={id => setPagoForm(f => ({ ...f, cuenta_propia_id: id }))}
                   constructoraId={constructoraId}
+                  obraId={obraId}
+                  puedeCrear={puedeCrearCuenta}
                   moneda={pagoTarget.moneda}
                   emptyLabel="— Sin cuenta asignada —" />
               </div>
@@ -575,6 +579,8 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
           moneda={planDePagoTarget.moneda}
           cuotasExistentes={planDePagoTarget.cobro_pagos ?? []}
           constructoraId={constructoraId}
+          obraId={obraId}
+          puedeCrearCuenta={puedeCrearCuenta}
           onClose={() => setPlanDePagoTarget(null)}
           onSaved={() => { setExpandedCobroId(planDePagoTarget.id); setPlanDePagoTarget(null); refresh() }}
         />

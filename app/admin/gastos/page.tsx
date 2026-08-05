@@ -78,6 +78,8 @@ export default async function GastosPage({ searchParams }: Props) {
         constructoraId={ctx.constructoraId}
         readOnly={!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'gastos', null)}
         historialAcotado={!verHistorialCompleto}
+        puedeCrearProveedor={puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'proveedores', null)}
+        puedeCrearCuenta={puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'cuentas', null)}
       />
     </div>
   )

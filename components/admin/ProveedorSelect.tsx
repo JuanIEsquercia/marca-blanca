@@ -16,6 +16,13 @@ interface Props {
   // CuentaPropiaSelect/productosNuevos.
   onCreated?: (proveedor: Proveedor) => void
   constructoraId: string
+  // 'proveedores' es un módulo de empresa (lib/permisos.ts) — quien tiene
+  // 'gastos'/'compras'/'certificados' en un proyecto no necesariamente lo
+  // tiene. La base ya rechaza el insert vía RLS si no corresponde (defensa
+  // real), pero mostrar la opción para que falle recién al tocar "Crear"
+  // es inconsistente con cómo el resto del sistema oculta lo no permitido
+  // (ver readOnly en cada Manager) — por eso se oculta también acá.
+  puedeCrear: boolean
   required?: boolean
   emptyLabel?: string
   className?: string
@@ -27,7 +34,7 @@ const EMPTY_FORM = { razon_social: '', cuit: '', telefono: '', email: '', direcc
 // dejar un proveedor "a medias" solo por haberlo creado desde acá en vez
 // de la sección Proveedores.
 export default function ProveedorSelect({
-  proveedores, value, onChange, onCreated, constructoraId, required, emptyLabel = 'Sin proveedor', className,
+  proveedores, value, onChange, onCreated, constructoraId, puedeCrear, required, emptyLabel = 'Sin proveedor', className,
 }: Props) {
   const [creando, setCreando] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -52,7 +59,7 @@ export default function ProveedorSelect({
     cancelar()
   }
 
-  if (creando) {
+  if (creando && puedeCrear) {
     return (
       <div className="space-y-2 border border-indigo-200 rounded-lg p-3 bg-indigo-50/40">
         <input autoFocus value={form.razon_social} onChange={e => setForm(f => ({ ...f, razon_social: e.target.value }))}
@@ -94,7 +101,7 @@ export default function ProveedorSelect({
       className={className ?? 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500'}>
       <option value="">{emptyLabel}</option>
       {proveedores.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
-      <option value="__nuevo__">+ Agregar proveedor nuevo</option>
+      {puedeCrear && <option value="__nuevo__">+ Agregar proveedor nuevo</option>}
     </select>
   )
 }

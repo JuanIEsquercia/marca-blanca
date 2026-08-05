@@ -21,11 +21,13 @@ interface Props {
   cuentasPropias: CuentaPropia[]
   constructoraId: string
   obraId: string
+  puedeCrearProveedor: boolean
+  puedeCrearCuenta: boolean
   readOnly?: boolean
   rubros?: string[]
 }
 
-export default function CertificadosManager({ contratos, certificados, contratoObraItems = [], proveedores = [], cuentasPropias, constructoraId, obraId, readOnly = false, rubros = [] }: Props) {
+export default function CertificadosManager({ contratos, certificados, contratoObraItems = [], proveedores = [], cuentasPropias, constructoraId, obraId, puedeCrearProveedor, puedeCrearCuenta, readOnly = false, rubros = [] }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [loading, setLoading] = useState(false)
@@ -189,6 +191,7 @@ export default function CertificadosManager({ contratos, certificados, contratoO
               cuentasPropias={cuentasPropias}
               constructoraId={constructoraId}
               obraId={obraId}
+              puedeCrearCuenta={puedeCrearCuenta}
               readOnly={readOnly}
               rubros={rubros}
               onChanged={refresh}
@@ -250,6 +253,7 @@ export default function CertificadosManager({ contratos, certificados, contratoO
                       value={contratoProveedorId}
                       onChange={setContratoProveedorId}
                       constructoraId={constructoraId}
+                      puedeCrear={puedeCrearProveedor}
                       required
                       emptyLabel="Elegir proveedor..." />
                   </div>

@@ -31,6 +31,12 @@ interface Props {
   constructoraId: string
   obraId?: string
   readOnly?: boolean
+  // 'proveedores'/'cuentas' son módulos aparte de 'gastos' (lib/permisos.ts)
+  // — tener acceso a Gastos no implica tenerlos. Gatean el "+ Agregar nuevo"
+  // de los selectores inline (la RLS ya lo bloquea si no corresponde; esto
+  // es para no mostrar una acción que va a fallar).
+  puedeCrearProveedor: boolean
+  puedeCrearCuenta: boolean
   // Si la página aplicó la ventana de "últimos 12 meses" a los Pagados
   // (default, para no traer todo el historial de la constructora en cada
   // carga — ver app/admin/gastos/page.tsx). Los Pendientes SIEMPRE vienen
@@ -69,7 +75,7 @@ function pctDesdeNetoEIva(neto: number | null | undefined, iva: number | null | 
   return redondear2((iva / neto) * 100)
 }
 
-export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias, constructoraId, obraId, readOnly, historialAcotado, contratosSubcontratista = [] }: Props) {
+export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias, constructoraId, obraId, readOnly, historialAcotado, contratosSubcontratista = [], puedeCrearProveedor, puedeCrearCuenta }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [, startTransition] = useTransition()
@@ -406,6 +412,11 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
 
   const gastosSeleccionados = gastos.filter(g => seleccionados.has(g.id))
   const monedasSeleccionadas = [...new Set(gastosSeleccionados.map(g => g.moneda))]
+  // Si el lote mezcla obras (o hay algún gasto de empresa sin obra), no hay
+  // un obra_id único al que anclar una cuenta creada al vuelo — se cae al
+  // pool de empresa (obraId null), que la RLS solo deja crear a un admin.
+  const obrasSeleccionadas = [...new Set(gastosSeleccionados.map(g => g.obra_id))]
+  const obraIdLote = obrasSeleccionadas.length === 1 ? obrasSeleccionadas[0] : null
   const monedaLote = monedasSeleccionadas.length === 1 ? monedasSeleccionadas[0] : null
 
   function abrirPagoLote() {
@@ -657,7 +668,8 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   <tr>
                     <td colSpan={readOnly ? 7 : 8} className="px-4 py-3 bg-slate-50/50">
                       <CuotasList entidad="gasto" cuotas={g.gasto_pagos ?? []} moneda={g.moneda}
-                        cuentasPropias={cuentasPropias} constructoraId={constructoraId} readOnly={readOnly} onChanged={refresh} />
+                        cuentasPropias={cuentasPropias} constructoraId={constructoraId} obraId={g.obra_id}
+                        puedeCrearCuenta={puedeCrearCuenta} readOnly={readOnly} onChanged={refresh} />
                     </td>
                   </tr>
                 )}
@@ -692,6 +704,8 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   value={pagoForm.cuenta_propia_id}
                   onChange={id => setPagoForm(f => ({ ...f, cuenta_propia_id: id }))}
                   constructoraId={constructoraId}
+                  obraId={pagandoGasto.obra_id}
+                  puedeCrear={puedeCrearCuenta}
                   moneda={pagandoGasto.moneda}
                   emptyLabel="Seleccionar cuenta..." />
               </div>
@@ -747,6 +761,8 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   value={pagoLoteForm.cuenta_propia_id}
                   onChange={id => setPagoLoteForm(f => ({ ...f, cuenta_propia_id: id }))}
                   constructoraId={constructoraId}
+                  obraId={obraIdLote}
+                  puedeCrear={puedeCrearCuenta}
                   moneda={monedaLote}
                   emptyLabel="Seleccionar cuenta..." />
               </div>
@@ -859,6 +875,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   value={form.proveedor_id}
                   onChange={id => setForm(f => ({ ...f, proveedor_id: id, cuenta_proveedor_id: '', certificado_id: '' }))}
                   constructoraId={constructoraId}
+                  puedeCrear={puedeCrearProveedor}
                   emptyLabel="Sin proveedor" />
               </div>
 
@@ -1051,6 +1068,8 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
           cuotasExistentes={planDePagoTarget.gasto_pagos ?? []}
           cuentasPropias={cuentasPropias}
           constructoraId={constructoraId}
+          obraId={planDePagoTarget.obra_id}
+          puedeCrearCuenta={puedeCrearCuenta}
           onClose={() => setPlanDePagoTarget(null)}
           onSaved={() => { setPlanDePagoTarget(null); setExpandedGastoId(planDePagoTarget.id); refresh() }}
         />

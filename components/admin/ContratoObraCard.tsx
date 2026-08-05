@@ -20,6 +20,7 @@ interface Props {
   cuentasPropias: CuentaPropia[]
   constructoraId: string
   obraId: string
+  puedeCrearCuenta: boolean
   readOnly?: boolean
   rubros?: string[]
   onChanged: () => void
@@ -54,7 +55,7 @@ const EMPTY_REGISTRAR_PAGO = { fecha_pago: new Date().toISOString().split('T')[0
 // siempre) o Pagos a proveedor (contrato con un subcontratista, genera
 // gastos en vez de cobros_proyecto). Extraído de CertificadosManager para
 // poder mostrar varios contratos por proyecto en vez de uno solo.
-export default function ContratoObraCard({ contrato, certificados, contratoObraItems, cuentasPropias, constructoraId, obraId, readOnly = false, rubros = [], onChanged }: Props) {
+export default function ContratoObraCard({ contrato, certificados, contratoObraItems, cuentasPropias, constructoraId, obraId, puedeCrearCuenta, readOnly = false, rubros = [], onChanged }: Props) {
   const esCliente = contrato.tipo === 'cliente'
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
   const [loading, setLoading] = useState(false)
@@ -1058,6 +1059,8 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                   value={registrarPagoForm.cuenta_propia_id}
                   onChange={id => setRegistrarPagoForm(f => ({ ...f, cuenta_propia_id: id }))}
                   constructoraId={constructoraId}
+                  obraId={obraId}
+                  puedeCrear={puedeCrearCuenta}
                   emptyLabel="— Sin cuenta asignada —" />
               </div>
               {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}

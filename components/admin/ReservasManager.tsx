@@ -20,6 +20,7 @@ interface Props {
   reservas: ReservaConRelaciones[]
   cuentasPropias: CuentaPropia[]
   constructoraId: string
+  puedeCrearCuenta: boolean
   readOnly?: boolean
 }
 
@@ -31,7 +32,7 @@ const ESTADO_COLORS: Record<EstadoReserva, string> = {
 
 const FILTROS: (EstadoReserva | 'Todas')[] = ['Todas', 'Vigente', 'Convertida', 'Caída']
 
-export default function ReservasManager({ reservas, cuentasPropias, constructoraId, readOnly = false }: Props) {
+export default function ReservasManager({ reservas, cuentasPropias, constructoraId, puedeCrearCuenta, readOnly = false }: Props) {
   const router = useRouter()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [filtro, setFiltro] = useState<EstadoReserva | 'Todas'>('Todas')
@@ -202,6 +203,7 @@ export default function ReservasManager({ reservas, cuentasPropias, constructora
           onClose={() => setSaleReserva(null)}
           onSuccess={() => { setSaleReserva(null); refresh() }}
           constructoraId={constructoraId}
+          puedeCrearCuenta={puedeCrearCuenta}
         />
       )}
 

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getProyectoContext } from '@/lib/tenant'
+import { puedeAcceder } from '@/lib/permisos'
 import { obtenerRubros } from '@/lib/rubros'
 import CertificadosManager from '@/components/admin/CertificadosManager'
 import type { Metadata } from 'next'
@@ -103,6 +104,8 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
         obraId={obraId}
         readOnly={ctx.obraEstado === 'finalizada'}
         rubros={rubros}
+        puedeCrearProveedor={puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'proveedores', null)}
+        puedeCrearCuenta={puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'cuentas', obraId)}
       />
     </div>
   )

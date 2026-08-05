@@ -22,6 +22,8 @@ interface Props {
   // adonde se DEPOSITA el cheque de un tercero, no algo que se planifique.
   cuentasPropias?: CuentaPropia[]
   constructoraId: string
+  obraId: string | null
+  puedeCrearCuenta: boolean
   onClose: () => void
   onSaved: () => void
 }
@@ -66,7 +68,7 @@ function nuevaCuota(fecha: string, monto = ''): CuotaDraft {
 // Pagadas/Cobradas son inmutables (la base las protege, ver
 // migration_064) y se muestran fijas; las Pendientes o Rechazadas se
 // reemplazan enteras al guardar.
-export default function PlanDePagoModal({ entidad, id, montoTotal, moneda, cuotasExistentes, cuentasPropias = [], constructoraId, onClose, onSaved }: Props) {
+export default function PlanDePagoModal({ entidad, id, montoTotal, moneda, cuotasExistentes, cuentasPropias = [], constructoraId, obraId, puedeCrearCuenta, onClose, onSaved }: Props) {
   const [cuentasNuevas, setCuentasNuevas] = useState<CuentaPropia[]>([])
   const estadoLiquidado = entidad === 'gasto' ? 'Pagado' : 'Cobrado'
   const verbo = entidad === 'gasto' ? 'pago' : 'cobro'
@@ -269,6 +271,8 @@ export default function PlanDePagoModal({ entidad, id, montoTotal, moneda, cuota
                       value={f.cuenta_propia_id}
                       onChange={id => actualizarFila(i, { cuenta_propia_id: id })}
                       constructoraId={constructoraId}
+                      obraId={obraId}
+                      puedeCrear={puedeCrearCuenta}
                       moneda={moneda}
                       emptyLabel="Sin definir todavía"
                       className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />

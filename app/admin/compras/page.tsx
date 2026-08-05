@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
+import { puedeAcceder } from '@/lib/permisos'
 import ComprasManager from '@/components/admin/ComprasManager'
 import type { Metadata } from 'next'
 
@@ -84,6 +85,7 @@ export default async function ComprasPage() {
         acopiosResumen={acopiosResumen ?? []}
         constructoraId={ctx.constructoraId}
         constructoraNombre={ctx.constructoraNombre}
+        puedeCrearProveedor={puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'proveedores', null)}
       />
     </div>
   )

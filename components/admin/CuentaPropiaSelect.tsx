@@ -15,7 +15,18 @@ interface Props {
   // selectores hermanos (ej. una fila más en un plan de pago) también la vean.
   onCreated?: (cuenta: CuentaPropia) => void
   constructoraId: string
-  obraId?: string | null
+  // Obligatorio (no opcional) a propósito: la RLS de cuentas_propias exige
+  // obra_id = una obra donde el usuario tenga 'cuentas' (solo un admin puede
+  // crear con obra_id NULL, pool de empresa) — pasar null "por defecto" sin
+  // pensarlo rompe el alta para cualquier no-admin. null es válido, pero
+  // tiene que ser una decisión explícita del llamador (ver cada call site).
+  obraId: string | null
+  // 'cuentas' es un módulo por-proyecto (lib/permisos.ts) — quien tiene
+  // 'gastos'/'contratos'/'cobros' en un proyecto no necesariamente tiene
+  // 'cuentas' ahí. La base ya rechaza el insert vía RLS si no corresponde,
+  // pero se oculta la opción también acá para no mostrar una acción que va
+  // a fallar — mismo criterio que puedeCrear en ProveedorSelect.
+  puedeCrear: boolean
   // Si se pasa, filtra el selector a esa moneda y la cuenta nueva se crea
   // fija en esa moneda (sin selector) — mismo criterio que los modales de
   // pago que solo aceptan cuentas en la moneda del gasto/cobro. Tipado
@@ -28,7 +39,7 @@ interface Props {
 }
 
 export default function CuentaPropiaSelect({
-  cuentas, value, onChange, onCreated, constructoraId, obraId = null, moneda,
+  cuentas, value, onChange, onCreated, constructoraId, obraId, puedeCrear, moneda,
   required, emptyLabel = 'Sin cuenta asignada', className,
 }: Props) {
   const [creando, setCreando] = useState(false)
@@ -65,7 +76,7 @@ export default function CuentaPropiaSelect({
     cancelar()
   }
 
-  if (creando) {
+  if (creando && puedeCrear) {
     return (
       <div className="space-y-2 border border-indigo-200 rounded-lg p-2 bg-indigo-50/40">
         <div className={cn('grid gap-2', moneda ? 'grid-cols-2' : 'grid-cols-3')}>
@@ -109,7 +120,7 @@ export default function CuentaPropiaSelect({
       className={className ?? 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500'}>
       <option value="">{emptyLabel}</option>
       {disponibles.map(c => <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>)}
-      <option value="__nuevo__">+ Agregar cuenta nueva</option>
+      {puedeCrear && <option value="__nuevo__">+ Agregar cuenta nueva</option>}
     </select>
   )
 }

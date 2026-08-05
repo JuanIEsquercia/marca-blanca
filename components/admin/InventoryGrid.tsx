@@ -23,12 +23,13 @@ interface Props {
   tipologias: Tipologia[]
   obraId: string
   constructoraId: string
+  puedeCrearCuenta: boolean
   readOnly?: boolean
 }
 
 const ESTADOS: EstadoComercial[] = ['Disponible', 'Reservado', 'Vendido']
 
-export default function InventoryGrid({ unidades, tipologias, obraId, constructoraId, readOnly = false }: Props) {
+export default function InventoryGrid({ unidades, tipologias, obraId, constructoraId, puedeCrearCuenta, readOnly = false }: Props) {
   const router = useRouter()
   const [filtro, setFiltro] = useState<EstadoComercial | 'Todos'>('Todos')
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
@@ -290,7 +291,8 @@ export default function InventoryGrid({ unidades, tipologias, obraId, constructo
         <ReservaForm unidad={reservaUnit}
           onClose={() => setReservaUnit(null)}
           onSuccess={() => { setReservaUnit(null); refresh() }}
-          constructoraId={constructoraId} />
+          constructoraId={constructoraId}
+          puedeCrearCuenta={puedeCrearCuenta} />
       )}
 
       {saleUnit && (
@@ -310,6 +312,7 @@ export default function InventoryGrid({ unidades, tipologias, obraId, constructo
           onClose={() => setSaleUnit(null)}
           onSuccess={() => { setSaleUnit(null); refresh() }}
           constructoraId={constructoraId}
+          puedeCrearCuenta={puedeCrearCuenta}
         />
       )}
 

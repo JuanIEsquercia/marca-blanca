@@ -21,6 +21,7 @@ interface Props {
   cuentasPropias: CuentaPropia[]
   constructoraId: string
   puedeCrearCuenta: boolean
+  compradores?: Comprador[]
   readOnly?: boolean
 }
 
@@ -32,7 +33,7 @@ const ESTADO_COLORS: Record<EstadoReserva, string> = {
 
 const FILTROS: (EstadoReserva | 'Todas')[] = ['Todas', 'Vigente', 'Convertida', 'Caída']
 
-export default function ReservasManager({ reservas, cuentasPropias, constructoraId, puedeCrearCuenta, readOnly = false }: Props) {
+export default function ReservasManager({ reservas, cuentasPropias, constructoraId, puedeCrearCuenta, compradores = [], readOnly = false }: Props) {
   const router = useRouter()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [filtro, setFiltro] = useState<EstadoReserva | 'Todas'>('Todas')
@@ -195,6 +196,7 @@ export default function ReservasManager({ reservas, cuentasPropias, constructora
           unidad={saleReserva.unidades}
           reservaId={saleReserva.id}
           compradorPreFill={{
+            compradorId: saleReserva.compradores.id,
             nombre: saleReserva.compradores.nombre_completo,
             dni: saleReserva.compradores.dni_cuit ?? '',
             email: saleReserva.compradores.email ?? '',
@@ -204,6 +206,7 @@ export default function ReservasManager({ reservas, cuentasPropias, constructora
           onSuccess={() => { setSaleReserva(null); refresh() }}
           constructoraId={constructoraId}
           puedeCrearCuenta={puedeCrearCuenta}
+          compradores={compradores}
         />
       )}
 

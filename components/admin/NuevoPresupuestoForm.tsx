@@ -8,13 +8,15 @@ import { redondear2 } from '@/lib/utils'
 import { obtenerOCrearRubro } from '@/lib/rubros'
 import ClienteYFechasForm, { EMPTY_DATOS_GENERALES, ivaPctDeDatosGenerales, type DatosGenerales } from './ClienteYFechasForm'
 import ItemsRubroTable, { nuevaFilaItem, type FilaItem } from './ItemsRubroTable'
+import type { Comprador } from '@/types/database'
 
 interface Props {
   constructoraId: string
   rubros?: string[]
+  compradores?: Pick<Comprador, 'id' | 'nombre_completo' | 'dni_cuit' | 'email' | 'telefono'>[]
 }
 
-export default function NuevoPresupuestoForm({ constructoraId, rubros = [] }: Props) {
+export default function NuevoPresupuestoForm({ constructoraId, rubros = [], compradores = [] }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -28,6 +30,19 @@ export default function NuevoPresupuestoForm({ constructoraId, rubros = [] }: Pr
     setLoading(true)
     setError(null)
     const supabase = createClient()
+
+    // presupuestos no tiene FK a compradores (guarda el cliente como
+    // texto) — pero si se eligió uno existente y se pidió actualizarlo,
+    // sincronizamos igual ese registro para que quede al día en Clientes.
+    if (form.comprador_id && form.actualizar_comprador) {
+      const { error: errUpdate } = await supabase.from('compradores').update({
+        nombre_completo: form.cliente_nombre.trim(),
+        dni_cuit: form.cliente_cuit.trim() || null,
+        email: form.cliente_email.trim() || null,
+        telefono: form.cliente_telefono.trim() || null,
+      }).eq('id', form.comprador_id)
+      if (errUpdate) { setLoading(false); setError(errUpdate.message); return }
+    }
 
     const { data: nuevo, error: err } = await supabase
       .from('presupuestos')
@@ -84,7 +99,7 @@ export default function NuevoPresupuestoForm({ constructoraId, rubros = [] }: Pr
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="bg-white border border-slate-200 rounded-2xl p-6">
         <h2 className="text-sm font-semibold text-slate-700 mb-4">Datos del cliente</h2>
-        <ClienteYFechasForm form={form} onChange={setForm} descripcionLabel="Descripción del trabajo" />
+        <ClienteYFechasForm form={form} onChange={setForm} descripcionLabel="Descripción del trabajo" compradores={compradores} />
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl p-6">

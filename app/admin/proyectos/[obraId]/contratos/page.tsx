@@ -15,7 +15,7 @@ export default async function ContratosPage({ params }: { params: Promise<{ obra
 
   const supabase = await createClient()
 
-  const [{ data: contratos }, { data: unidadesDisponibles }, { data: cuentasPropias }] = await Promise.all([
+  const [{ data: contratos }, { data: unidadesDisponibles }, { data: cuentasPropias }, { data: compradores }] = await Promise.all([
     supabase
       .from('contratos_venta')
       .select(`
@@ -34,6 +34,7 @@ export default async function ContratosPage({ params }: { params: Promise<{ obra
       .order('piso')
       .order('numero'),
     supabase.from('cuentas_propias').select('*').eq('constructora_id', ctx.constructoraId).eq('activa', true).order('nombre'),
+    supabase.from('compradores').select('*').eq('constructora_id', ctx.constructoraId).order('nombre_completo'),
   ])
 
   return (
@@ -45,6 +46,7 @@ export default async function ContratosPage({ params }: { params: Promise<{ obra
       obraId={obraId}
       readOnly={ctx.obraEstado === 'finalizada'}
       puedeCrearCuenta={puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'cuentas', obraId)}
+      compradores={compradores ?? []}
     />
   )
 }

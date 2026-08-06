@@ -28,6 +28,8 @@ export const MODULOS = [
     avisoAgregado: 'También habilita ver el listado de Gastos de TODA la empresa (no solo este proyecto) en el menú principal.' },
   { key: 'proveedores', label: 'Proveedores', seccion: 'Operaciones',
     descripcion: 'Cuenta corriente y datos de contacto de cada proveedor — módulo de toda la empresa, no depende de un proyecto.' },
+  { key: 'clientes', label: 'Clientes', seccion: 'Operaciones',
+    descripcion: 'Datos de contacto de compradores y clientes de obra — módulo de toda la empresa, compartido entre Presupuestos, Contratos, Reservas y Ventas.' },
   { key: 'presupuestos', label: 'Presupuestos', seccion: 'Operaciones',
     descripcion: 'Cotizaciones y presupuestos por rubro — módulo de toda la empresa.' },
   { key: 'inventario',  label: 'Inventario',  seccion: 'Operaciones',
@@ -53,7 +55,7 @@ export const MAX_OPERADORES = 3
 // Bucket "Empresa": módulos que no cuelgan de ningún proyecto — sus datos
 // no tienen obra_id (proveedores) o son un agregado cruzado (tesoreria).
 // Todo lo demás vive en el árbol por-proyecto (perfil_proyectos).
-export const MODULOS_EMPRESA: ModuloKey[] = ['proveedores', 'tesoreria', 'presupuestos', 'inventario', 'personal', 'ingresos', 'compras']
+export const MODULOS_EMPRESA: ModuloKey[] = ['proveedores', 'clientes', 'tesoreria', 'presupuestos', 'inventario', 'personal', 'ingresos', 'compras']
 
 export const MODULOS_PROYECTO = MODULOS.filter(m => !MODULOS_EMPRESA.includes(m.key))
 

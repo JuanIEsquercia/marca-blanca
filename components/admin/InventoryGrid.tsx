@@ -24,12 +24,13 @@ interface Props {
   obraId: string
   constructoraId: string
   puedeCrearCuenta: boolean
+  compradores?: Comprador[]
   readOnly?: boolean
 }
 
 const ESTADOS: EstadoComercial[] = ['Disponible', 'Reservado', 'Vendido']
 
-export default function InventoryGrid({ unidades, tipologias, obraId, constructoraId, puedeCrearCuenta, readOnly = false }: Props) {
+export default function InventoryGrid({ unidades, tipologias, obraId, constructoraId, puedeCrearCuenta, compradores = [], readOnly = false }: Props) {
   const router = useRouter()
   const [filtro, setFiltro] = useState<EstadoComercial | 'Todos'>('Todos')
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
@@ -292,7 +293,8 @@ export default function InventoryGrid({ unidades, tipologias, obraId, constructo
           onClose={() => setReservaUnit(null)}
           onSuccess={() => { setReservaUnit(null); refresh() }}
           constructoraId={constructoraId}
-          puedeCrearCuenta={puedeCrearCuenta} />
+          puedeCrearCuenta={puedeCrearCuenta}
+          compradores={compradores} />
       )}
 
       {saleUnit && (
@@ -303,6 +305,7 @@ export default function InventoryGrid({ unidades, tipologias, obraId, constructo
             const r = saleUnit.reservas?.find(rv => rv.estado === 'Vigente')
             if (!r) return undefined
             return {
+              compradorId: r.compradores.id,
               nombre: r.compradores.nombre_completo,
               dni: r.compradores.dni_cuit ?? '',
               email: r.compradores.email ?? '',
@@ -313,6 +316,7 @@ export default function InventoryGrid({ unidades, tipologias, obraId, constructo
           onSuccess={() => { setSaleUnit(null); refresh() }}
           constructoraId={constructoraId}
           puedeCrearCuenta={puedeCrearCuenta}
+          compradores={compradores}
         />
       )}
 

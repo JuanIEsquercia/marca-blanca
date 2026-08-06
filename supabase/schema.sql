@@ -1200,11 +1200,21 @@ CREATE POLICY "compradores_tenant" ON compradores
   FOR ALL TO authenticated
   USING (
     constructora_id IN (SELECT mis_constructoras())
-    AND (tiene_permiso_en_algun_proyecto('reservas') OR tiene_permiso_en_algun_proyecto('contratos') OR tiene_permiso_en_algun_proyecto('certificados'))
+    AND (
+      tiene_permiso('clientes')
+      OR tiene_permiso_en_algun_proyecto('reservas')
+      OR tiene_permiso_en_algun_proyecto('contratos')
+      OR tiene_permiso_en_algun_proyecto('certificados')
+    )
   )
   WITH CHECK (
     constructora_id IN (SELECT mis_constructoras())
-    AND (tiene_permiso_en_algun_proyecto('reservas') OR tiene_permiso_en_algun_proyecto('contratos') OR tiene_permiso_en_algun_proyecto('certificados'))
+    AND (
+      tiene_permiso('clientes')
+      OR tiene_permiso_en_algun_proyecto('reservas')
+      OR tiene_permiso_en_algun_proyecto('contratos')
+      OR tiene_permiso_en_algun_proyecto('certificados')
+    )
   );
 
 DROP POLICY IF EXISTS "contratos_tenant" ON contratos_venta;

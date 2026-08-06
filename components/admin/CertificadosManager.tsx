@@ -9,7 +9,7 @@ import ProveedorSelect from './ProveedorSelect'
 import ClienteYFechasForm, { EMPTY_DATOS_GENERALES, ivaPctDeDatosGenerales, type DatosGenerales } from './ClienteYFechasForm'
 import ItemsRubroTable, { nuevaFilaItem, totalFilasItem, type FilaItem } from './ItemsRubroTable'
 import ContratoObraCard from './ContratoObraCard'
-import type { ContratoObra, CertificadoAvance, CobroProyecto, Gasto, CuentaPropia, ContratoObraItem, CertificadoItem, Proveedor, TipoContratoObra } from '@/types/database'
+import type { ContratoObra, CertificadoAvance, CobroProyecto, Gasto, CuentaPropia, ContratoObraItem, CertificadoItem, Proveedor, Comprador, TipoContratoObra } from '@/types/database'
 
 type CertificadoConMov = CertificadoAvance & { cobros_proyecto?: CobroProyecto[]; pagos?: Gasto[]; certificado_items?: CertificadoItem[] }
 
@@ -18,6 +18,7 @@ interface Props {
   certificados: CertificadoConMov[]
   contratoObraItems?: ContratoObraItem[]
   proveedores?: Proveedor[]
+  compradores?: Comprador[]
   cuentasPropias: CuentaPropia[]
   constructoraId: string
   obraId: string
@@ -27,7 +28,7 @@ interface Props {
   rubros?: string[]
 }
 
-export default function CertificadosManager({ contratos, certificados, contratoObraItems = [], proveedores = [], cuentasPropias, constructoraId, obraId, puedeCrearProveedor, puedeCrearCuenta, readOnly = false, rubros = [] }: Props) {
+export default function CertificadosManager({ contratos, certificados, contratoObraItems = [], proveedores = [], compradores = [], cuentasPropias, constructoraId, obraId, puedeCrearProveedor, puedeCrearCuenta, readOnly = false, rubros = [] }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [loading, setLoading] = useState(false)
@@ -95,25 +96,27 @@ export default function CertificadosManager({ contratos, certificados, contratoO
 
     let clienteId: string | null = null
     if (contratoTipo === 'cliente') {
-      // Buscar o crear cliente (misma entidad `compradores` que usa el flujo
-      // DESARROLLO — mismo patrón de dedupe por CUIT que SaleForm/ReservaForm).
-      const cuit = contratoForm.cliente_cuit.trim() || null
-      if (cuit) {
-        const { data: existente } = await supabase
-          .from('compradores')
-          .select('id')
-          .eq('constructora_id', constructoraId)
-          .eq('dni_cuit', cuit)
-          .maybeSingle()
-        clienteId = existente?.id ?? null
-      }
-      if (!clienteId) {
+      // Misma entidad `compradores` que usa el flujo DESARROLLO. ClienteSelect
+      // ya resolvió si es uno existente (comprador_id) o hay que crearlo —
+      // acá no se vuelve a buscar por CUIT a ciegas.
+      if (contratoForm.comprador_id) {
+        clienteId = contratoForm.comprador_id
+        if (contratoForm.actualizar_comprador) {
+          const { error: errUpdate } = await supabase.from('compradores').update({
+            nombre_completo: contratoForm.cliente_nombre.trim(),
+            dni_cuit: contratoForm.cliente_cuit.trim() || null,
+            email: contratoForm.cliente_email.trim() || null,
+            telefono: contratoForm.cliente_telefono.trim() || null,
+          }).eq('id', clienteId)
+          if (errUpdate) { setLoading(false); setError(errUpdate.message); return }
+        }
+      } else {
         const { data: nuevoCliente, error: errCliente } = await supabase
           .from('compradores')
           .insert({
             constructora_id: constructoraId,
             nombre_completo: contratoForm.cliente_nombre.trim(),
-            dni_cuit: cuit,
+            dni_cuit: contratoForm.cliente_cuit.trim() || null,
             email: contratoForm.cliente_email.trim() || null,
             telefono: contratoForm.cliente_telefono.trim() || null,
           })
@@ -260,7 +263,7 @@ export default function CertificadosManager({ contratos, certificados, contratoO
                 }
               />
             ) : (
-              <ClienteYFechasForm form={contratoForm} onChange={setContratoForm} descripcionLabel="Descripción del objeto del contrato" />
+              <ClienteYFechasForm form={contratoForm} onChange={setContratoForm} descripcionLabel="Descripción del objeto del contrato" compradores={compradores} />
             )}
 
             <ItemsRubroTable filas={contratoFilas} onChange={setContratoFilas} moneda={contratoForm.moneda} titulo="Ítems del contrato" rubros={rubros} />

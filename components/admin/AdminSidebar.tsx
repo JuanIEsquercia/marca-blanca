@@ -57,6 +57,13 @@ function buildConstructoraNav(): NavSection[] {
           icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>,
         },
         {
+          href: '/admin/clientes',
+          label: 'Clientes',
+          permiso: 'clientes' as ModuloKey,
+          roles: ['admin', 'operador'],
+          icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-4a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" /></svg>,
+        },
+        {
           href: '/admin/inventario',
           label: 'Inventario',
           permiso: 'inventario' as ModuloKey,

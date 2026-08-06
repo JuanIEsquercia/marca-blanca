@@ -22,6 +22,7 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
     { data: certificados },
     { data: pagosSubcontratista },
     { data: proveedores },
+    { data: compradores },
     { data: cuentasPropias },
     rubros,
   ] = await Promise.all([
@@ -55,6 +56,11 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
       .eq('constructora_id', ctx.constructoraId)
       .eq('activo', true)
       .order('razon_social'),
+    supabase
+      .from('compradores')
+      .select('*')
+      .eq('constructora_id', ctx.constructoraId)
+      .order('nombre_completo'),
     ctx.obraModo === 'especificas'
       ? supabase.from('cuentas_propias').select('*')
           .eq('constructora_id', ctx.constructoraId)
@@ -99,6 +105,7 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
         certificados={certificadosConPagos as any}
         contratoObraItems={contratoObraItems ?? []}
         proveedores={proveedores ?? []}
+        compradores={compradores ?? []}
         cuentasPropias={cuentasPropias ?? []}
         constructoraId={ctx.constructoraId}
         obraId={obraId}

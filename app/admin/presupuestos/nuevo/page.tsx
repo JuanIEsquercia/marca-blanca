@@ -13,7 +13,10 @@ export default async function NuevoPresupuestoPage() {
   if (!ctx) redirect('/auth/login')
 
   const supabase = await createClient()
-  const rubros = await obtenerRubros(supabase, ctx.constructoraId)
+  const [rubros, { data: compradores }] = await Promise.all([
+    obtenerRubros(supabase, ctx.constructoraId),
+    supabase.from('compradores').select('*').eq('constructora_id', ctx.constructoraId).order('nombre_completo'),
+  ])
 
   return (
     <div className="max-w-4xl">
@@ -21,7 +24,7 @@ export default async function NuevoPresupuestoPage() {
         <h1 className="text-2xl font-bold text-slate-900">Nuevo presupuesto</h1>
         <p className="text-slate-500 text-sm mt-1">Cargá el cliente y todos los ítems del trabajo cotizado</p>
       </div>
-      <NuevoPresupuestoForm constructoraId={ctx.constructoraId} rubros={rubros} />
+      <NuevoPresupuestoForm constructoraId={ctx.constructoraId} rubros={rubros} compradores={compradores ?? []} />
     </div>
   )
 }

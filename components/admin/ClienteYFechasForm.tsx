@@ -1,5 +1,8 @@
 'use client'
 
+import ClienteSelect from './ClienteSelect'
+import type { Comprador } from '@/types/database'
+
 // Bloque de datos generales compartido entre NuevoPresupuestoForm y la
 // creación de contrato en CertificadosManager — mismo orden de campos
 // en los dos lugares, garantizado por ser el mismo componente (antes
@@ -12,6 +15,13 @@ export type DatosGenerales = {
   cliente_cuit: string
   cliente_email: string
   cliente_telefono: string
+  // Se completan vía ClienteSelect — ver ese componente para el detalle.
+  // Presupuestos no tiene FK a compradores (guarda los 4 campos de arriba
+  // como texto), así que comprador_id acá solo sirve para decidir, en el
+  // submit, si hay que además actualizar el registro de compradores del
+  // que se copiaron los datos.
+  comprador_id: string | null
+  actualizar_comprador: boolean
   moneda: string
   fecha_inicio: string
   fecha_fin_estimada: string
@@ -22,6 +32,7 @@ export type DatosGenerales = {
 
 export const EMPTY_DATOS_GENERALES: DatosGenerales = {
   cliente_nombre: '', cliente_cuit: '', cliente_email: '', cliente_telefono: '',
+  comprador_id: null, actualizar_comprador: false,
   moneda: 'ARS', fecha_inicio: '', fecha_fin_estimada: '', descripcion: '',
   iva_modo: '0', iva_pct_personalizado: '',
 }
@@ -39,13 +50,15 @@ interface Props {
   form: DatosGenerales
   onChange: (form: DatosGenerales) => void
   descripcionLabel?: string
-  // Reemplaza el bloque cliente_nombre/cuit/email/telefono por otra cosa
-  // (ej. un selector de proveedor, para un contrato de subcontratista) —
-  // moneda/fechas/descripción se muestran siempre, son comunes a los dos casos.
+  // Reemplaza el bloque de cliente por otra cosa (ej. un selector de
+  // proveedor, para un contrato de subcontratista) — moneda/fechas/
+  // descripción se muestran siempre, son comunes a los dos casos.
   identidad?: React.ReactNode
+  // Solo hace falta si no se pasa `identidad` — lista para ClienteSelect.
+  compradores?: Pick<Comprador, 'id' | 'nombre_completo' | 'dni_cuit' | 'email' | 'telefono'>[]
 }
 
-export default function ClienteYFechasForm({ form, onChange, descripcionLabel = 'Descripción', identidad }: Props) {
+export default function ClienteYFechasForm({ form, onChange, descripcionLabel = 'Descripción', identidad, compradores = [] }: Props) {
   function set<K extends keyof DatosGenerales>(campo: K, valor: DatosGenerales[K]) {
     onChange({ ...form, [campo]: valor })
   }
@@ -53,30 +66,29 @@ export default function ClienteYFechasForm({ form, onChange, descripcionLabel = 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {identidad ?? (
-        <>
-          <div className="md:col-span-2">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Cliente *</label>
-            <input required value={form.cliente_nombre} onChange={e => set('cliente_nombre', e.target.value)}
-              placeholder="Razón social o nombre"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">CUIT</label>
-            <input value={form.cliente_cuit} onChange={e => set('cliente_cuit', e.target.value)}
-              placeholder="20-12345678-9"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
-            <input type="email" value={form.cliente_email} onChange={e => set('cliente_email', e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono</label>
-            <input value={form.cliente_telefono} onChange={e => set('cliente_telefono', e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-        </>
+        <div className="md:col-span-2">
+          <label className="block text-xs font-medium text-slate-600 mb-1">Cliente *</label>
+          <ClienteSelect
+            compradores={compradores}
+            value={{
+              compradorId: form.comprador_id,
+              nombre: form.cliente_nombre,
+              cuit: form.cliente_cuit,
+              email: form.cliente_email,
+              telefono: form.cliente_telefono,
+              actualizarExistente: form.actualizar_comprador,
+            }}
+            onChange={v => onChange({
+              ...form,
+              comprador_id: v.compradorId,
+              cliente_nombre: v.nombre,
+              cliente_cuit: v.cuit,
+              cliente_email: v.email,
+              cliente_telefono: v.telefono,
+              actualizar_comprador: v.actualizarExistente,
+            })}
+          />
+        </div>
       )}
       <div>
         <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>

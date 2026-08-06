@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, redondear2 } from '@/lib/utils'
 import CuentaPropiaSelect from './CuentaPropiaSelect'
-import type { Unidad, Tipologia, CuentaPropia } from '@/types/database'
+import ClienteSelect, { EMPTY_CLIENTE, type ClienteValue } from './ClienteSelect'
+import type { Unidad, Tipologia, CuentaPropia, Comprador } from '@/types/database'
 
 interface CompradorPreFill {
+  compradorId: string
   nombre: string
   dni: string
   email: string
@@ -21,18 +23,29 @@ interface Props {
   compradorPreFill?: CompradorPreFill
   constructoraId?: string
   puedeCrearCuenta: boolean
+  compradores?: Pick<Comprador, 'id' | 'nombre_completo' | 'dni_cuit' | 'email' | 'telefono'>[]
 }
 
-export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compradorPreFill, constructoraId, puedeCrearCuenta }: Props) {
+export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compradorPreFill, constructoraId, puedeCrearCuenta, compradores = [] }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cuentasPropias, setCuentasPropias] = useState<CuentaPropia[]>([])
 
-  // Comprador
-  const [nombre, setNombre] = useState(compradorPreFill?.nombre ?? '')
-  const [dni, setDni] = useState(compradorPreFill?.dni ?? '')
-  const [email, setEmail] = useState(compradorPreFill?.email ?? '')
-  const [telefono, setTelefono] = useState(compradorPreFill?.telefono ?? '')
+  // Comprador — si viene de una reserva ya convertida, precarga el
+  // comprador YA vinculado (compradorId) en vez de solo copiar el texto:
+  // así el submit lo reusa/actualiza en vez de crear uno nuevo por error.
+  const [cliente, setCliente] = useState<ClienteValue>(
+    compradorPreFill
+      ? {
+          compradorId: compradorPreFill.compradorId,
+          nombre: compradorPreFill.nombre,
+          cuit: compradorPreFill.dni,
+          email: compradorPreFill.email,
+          telefono: compradorPreFill.telefono,
+          actualizarExistente: false,
+        }
+      : EMPTY_CLIENTE
+  )
 
   // Contrato
   const [precioFinal, setPrecioFinal] = useState(String(unidad.precio_lista))
@@ -89,34 +102,35 @@ export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compra
     const supabase = createClient()
 
     try {
-      // 1. Buscar o crear comprador (dentro de la constructora)
+      // 1. Resolver comprador — ClienteSelect (o el prefill de la reserva)
+      // ya dice si es uno existente (reusar o actualizar) o hay que crearlo.
       let compradorId: string
 
-      const busqueda = supabase
-        .from('compradores')
-        .select('id')
-        .eq('dni_cuit', dni.trim())
-
-      if (constructoraId) busqueda.eq('constructora_id', constructoraId)
-
-      const { data: existente } = await busqueda.maybeSingle()
-
-      if (existente) {
-        compradorId = existente.id
+      if (cliente.compradorId) {
+        compradorId = cliente.compradorId
+        if (cliente.actualizarExistente) {
+          const { error: errUpdate } = await supabase.from('compradores').update({
+            nombre_completo: cliente.nombre.trim(),
+            dni_cuit: cliente.cuit.trim() || null,
+            email: cliente.email.trim() || null,
+            telefono: cliente.telefono.trim() || null,
+          }).eq('id', compradorId)
+          if (errUpdate) throw new Error(errUpdate.message)
+        }
       } else {
         const { data: nuevo, error: errComp } = await supabase
           .from('compradores')
           .insert({
-            nombre_completo: nombre,
-            dni_cuit: dni.trim(),
-            email,
-            telefono,
+            nombre_completo: cliente.nombre.trim(),
+            dni_cuit: cliente.cuit.trim() || null,
+            email: cliente.email.trim() || null,
+            telefono: cliente.telefono.trim() || null,
             ...(constructoraId ? { constructora_id: constructoraId } : {}),
           })
           .select('id')
           .single()
 
-        if (errComp || !nuevo) throw new Error('Error al crear el comprador')
+        if (errComp || !nuevo) throw new Error(errComp?.message ?? 'Error al crear el comprador')
         compradorId = nuevo.id
       }
 
@@ -185,28 +199,7 @@ export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compra
             <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3">
               Datos del Comprador
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-600 mb-1">Nombre completo *</label>
-                <input required value={nombre} onChange={e => setNombre(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">DNI / CUIT *</label>
-                <input required value={dni} onChange={e => setDni(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono</label>
-                <input value={telefono} onChange={e => setTelefono(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-            </div>
+            <ClienteSelect compradores={compradores} value={cliente} onChange={setCliente} />
           </div>
 
           {/* Términos del contrato */}

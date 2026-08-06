@@ -15,13 +15,14 @@ export default async function ReservasPage({ params }: { params: Promise<{ obraI
 
   const supabase = await createClient()
 
-  const [{ data: reservas }, { data: cuentasPropias }] = await Promise.all([
+  const [{ data: reservas }, { data: cuentasPropias }, { data: compradores }] = await Promise.all([
     supabase
       .from('reservas')
       .select('*, compradores(*), unidades(*, tipologias(*)), cuentas_propias(*)')
       .eq('obra_id', obraId)
       .order('created_at', { ascending: false }),
     supabase.from('cuentas_propias').select('*').eq('constructora_id', ctx.constructoraId).eq('activa', true).order('nombre'),
+    supabase.from('compradores').select('*').eq('constructora_id', ctx.constructoraId).order('nombre_completo'),
   ])
 
   return (
@@ -36,6 +37,7 @@ export default async function ReservasPage({ params }: { params: Promise<{ obraI
         constructoraId={ctx.constructoraId}
         readOnly={ctx.obraEstado === 'finalizada'}
         puedeCrearCuenta={puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'cuentas', obraId)}
+        compradores={compradores ?? []}
       />
     </div>
   )

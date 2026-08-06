@@ -55,6 +55,23 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_PERSONAL)
 
+  // "+ Crear cuadrilla nueva" en el selector del alta de persona — mismo
+  // criterio que proveedor/cuenta propia: no cortar la carga en curso para
+  // ir a "Nueva cuadrilla" y volver. Alta mínima (solo nombre); el capataz
+  // se puede sumar después desde una cuadrilla creada por el formulario
+  // completo.
+  const [cuadrillasNuevas, setCuadrillasNuevas] = useState<Cuadrilla[]>([])
+  const [creandoCuadrillaInline, setCreandoCuadrillaInline] = useState(false)
+  const [nuevaCuadrillaNombre, setNuevaCuadrillaNombre] = useState('')
+  const [creandoCuadrillaInlineLoading, setCreandoCuadrillaInlineLoading] = useState(false)
+
+  // "+ Crear persona nueva" en el selector de capataz del alta de
+  // cuadrilla — misma idea, alta mínima (solo nombre).
+  const [personalNuevos, setPersonalNuevos] = useState<Personal[]>([])
+  const [creandoCapataz, setCreandoCapataz] = useState(false)
+  const [nuevoCapatazNombre, setNuevoCapatazNombre] = useState('')
+  const [creandoCapatazLoading, setCreandoCapatazLoading] = useState(false)
+
   const [showCuadrillaForm, setShowCuadrillaForm] = useState(false)
   const [cuadrillaForm, setCuadrillaForm] = useState(EMPTY_CUADRILLA)
 
@@ -74,10 +91,31 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
 
   // ── Personal: alta ──────────────────────────────────────────────
 
+  const cuadrillasDisponibles = [...cuadrillas, ...cuadrillasNuevas]
+  const personalParaCapataz = [...personal.filter(p => p.estado !== 'baja'), ...personalNuevos]
+
   function abrirNuevoPersonal() {
     setShowForm(true)
     setForm(EMPTY_PERSONAL)
     setError(null)
+    setCreandoCuadrillaInline(false)
+    setNuevaCuadrillaNombre('')
+  }
+
+  async function crearCuadrillaInline() {
+    if (!nuevaCuadrillaNombre.trim()) return
+    setCreandoCuadrillaInlineLoading(true)
+    setError(null)
+    const supabase = createClient()
+    const { data, error: err } = await supabase.from('cuadrillas')
+      .insert({ constructora_id: constructoraId, nombre: nuevaCuadrillaNombre.trim() })
+      .select('*').single()
+    setCreandoCuadrillaInlineLoading(false)
+    if (err || !data) { setError(err?.message ?? 'Error al crear la cuadrilla'); return }
+    setCuadrillasNuevas(prev => [...prev, data])
+    setForm(f => ({ ...f, cuadrilla_id: data.id }))
+    setCreandoCuadrillaInline(false)
+    setNuevaCuadrillaNombre('')
   }
 
   async function handleCrearPersonal(e: React.FormEvent) {
@@ -175,6 +213,24 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
     setShowCuadrillaForm(true)
     setCuadrillaForm(EMPTY_CUADRILLA)
     setError(null)
+    setCreandoCapataz(false)
+    setNuevoCapatazNombre('')
+  }
+
+  async function crearCapatazInline() {
+    if (!nuevoCapatazNombre.trim()) return
+    setCreandoCapatazLoading(true)
+    setError(null)
+    const supabase = createClient()
+    const { data, error: err } = await supabase.from('personal')
+      .insert({ constructora_id: constructoraId, nombre: nuevoCapatazNombre.trim(), estado: 'disponible' })
+      .select('*').single()
+    setCreandoCapatazLoading(false)
+    if (err || !data) { setError(err?.message ?? 'Error al crear la persona'); return }
+    setPersonalNuevos(prev => [...prev, data])
+    setCuadrillaForm(f => ({ ...f, capataz_id: data.id }))
+    setCreandoCapataz(false)
+    setNuevoCapatazNombre('')
   }
 
   async function handleCrearCuadrilla(e: React.FormEvent) {
@@ -489,11 +545,28 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Cuadrilla</label>
-                <select value={form.cuadrilla_id} onChange={e => setForm(f => ({ ...f, cuadrilla_id: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="">— Sin cuadrilla —</option>
-                  {cuadrillas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
+                {creandoCuadrillaInline ? (
+                  <div className="flex gap-2">
+                    <input autoFocus value={nuevaCuadrillaNombre}
+                      onChange={e => setNuevaCuadrillaNombre(e.target.value)}
+                      placeholder="Nombre de la cuadrilla"
+                      className="flex-1 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <button type="button" onClick={crearCuadrillaInline} disabled={creandoCuadrillaInlineLoading || !nuevaCuadrillaNombre.trim()}
+                      className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                      {creandoCuadrillaInlineLoading ? '...' : 'Crear'}
+                    </button>
+                    <button type="button" onClick={() => { setCreandoCuadrillaInline(false); setNuevaCuadrillaNombre('') }}
+                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-600">Cancelar</button>
+                  </div>
+                ) : (
+                  <select value={form.cuadrilla_id}
+                    onChange={e => e.target.value === '__nuevo__' ? setCreandoCuadrillaInline(true) : setForm(f => ({ ...f, cuadrilla_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">— Sin cuadrilla —</option>
+                    {cuadrillasDisponibles.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    <option value="__nuevo__">+ Crear cuadrilla nueva</option>
+                  </select>
+                )}
                 <p className="text-xs text-slate-400 mt-1">Asignar la cuadrilla completa a un proyecto asigna a esta persona junto con el resto.</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -556,11 +629,28 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Capataz</label>
-                <select value={cuadrillaForm.capataz_id} onChange={e => setCuadrillaForm(f => ({ ...f, capataz_id: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="">— Sin asignar —</option>
-                  {personal.filter(p => p.estado !== 'baja').map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                </select>
+                {creandoCapataz ? (
+                  <div className="flex gap-2">
+                    <input autoFocus value={nuevoCapatazNombre}
+                      onChange={e => setNuevoCapatazNombre(e.target.value)}
+                      placeholder="Nombre de la persona"
+                      className="flex-1 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <button type="button" onClick={crearCapatazInline} disabled={creandoCapatazLoading || !nuevoCapatazNombre.trim()}
+                      className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                      {creandoCapatazLoading ? '...' : 'Crear'}
+                    </button>
+                    <button type="button" onClick={() => { setCreandoCapataz(false); setNuevoCapatazNombre('') }}
+                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-600">Cancelar</button>
+                  </div>
+                ) : (
+                  <select value={cuadrillaForm.capataz_id}
+                    onChange={e => e.target.value === '__nuevo__' ? setCreandoCapataz(true) : setCuadrillaForm(f => ({ ...f, capataz_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">— Sin asignar —</option>
+                    {personalParaCapataz.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    <option value="__nuevo__">+ Crear persona nueva</option>
+                  </select>
+                )}
               </div>
               <p className="text-xs text-slate-400">Los integrantes se asignan después, desde la ficha de cada persona.</p>
               {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}

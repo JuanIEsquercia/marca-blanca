@@ -64,6 +64,11 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
   const [cuentasNuevas, setCuentasNuevas] = useState<CuentaPropia[]>([])
 
   const [expanded, setExpanded] = useState<string | null>(null)
+  // Selección para marcar de a varios como "presentado" en un solo paso —
+  // solo tiene sentido para certificados en borrador (el único estado desde
+  // el que avanzarEstado() lleva a 'presentado').
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
+  const [marcandoLote, setMarcandoLote] = useState(false)
   const [showCertForm, setShowCertForm] = useState(false)
   const [certForm, setCertForm] = useState(EMPTY_CERT)
   const [itemPcts, setItemPcts] = useState<Record<string, string>>({})
@@ -220,6 +225,30 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
     if (next === 'aprobado')   updates.fecha_aprobacion   = new Date().toISOString().split('T')[0]
     const { error: err } = await supabase.from('certificados_avance').update(updates).eq('id', cert.id)
     if (err) { setEstadoError(err.message); return }
+    refresh()
+  }
+
+  function toggleSeleccionado(certId: string) {
+    setSeleccionados(prev => {
+      const next = new Set(prev)
+      if (next.has(certId)) next.delete(certId)
+      else next.add(certId)
+      return next
+    })
+  }
+
+  async function marcarSeleccionadosPresentados() {
+    if (seleccionados.size === 0) return
+    setMarcandoLote(true)
+    setEstadoError(null)
+    const supabase = createClient()
+    const { error: err } = await supabase
+      .from('certificados_avance')
+      .update({ estado: 'presentado', fecha_presentacion: new Date().toISOString().split('T')[0] })
+      .in('id', [...seleccionados])
+    setMarcandoLote(false)
+    if (err) { setEstadoError(err.message); return }
+    setSeleccionados(new Set())
     refresh()
   }
 
@@ -551,6 +580,19 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
         </div>
       )}
 
+      {!readOnly && seleccionados.size > 0 && (
+        <div className="mx-5 mt-3 flex items-center justify-between gap-3 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
+          <p className="text-xs text-indigo-700">{seleccionados.size} certificado{seleccionados.size !== 1 ? 's' : ''} seleccionado{seleccionados.size !== 1 ? 's' : ''}</p>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSeleccionados(new Set())} className="text-xs text-indigo-600 hover:text-indigo-800">Cancelar</button>
+            <button onClick={marcarSeleccionadosPresentados} disabled={marcandoLote}
+              className="text-xs px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg transition-colors">
+              {marcandoLote ? 'Marcando...' : 'Marcar como presentados'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {certificados.length === 0 ? (
         <div className="px-5 py-12 text-center text-slate-400">
           <p className="text-sm">Sin certificados todavía.</p>
@@ -573,6 +615,12 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                   className={cn('px-5 py-4 flex items-center gap-4 cursor-pointer hover:bg-slate-50 transition-colors', isExpanded && 'bg-slate-50')}
                   onClick={() => setExpanded(isExpanded ? null : cert.id)}
                 >
+                  {!readOnly && cert.estado === 'borrador' && (
+                    <input type="checkbox" checked={seleccionados.has(cert.id)}
+                      onChange={() => toggleSeleccionado(cert.id)}
+                      onClick={e => e.stopPropagation()}
+                      className="w-4 h-4 shrink-0 accent-indigo-600" />
+                  )}
                   <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
                     <span className="text-sm font-bold text-indigo-600">#{cert.numero}</span>
                   </div>

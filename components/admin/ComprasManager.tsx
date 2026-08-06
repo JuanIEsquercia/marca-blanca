@@ -8,6 +8,7 @@ import type { Producto, EstadoOrdenCompra, EstadoAcopio } from '@/types/database
 import ConfirmModal from './ConfirmModal'
 import IvaCalculator from './IvaCalculator'
 import ProveedorSelect from './ProveedorSelect'
+import CategoriasCostoManager from './CategoriasCostoManager'
 
 type ItemRow = {
   id: string
@@ -1371,14 +1372,17 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                                focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                   />
                 </div>
-                <select
-                  value={productoForm.categoria_id}
-                  onChange={e => setProductoForm(f => ({ ...f, categoria_id: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">Sin categoría</option>
-                  {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    value={productoForm.categoria_id}
+                    onChange={e => setProductoForm(f => ({ ...f, categoria_id: e.target.value }))}
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Sin categoría</option>
+                    {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                  <CategoriasCostoManager categorias={categorias} constructoraId={constructoraId} onChanged={refresh} />
+                </div>
                 {productoError && <p className="text-xs text-red-600">{productoError}</p>}
                 <button
                   type="submit"

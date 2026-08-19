@@ -5,6 +5,7 @@ import { crearCompradorRapido } from '@/lib/compradores'
 import { crearCuentaPropiaRapida } from '@/lib/cuentasPropias'
 import { crearCategoriaCostoRapida } from '@/lib/categoriasCosto'
 import { crearPersonalRapido, crearCuadrillaRapida } from '@/lib/personal'
+import { crearGastoRapido } from '@/lib/gastos'
 import type { TipoContratacion } from '@/types/database'
 import { CATALOGO_ENTIDADES } from './catalogo-entidades'
 import { SECCIONES_EMPRESA, SECCIONES_PROYECTO } from './catalogo-secciones'
@@ -217,6 +218,61 @@ async function ejecutarCrearCuadrilla(ctx: ContextoChat, supabase: SupabaseClien
   return { creado: true, id: nueva.id, nombre: nueva.nombre }
 }
 
+async function ejecutarListarProveedores(ctx: ContextoChat, supabase: SupabaseClient) {
+  // Misma lógica que ejecutarListarProyectos: la RLS de `proveedores` ya
+  // devuelve vacío si este usuario no tiene el módulo — no hace falta
+  // duplicar el chequeo acá.
+  const { data, error } = await supabase
+    .from('proveedores')
+    .select('id, razon_social')
+    .eq('constructora_id', ctx.constructoraId)
+    .order('razon_social')
+  if (error) return { error: 'No se pudo obtener la lista de proveedores.' }
+  return { proveedores: (data ?? []).map(p => ({ id: p.id, razon_social: p.razon_social })) }
+}
+
+async function ejecutarListarCategoriasGasto(ctx: ContextoChat, supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from('categorias_costo')
+    .select('id, nombre')
+    .eq('constructora_id', ctx.constructoraId)
+    .order('nombre')
+  if (error) return { error: 'No se pudo obtener la lista de categorías.' }
+  return { categorias: (data ?? []).map(c => ({ id: c.id, nombre: c.nombre })) }
+}
+
+async function ejecutarCrearGasto(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const descripcion = texto(input.descripcion)
+  if (!descripcion) return { error: 'Falta la descripción del gasto.' }
+  const monto = numero(input.monto)
+  if (!monto || monto <= 0) return { error: 'Falta un monto válido.' }
+
+  const obraId = texto(input.obra_id) ?? null
+  if (obraId) {
+    const { data: obra } = await supabase.from('obras').select('id, nombre').eq('id', obraId).maybeSingle()
+    if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+    if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'gastos', obraId)) {
+      return { error: `Este usuario no tiene el módulo Gastos habilitado en el proyecto "${obra.nombre}".` }
+    }
+  } else if (ctx.perfilRol !== 'admin') {
+    return { error: 'Solo un administrador puede cargar un gasto sin proyecto asignado (gasto administrativo de la empresa). Indicá a qué proyecto imputarlo.' }
+  }
+
+  const moneda = input.moneda === 'USD' ? 'USD' : 'ARS'
+  const nuevo = await crearGastoRapido(supabase, ctx.constructoraId, {
+    descripcion,
+    monto,
+    moneda,
+    obraId,
+    proveedorId: texto(input.proveedor_id),
+    categoriaId: texto(input.categoria_id),
+    fechaVencimiento: texto(input.fecha_vencimiento),
+    notas: texto(input.notas),
+  })
+  if (!nuevo) return { error: 'No se pudo crear el gasto.' }
+  return { creado: true, id: nuevo.id, descripcion: nuevo.descripcion, monto: nuevo.monto, moneda: nuevo.moneda }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -237,5 +293,8 @@ export async function ejecutarHerramienta(
     case 'crear_categoria_gasto': return ejecutarCrearCategoriaGasto(ctx, supabase, input)
     case 'crear_personal': return ejecutarCrearPersonal(ctx, supabase, input)
     case 'crear_cuadrilla': return ejecutarCrearCuadrilla(ctx, supabase, input)
+    case 'listar_proveedores': return ejecutarListarProveedores(ctx, supabase)
+    case 'listar_categorias_gasto': return ejecutarListarCategoriasGasto(ctx, supabase)
+    case 'crear_gasto': return ejecutarCrearGasto(ctx, supabase, input)
   }
 }

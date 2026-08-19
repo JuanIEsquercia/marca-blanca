@@ -76,4 +76,20 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'notas', label: 'Notas', requerido: false },
     ],
   },
+  gasto: {
+    key: 'gasto',
+    label: 'Gasto',
+    modulo: 'gastos',
+    rutaNavegacion: '/admin/gastos',
+    campos: [
+      { nombre: 'descripcion', label: 'Descripción', requerido: true },
+      { nombre: 'monto', label: 'Monto', requerido: true, descripcion: 'Monto total del gasto (número)' },
+      { nombre: 'moneda', label: 'Moneda', requerido: false, opciones: ['ARS', 'USD'], descripcion: 'Si se omite, ARS' },
+      { nombre: 'obra_id', label: 'Proyecto', requerido: false, descripcion: 'Id real del proyecto al que se imputa, obtenido de listar_proyectos. Si se omite queda como gasto administrativo de la empresa (sin proyecto) — eso solo lo puede cargar un administrador.' },
+      { nombre: 'proveedor_id', label: 'Proveedor', requerido: false, descripcion: 'Id real del proveedor, obtenido de listar_proveedores' },
+      { nombre: 'categoria_id', label: 'Categoría', requerido: false, descripcion: 'Id real de la categoría de gasto, obtenido de listar_categorias_gasto' },
+      { nombre: 'fecha_vencimiento', label: 'Fecha de vencimiento', requerido: false, descripcion: 'Formato YYYY-MM-DD — si se omite, hoy' },
+      { nombre: 'notas', label: 'Notas', requerido: false },
+    ],
+  },
 }

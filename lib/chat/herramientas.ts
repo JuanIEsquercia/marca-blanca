@@ -111,6 +111,21 @@ export const TOOLS: Anthropic.Tool[] = [
     description: 'Da de alta una cuadrilla nueva (agrupación de personal), sin capataz asignado todavía — eso se elige después desde la pantalla de Personal. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('cuadrilla'),
   },
+  {
+    name: 'listar_proveedores',
+    description: 'Devuelve los proveedores de la empresa (id y razón social). Usar antes de crear_gasto cuando el usuario mencione un proveedor por nombre — buscá el que coincide (tolerá errores de tipeo) en vez de inventar un id; si no hay ninguno que coincida con confianza, dejá el gasto sin proveedor y decilo.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'listar_categorias_gasto',
+    description: 'Devuelve las categorías de gasto de la empresa (id y nombre). Usar antes de crear_gasto cuando el usuario mencione una categoría — buscá la que coincide en vez de inventar un id; si ninguna coincide, dejá el gasto sin categoría en vez de forzar una que no corresponde.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'crear_gasto',
+    description: 'Da de alta un gasto PENDIENTE (no lo marca como pagado — eso es una acción aparte, más adelante, desde el panel). No pidas ni inventes desglose de IVA/monto neto, no hace falta. Si el usuario menciona un proyecto, proveedor o categoría, resolvé sus ids reales con listar_proyectos/listar_proveedores/listar_categorias_gasto antes de llamar a esta tool — nunca inventes un id. Si no se indica proyecto, el gasto queda "administrativo" (sin proyecto) y eso solo lo puede hacer un administrador. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('gasto'),
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -128,4 +143,7 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   crear_categoria_gasto: { requiereConfirmacion: true, entidad: 'categoria_gasto' },
   crear_personal: { requiereConfirmacion: true, entidad: 'persona' },
   crear_cuadrilla: { requiereConfirmacion: true, entidad: 'cuadrilla' },
+  listar_proveedores: { requiereConfirmacion: false },
+  listar_categorias_gasto: { requiereConfirmacion: false },
+  crear_gasto: { requiereConfirmacion: true, entidad: 'gasto' },
 }

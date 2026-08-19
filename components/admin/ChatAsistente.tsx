@@ -28,6 +28,7 @@ const LABEL_HERRAMIENTA: Record<string, string> = {
   crear_categoria_gasto: 'Crear categoría de gasto',
   crear_personal: 'Crear persona',
   crear_cuadrilla: 'Crear cuadrilla',
+  crear_gasto: 'Crear gasto',
 }
 
 function BurbujaTexto({ autor, texto }: { autor: 'usuario' | 'asistente'; texto: string }) {

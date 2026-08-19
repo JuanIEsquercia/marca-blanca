@@ -113,6 +113,10 @@ interface Props {
   // 'proveedores' es un módulo de empresa aparte de 'compras' — ver
   // ProveedorSelect.tsx.
   puedeCrearProveedor: boolean
+  // Con qué pestaña abrir — llega de ?tab= en la URL (ver app/admin/compras/page.tsx),
+  // que hoy solo pone el chat (navegar_a) para poder llevar directo a
+  // "Acopios" en vez de solo a Compras en general.
+  tabInicial?: 'ordenes' | 'stock' | 'acopios'
 }
 
 type ConfirmState = { title: string; message: string; confirmLabel?: string; onConfirm: () => Promise<void> }
@@ -154,12 +158,12 @@ const EMPTY_RETIRO_FORM = {
   creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad',
 }
 
-export default function ComprasManager({ ordenes, productos, proveedores, obras, categorias, stockResumen, acopios, acopiosResumen, constructoraId, constructoraNombre, puedeCrearProveedor }: Props) {
+export default function ComprasManager({ ordenes, productos, proveedores, obras, categorias, stockResumen, acopios, acopiosResumen, constructoraId, constructoraNombre, puedeCrearProveedor, tabInicial }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
 
-  const [tab, setTab] = useState<'ordenes' | 'stock' | 'acopios'>('ordenes')
+  const [tab, setTab] = useState<'ordenes' | 'stock' | 'acopios'>(tabInicial ?? 'ordenes')
 
   const [busqueda, setBusqueda] = useState('')
   const [filtroEstado, setFiltroEstado] = useState<'todos' | EstadoOrdenCompra>('todos')

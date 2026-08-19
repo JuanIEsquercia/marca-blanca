@@ -8,9 +8,22 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = { title: 'Compras' }
 export const dynamic = 'force-dynamic'
 
-export default async function ComprasPage() {
+const TABS_VALIDOS = ['ordenes', 'stock', 'acopios'] as const
+type TabCompras = (typeof TABS_VALIDOS)[number]
+
+interface Props {
+  searchParams: Promise<{ tab?: string }>
+}
+
+export default async function ComprasPage({ searchParams }: Props) {
   const ctx = await getConstructoraContext()
   if (!ctx) redirect('/auth/login')
+
+  // ?tab=acopios permite abrir directo en una pestaña — hoy lo usa
+  // navegar_a del chat (lib/chat/catalogo-secciones.ts) para poder llevar
+  // al usuario directo a "Acopios" en vez de solo a Compras en general.
+  const tabParam = (await searchParams).tab
+  const tabInicial: TabCompras = TABS_VALIDOS.includes(tabParam as TabCompras) ? (tabParam as TabCompras) : 'ordenes'
 
   const supabase = await createClient()
 
@@ -86,6 +99,7 @@ export default async function ComprasPage() {
         constructoraId={ctx.constructoraId}
         constructoraNombre={ctx.constructoraNombre}
         puedeCrearProveedor={puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'proveedores', null)}
+        tabInicial={tabInicial}
       />
     </div>
   )

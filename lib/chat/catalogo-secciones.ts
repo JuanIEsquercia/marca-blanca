@@ -15,7 +15,14 @@ export const SECCIONES_EMPRESA: DefinicionSeccionEmpresa[] = [
   { key: 'cuentas', label: 'Cuentas', ruta: '/admin/cuentas', modulo: 'cuentas' },
   { key: 'ingresos', label: 'Ingresos', ruta: '/admin/ingresos', modulo: 'ingresos' },
   { key: 'gastos', label: 'Gastos', ruta: '/admin/gastos', modulo: 'gastos' },
-  { key: 'compras', label: 'Compras', ruta: '/admin/compras', modulo: 'compras' },
+  {
+    key: 'compras', label: 'Compras', ruta: '/admin/compras', modulo: 'compras',
+    subsecciones: [
+      { key: 'ordenes', label: 'Órdenes' },
+      { key: 'stock', label: 'Stock' },
+      { key: 'acopios', label: 'Acopios' },
+    ],
+  },
   { key: 'tesoreria', label: 'Caja', ruta: '/admin/tesoreria', modulo: 'tesoreria' },
   { key: 'usuarios', label: 'Usuarios', ruta: '/admin/usuarios', modulo: null, soloAdmin: true },
 ]

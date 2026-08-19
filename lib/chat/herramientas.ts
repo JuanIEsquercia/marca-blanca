@@ -54,11 +54,12 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'navegar_a',
-    description: 'Uso OBLIGATORIO cada vez que el usuario pida ir a una sección de la empresa (no un proyecto puntual — para eso usá navegar_a_proyecto), o cuando ofrezcas navegar a una. Nunca reemplaces esto por describir la ruta o un link en el texto. Esta tool es la que hace aparecer el botón real de navegación; no ejecuta la navegación en sí (eso lo hace el usuario al tocar ese botón), solo lo genera.',
+    description: 'Uso OBLIGATORIO cada vez que el usuario pida ir a una sección de la empresa (no un proyecto puntual — para eso usá navegar_a_proyecto), o cuando ofrezcas navegar a una. Nunca reemplaces esto por describir la ruta o un link en el texto. Esta tool es la que hace aparecer el botón real de navegación; no ejecuta la navegación en sí (eso lo hace el usuario al tocar ese botón), solo lo genera. Algunas secciones tienen pestañas internas navegables directamente (ej. Compras: Órdenes/Stock/Acopios) — llamá primero a consultar_modulo para saber si la sección que pedís tiene esas pestañas y cuáles son sus claves exactas, antes de mandar "subseccion".',
     input_schema: {
       type: 'object',
       properties: {
         seccion: { type: 'string', enum: SECCIONES_EMPRESA_KEYS, description: 'A qué sección de la empresa navegar' },
+        subseccion: { type: 'string', description: 'Pestaña interna puntual dentro de esa sección, si la tiene y el usuario la pidió (ej. "acopios" dentro de compras) — opcional, omitir si no aplica' },
       },
       required: ['seccion'],
     },

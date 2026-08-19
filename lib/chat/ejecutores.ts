@@ -52,7 +52,13 @@ function ejecutarNavegarA(ctx: ContextoChat, input: Record<string, unknown>) {
   if (def.modulo && !puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, def.modulo, null)) {
     return { error: `Este usuario no tiene el módulo ${def.label} habilitado.` }
   }
-  return { seccion: def.key, ruta: def.ruta, label: `Ir a ${def.label}` }
+
+  const subseccionInput = texto(input.subseccion)
+  const sub = subseccionInput ? def.subsecciones?.find(s => s.key === subseccionInput) : undefined
+  const ruta = sub ? `${def.ruta}?tab=${sub.key}` : def.ruta
+  const label = sub ? `Ir a ${def.label} — ${sub.label}` : `Ir a ${def.label}`
+
+  return { seccion: def.key, ruta, label }
 }
 
 async function ejecutarListarProyectos(ctx: ContextoChat, supabase: SupabaseClient) {

@@ -39,12 +39,25 @@ export type SeccionEmpresaKey =
   | 'inicio' | 'presupuestos' | 'proveedores' | 'clientes' | 'inventario'
   | 'personal' | 'cuentas' | 'ingresos' | 'gastos' | 'compras' | 'tesoreria' | 'usuarios'
 
+export interface SubseccionNavegable {
+  key: string
+  label: string
+}
+
 export interface DefinicionSeccionEmpresa {
   key: SeccionEmpresaKey
   label: string
   ruta: string
   modulo: ModuloKey | null // null = sin gate de módulo (ej. inicio)
   soloAdmin?: boolean
+  // Algunos módulos tienen pestañas internas que no son rutas propias (ej.
+  // Compras: Órdenes/Stock/Acopios, un solo useState en ComprasManager.tsx)
+  // — cuando existen, se navega agregando ?tab=<key> a `ruta` (ver la
+  // página del módulo correspondiente, que tiene que leer ese query param).
+  // Mismos nombres que las subsecciones de CATALOGO_MODULOS para esa
+  // sección — a propósito no se unifican los dos catálogos: uno describe
+  // para explicar (prosa), este es para armar la URL (clave técnica).
+  subsecciones?: SubseccionNavegable[]
 }
 
 // Secciones dentro de un proyecto (calcadas de buildDesarrolloNav /
@@ -74,6 +87,11 @@ export type ModuloConocimientoKey = SeccionEmpresaKey | SeccionProyectoKey
 export interface SubseccionModulo {
   nombre: string
   descripcion: string
+  // Si esta sub-sección también es navegable directo (ver subsecciones en
+  // DefinicionSeccionEmpresa), la clave exacta a pasarle a navegar_a va
+  // acá — así el modelo la lee de la respuesta en vez de adivinarla del
+  // nombre en prosa.
+  key?: string
 }
 
 export interface DefinicionModulo {

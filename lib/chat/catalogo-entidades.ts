@@ -92,4 +92,16 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'notas', label: 'Notas', requerido: false },
     ],
   },
+  orden_compra: {
+    key: 'orden_compra',
+    label: 'Orden de compra',
+    modulo: 'compras',
+    rutaNavegacion: '/admin/compras?tab=ordenes',
+    campos: [
+      { nombre: 'obra_id', label: 'Proyecto', requerido: false, descripcion: 'Id real del proyecto, obtenido de listar_proyectos. Si se omite, la orden queda en el pool de la empresa para repartir después entre obras.' },
+      { nombre: 'items', label: 'Ítems', requerido: true, descripcion: 'Lista de productos pedidos, cada uno con nombre y cantidad (y unidad de medida si corresponde) — al menos uno. Si el producto no existe todavía en el sistema, se crea solo.' },
+      { nombre: 'fecha_emision', label: 'Fecha de emisión', requerido: false, descripcion: 'Formato YYYY-MM-DD — si se omite, hoy' },
+      { nombre: 'notas', label: 'Notas', requerido: false },
+    ],
+  },
 }

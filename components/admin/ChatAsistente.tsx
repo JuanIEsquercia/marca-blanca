@@ -29,6 +29,27 @@ const LABEL_HERRAMIENTA: Record<string, string> = {
   crear_personal: 'Crear persona',
   crear_cuadrilla: 'Crear cuadrilla',
   crear_gasto: 'Crear gasto',
+  crear_orden_compra: 'Crear orden de compra',
+}
+
+// Un valor de input puede ser un array de objetos (ej. "items" de una
+// orden de compra) — String(valor) en eso da "[object Object]", así que
+// se listan sus propios pares clave:valor en vez de mostrarlo crudo.
+function formatValorPropuesta(valor: unknown): string {
+  if (Array.isArray(valor)) {
+    return valor
+      .map((v, i) => `${i + 1}) ${typeof v === 'object' && v !== null ? formatObjeto(v as Record<string, unknown>) : String(v)}`)
+      .join('  ')
+  }
+  if (typeof valor === 'object' && valor !== null) return formatObjeto(valor as Record<string, unknown>)
+  return String(valor)
+}
+
+function formatObjeto(obj: Record<string, unknown>): string {
+  return Object.entries(obj)
+    .filter(([, v]) => v !== null && v !== undefined && v !== '')
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(', ')
 }
 
 function BurbujaTexto({ autor, texto }: { autor: 'usuario' | 'asistente'; texto: string }) {
@@ -78,8 +99,8 @@ function PropuestaCard({
         <div className="space-y-1">
           {campos.map(([clave, valor]) => (
             <div key={clave} className="flex justify-between gap-3 text-xs">
-              <span className="text-slate-400">{clave}</span>
-              <span className="text-slate-700 font-medium text-right">{String(valor)}</span>
+              <span className="text-slate-400 shrink-0">{clave}</span>
+              <span className="text-slate-700 font-medium text-right whitespace-pre-wrap">{formatValorPropuesta(valor)}</span>
             </div>
           ))}
         </div>

@@ -126,6 +126,32 @@ export const TOOLS: Anthropic.Tool[] = [
     description: 'Da de alta un gasto PENDIENTE (no lo marca como pagado — eso es una acción aparte, más adelante, desde el panel). No pidas ni inventes desglose de IVA/monto neto, no hace falta. Si el usuario menciona un proyecto, proveedor o categoría, resolvé sus ids reales con listar_proyectos/listar_proveedores/listar_categorias_gasto antes de llamar a esta tool — nunca inventes un id. Si no se indica proyecto, el gasto queda "administrativo" (sin proyecto) y eso solo lo puede hacer un administrador. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('gasto'),
   },
+  {
+    name: 'crear_orden_compra',
+    description: 'Da de alta una orden de compra (Compras → Órdenes) con uno o más ítems de producto pedidos a proveedor. El producto se busca o se crea solo por nombre — no hace falta averiguar su id de antemano. Si el usuario menciona un proyecto, resolvé su id real con listar_proyectos antes de llamar a esta tool (si no menciona ninguno, la orden queda en el pool de la empresa, sin restricción de admin). Nunca inventes cantidades o productos que el usuario no dijo. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obra_id: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — opcional' },
+        items: {
+          type: 'array',
+          description: 'Productos pedidos en esta orden — al menos uno',
+          items: {
+            type: 'object',
+            properties: {
+              producto_nombre: { type: 'string', description: 'Nombre del producto tal como lo mencionó el usuario' },
+              cantidad: { type: 'string', description: 'Cantidad solicitada (número)' },
+              unidad_medida: { type: 'string', description: 'Opcional — ej. "kg", "m3", "unidad". Si se omite, queda la que ya tenga el producto o "unidad" si es nuevo.' },
+            },
+            required: ['producto_nombre', 'cantidad'],
+          },
+        },
+        fecha_emision: { type: 'string', description: 'Formato YYYY-MM-DD — si se omite, hoy' },
+        notas: { type: 'string' },
+      },
+      required: ['items'],
+    },
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -146,4 +172,5 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   listar_proveedores: { requiereConfirmacion: false },
   listar_categorias_gasto: { requiereConfirmacion: false },
   crear_gasto: { requiereConfirmacion: true, entidad: 'gasto' },
+  crear_orden_compra: { requiereConfirmacion: true, entidad: 'orden_compra' },
 }

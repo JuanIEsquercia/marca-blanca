@@ -273,6 +273,76 @@ async function ejecutarCrearGasto(ctx: ContextoChat, supabase: SupabaseClient, i
   return { creado: true, id: nuevo.id, descripcion: nuevo.descripcion, monto: nuevo.monto, moneda: nuevo.moneda }
 }
 
+interface ItemOrdenValido { nombre: string; cantidad: number; unidad?: string }
+
+function parsearItemsOrden(valor: unknown): ItemOrdenValido[] {
+  if (!Array.isArray(valor)) return []
+  const items: ItemOrdenValido[] = []
+  for (const raw of valor) {
+    if (typeof raw !== 'object' || raw === null) continue
+    const r = raw as Record<string, unknown>
+    const nombre = texto(r.producto_nombre)
+    const cantidad = numero(r.cantidad)
+    if (!nombre || !cantidad || cantidad <= 0) continue
+    items.push({ nombre, cantidad, unidad: texto(r.unidad_medida) })
+  }
+  return items
+}
+
+// Igual criterio que ComprasManager.tsx (ver handleSubmit): resuelve cada
+// producto por nombre vía la RPC obtener_o_crear_producto (get-or-create
+// con dedupe por nombre_normalizado) en vez de exigir un id de antemano —
+// el chat no tiene (ni necesita) una tool de listar_productos separada.
+async function ejecutarCrearOrdenCompra(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'compras', null)) {
+    return { error: 'Este usuario no tiene el módulo Compras habilitado.' }
+  }
+
+  const items = parsearItemsOrden(input.items)
+  if (items.length === 0) return { error: 'La orden necesita al menos un ítem válido (producto y cantidad).' }
+
+  const obraId = texto(input.obra_id) ?? null
+  if (obraId) {
+    const { data: obra } = await supabase.from('obras').select('id').eq('id', obraId).maybeSingle()
+    if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+  }
+
+  const { data: orden, error: errOrden } = await supabase
+    .from('ordenes_compra')
+    .insert({
+      constructora_id: ctx.constructoraId,
+      obra_id: obraId,
+      fecha_emision: texto(input.fecha_emision) ?? new Date().toISOString().slice(0, 10),
+      notas: texto(input.notas) ?? null,
+    })
+    .select('id, numero')
+    .single()
+  if (errOrden || !orden) return { error: 'No se pudo crear la orden de compra.' }
+
+  const itemsRows: { orden_compra_id: string; producto_id: string; cantidad_solicitada: number; unidad_medida: string | null }[] = []
+  for (const item of items) {
+    const { data: producto, error: errProducto } = await supabase
+      .rpc('obtener_o_crear_producto', {
+        p_constructora_id: ctx.constructoraId,
+        p_nombre: item.nombre,
+        p_unidad_medida: item.unidad ?? 'unidad',
+      })
+      .single() as { data: { id: string; unidad_medida: string } | null; error: { message: string } | null }
+    if (errProducto || !producto) return { error: `No se pudo resolver el producto "${item.nombre}".` }
+    itemsRows.push({
+      orden_compra_id: orden.id,
+      producto_id: producto.id,
+      cantidad_solicitada: item.cantidad,
+      unidad_medida: producto.unidad_medida ?? null,
+    })
+  }
+
+  const { error: errItems } = await supabase.from('orden_compra_items').insert(itemsRows)
+  if (errItems) return { error: `La orden #${orden.numero} se creó pero hubo un error al cargar los ítems: ${errItems.message}` }
+
+  return { creado: true, id: orden.id, numero: orden.numero, items: items.length }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -296,5 +366,6 @@ export async function ejecutarHerramienta(
     case 'listar_proveedores': return ejecutarListarProveedores(ctx, supabase)
     case 'listar_categorias_gasto': return ejecutarListarCategoriasGasto(ctx, supabase)
     case 'crear_gasto': return ejecutarCrearGasto(ctx, supabase, input)
+    case 'crear_orden_compra': return ejecutarCrearOrdenCompra(ctx, supabase, input)
   }
 }

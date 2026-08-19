@@ -63,11 +63,36 @@ export interface DefinicionSeccionProyecto {
   soloModoCuentas?: 'especificas'
 }
 
+// Conocimiento curado de cómo está organizado cada módulo por dentro
+// (pestañas/sub-flujos y cuándo usar cada uno) — el mismo criterio que
+// CATALOGO_ENTIDADES, pero un escalón más arriba: acá no son campos de un
+// formulario, es "¿orden de compra o acopio?", "¿pago único o plan de
+// pago?". Reusa el vocabulario de SeccionEmpresaKey/SeccionProyectoKey
+// para no inventar una tercera lista de nombres de módulo.
+export type ModuloConocimientoKey = SeccionEmpresaKey | SeccionProyectoKey
+
+export interface SubseccionModulo {
+  nombre: string
+  descripcion: string
+}
+
+export interface DefinicionModulo {
+  key: ModuloConocimientoKey
+  label: string
+  resumen: string
+  subsecciones: SubseccionModulo[]
+  // Guías cortas para las decisiones que más se repiten dentro del módulo
+  // (ej. cuándo usar una cosa vs. la otra) — no es una lista exhaustiva de
+  // todo lo que se puede hacer, son los puntos donde un usuario nuevo se
+  // traba más seguido.
+  decisiones?: string[]
+}
+
 // Nombres de tool válidos — METADATA_HERRAMIENTAS (herramientas.ts) es el
 // único lugar que decide, por nombre, si una tool ejecuta sola o necesita
 // confirmación explícita del usuario antes de escribir.
 export type NombreHerramienta =
-  | 'consultar_estructura' | 'navegar_a' | 'listar_proyectos' | 'navegar_a_proyecto'
+  | 'consultar_estructura' | 'consultar_modulo' | 'navegar_a' | 'listar_proyectos' | 'navegar_a_proyecto'
   | 'crear_proveedor' | 'crear_cliente' | 'crear_cuenta_propia'
 
 export interface MetadataHerramienta {

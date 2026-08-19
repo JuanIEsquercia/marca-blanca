@@ -1,11 +1,13 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { CATALOGO_ENTIDADES } from './catalogo-entidades'
 import { SECCIONES_EMPRESA, SECCIONES_PROYECTO } from './catalogo-secciones'
+import { CATALOGO_MODULOS } from './catalogo-modulos'
 import type { EntidadKey, NombreHerramienta, MetadataHerramienta } from './tipos'
 
 const ENTIDADES = Object.keys(CATALOGO_ENTIDADES) as EntidadKey[]
 const SECCIONES_EMPRESA_KEYS = SECCIONES_EMPRESA.map(s => s.key)
 const SECCIONES_PROYECTO_KEYS = SECCIONES_PROYECTO.map(s => s.key)
+const MODULOS_CONOCIMIENTO_KEYS = Object.keys(CATALOGO_MODULOS)
 
 // El input_schema de "crear_X" se arma desde el mismo catálogo que
 // consultar_estructura lee — así lo que el modelo puede escribir y lo que
@@ -37,6 +39,17 @@ export const TOOLS: Anthropic.Tool[] = [
         entidad: { type: 'string', enum: ENTIDADES, description: 'Qué entidad del sistema' },
       },
       required: ['entidad'],
+    },
+  },
+  {
+    name: 'consultar_modulo',
+    description: 'Devuelve cómo está organizado un módulo del sistema por dentro: sus sub-secciones o formas de trabajar, y las decisiones típicas entre ellas (ej. "orden de compra vs. acopio", "pago único vs. plan de pago"). Uso OBLIGATORIO antes de explicar la estructura interna de un módulo, ayudar a elegir entre sus distintas formas de cargar algo, o cuando el usuario pregunte "cómo funciona" un módulo — nunca inventar esto de memoria, solo con lo que devuelve esta tool. Si el módulo no tiene entrada acá, no insistas con suposiciones: decí que no tenés el detalle y ofrecé navegar a esa sección.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        modulo: { type: 'string', enum: MODULOS_CONOCIMIENTO_KEYS, description: 'Qué módulo del sistema' },
+      },
+      required: ['modulo'],
     },
   },
   {
@@ -89,6 +102,7 @@ export const TOOLS: Anthropic.Tool[] = [
 // tocar la base — ver lib/chat/agente.ts.
 export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramienta> = {
   consultar_estructura: { requiereConfirmacion: false },
+  consultar_modulo: { requiereConfirmacion: false },
   navegar_a: { requiereConfirmacion: false },
   listar_proyectos: { requiereConfirmacion: false },
   navegar_a_proyecto: { requiereConfirmacion: false },

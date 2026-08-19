@@ -5,7 +5,8 @@ import { crearCompradorRapido } from '@/lib/compradores'
 import { crearCuentaPropiaRapida } from '@/lib/cuentasPropias'
 import { CATALOGO_ENTIDADES } from './catalogo-entidades'
 import { SECCIONES_EMPRESA, SECCIONES_PROYECTO } from './catalogo-secciones'
-import type { ContextoChat, EntidadKey, NombreHerramienta, SeccionEmpresaKey, SeccionProyectoKey } from './tipos'
+import { CATALOGO_MODULOS } from './catalogo-modulos'
+import type { ContextoChat, EntidadKey, ModuloConocimientoKey, NombreHerramienta, SeccionEmpresaKey, SeccionProyectoKey } from './tipos'
 
 function esEntidadValida(valor: unknown): valor is EntidadKey {
   return typeof valor === 'string' && valor in CATALOGO_ENTIDADES
@@ -25,6 +26,19 @@ function ejecutarConsultarEstructura(input: Record<string, unknown>) {
       nombre: c.nombre, label: c.label, requerido: c.requerido,
       descripcion: c.descripcion ?? null, opciones: c.opciones ?? null,
     })),
+  }
+}
+
+function ejecutarConsultarModulo(input: Record<string, unknown>) {
+  const modulo = texto(input.modulo) as ModuloConocimientoKey | undefined
+  const def = modulo ? CATALOGO_MODULOS[modulo] : undefined
+  if (!def) return { error: 'No tengo el detalle interno de ese módulo — ofrecé navegar a la sección en vez de adivinar cómo funciona.' }
+  return {
+    modulo: def.key,
+    label: def.label,
+    resumen: def.resumen,
+    subsecciones: def.subsecciones,
+    decisiones: def.decisiones ?? [],
   }
 }
 
@@ -149,6 +163,7 @@ export async function ejecutarHerramienta(
 ): Promise<unknown> {
   switch (nombre) {
     case 'consultar_estructura': return ejecutarConsultarEstructura(input)
+    case 'consultar_modulo': return ejecutarConsultarModulo(input)
     case 'navegar_a': return ejecutarNavegarA(ctx, input)
     case 'listar_proyectos': return ejecutarListarProyectos(ctx, supabase)
     case 'navegar_a_proyecto': return ejecutarNavegarAProyecto(ctx, supabase, input)

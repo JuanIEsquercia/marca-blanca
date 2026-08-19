@@ -158,7 +158,7 @@ export default function ChatAsistente({ userName }: Props) {
             }
           } else {
             burbujaAbierta = false
-            if (evento.type === 'herramienta_ejecutada' && evento.nombre === 'navegar_a') {
+            if (evento.type === 'herramienta_ejecutada' && (evento.nombre === 'navegar_a' || evento.nombre === 'navegar_a_proyecto')) {
               const r = evento.resultado as { ruta?: string; label?: string }
               if (r.ruta && r.label) setMensajes(prev => [...prev, { tipo: 'navegacion', ruta: r.ruta!, label: r.label! }])
             } else if (evento.type === 'propuesta_pendiente') {

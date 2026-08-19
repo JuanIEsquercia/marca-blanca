@@ -4,7 +4,8 @@ import { crearProveedorRapido } from '@/lib/proveedores'
 import { crearCompradorRapido } from '@/lib/compradores'
 import { crearCuentaPropiaRapida } from '@/lib/cuentasPropias'
 import { CATALOGO_ENTIDADES } from './catalogo-entidades'
-import type { ContextoChat, EntidadKey, NombreHerramienta } from './tipos'
+import { SECCIONES_EMPRESA, SECCIONES_PROYECTO } from './catalogo-secciones'
+import type { ContextoChat, EntidadKey, NombreHerramienta, SeccionEmpresaKey, SeccionProyectoKey } from './tipos'
 
 function esEntidadValida(valor: unknown): valor is EntidadKey {
   return typeof valor === 'string' && valor in CATALOGO_ENTIDADES
@@ -27,10 +28,63 @@ function ejecutarConsultarEstructura(input: Record<string, unknown>) {
   }
 }
 
-function ejecutarNavegarA(input: Record<string, unknown>) {
-  if (!esEntidadValida(input.entidad)) return { error: 'Entidad desconocida' }
-  const def = CATALOGO_ENTIDADES[input.entidad]
-  return { entidad: def.key, ruta: def.rutaNavegacion, label: `Ir a ${def.label}` }
+function ejecutarNavegarA(ctx: ContextoChat, input: Record<string, unknown>) {
+  const seccion = texto(input.seccion) as SeccionEmpresaKey | undefined
+  const def = SECCIONES_EMPRESA.find(s => s.key === seccion)
+  if (!def) return { error: 'Sección desconocida.' }
+  if (def.soloAdmin && ctx.perfilRol !== 'admin') {
+    return { error: `Solo un administrador puede acceder a ${def.label}.` }
+  }
+  if (def.modulo && !puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, def.modulo, null)) {
+    return { error: `Este usuario no tiene el módulo ${def.label} habilitado.` }
+  }
+  return { seccion: def.key, ruta: def.ruta, label: `Ir a ${def.label}` }
+}
+
+async function ejecutarListarProyectos(ctx: ContextoChat, supabase: SupabaseClient) {
+  // RLS de `obras` ya devuelve solo lo que este usuario puede ver (admin:
+  // todo; operador: solo lo asignado en perfil_proyectos) — no hace falta
+  // filtrar de nuevo acá.
+  const { data, error } = await supabase
+    .from('obras')
+    .select('id, nombre, tipo')
+    .eq('constructora_id', ctx.constructoraId)
+    .order('nombre')
+  if (error) return { error: 'No se pudo obtener la lista de proyectos.' }
+  return { proyectos: (data ?? []).map(o => ({ id: o.id, nombre: o.nombre, tipo: o.tipo })) }
+}
+
+async function ejecutarNavegarAProyecto(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const obraId = texto(input.obraId)
+  if (!obraId) return { error: 'Falta indicar de qué proyecto — usá listar_proyectos primero para conseguir el id real.' }
+
+  const { data: obra } = await supabase
+    .from('obras')
+    .select('id, nombre, tipo, modo_cuentas')
+    .eq('id', obraId)
+    .maybeSingle()
+  if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+
+  const seccionInput = (texto(input.seccion) as SeccionProyectoKey | undefined) ?? 'dashboard'
+  const def = SECCIONES_PROYECTO.find(s => s.key === seccionInput)
+  if (!def) return { error: 'Sección de proyecto desconocida.' }
+  if (!def.tipos.includes(obra.tipo)) {
+    return { error: `"${def.label}" no existe para este tipo de proyecto (${obra.tipo}).` }
+  }
+  if (def.soloModoCuentas && obra.modo_cuentas !== def.soloModoCuentas) {
+    return { error: 'Este proyecto no tiene cuentas propias — usa el pool de cuentas de la empresa.' }
+  }
+  if (def.modulo && !puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, def.modulo, obraId)) {
+    return { error: `Este usuario no tiene el módulo ${def.label} habilitado en el proyecto "${obra.nombre}".` }
+  }
+
+  return {
+    obraId: obra.id,
+    obraNombre: obra.nombre,
+    seccion: def.key,
+    ruta: `/admin/proyectos/${obra.id}/${def.segmento}`,
+    label: `Ir a ${def.label} — ${obra.nombre}`,
+  }
 }
 
 async function ejecutarCrearProveedor(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
@@ -95,7 +149,9 @@ export async function ejecutarHerramienta(
 ): Promise<unknown> {
   switch (nombre) {
     case 'consultar_estructura': return ejecutarConsultarEstructura(input)
-    case 'navegar_a': return ejecutarNavegarA(input)
+    case 'navegar_a': return ejecutarNavegarA(ctx, input)
+    case 'listar_proyectos': return ejecutarListarProyectos(ctx, supabase)
+    case 'navegar_a_proyecto': return ejecutarNavegarAProyecto(ctx, supabase, input)
     case 'crear_proveedor': return ejecutarCrearProveedor(ctx, supabase, input)
     case 'crear_cliente': return ejecutarCrearCliente(ctx, supabase, input)
     case 'crear_cuenta_propia': return ejecutarCrearCuentaPropia(ctx, supabase, input)

@@ -31,10 +31,44 @@ export interface DefinicionEntidad {
   campos: CampoEntidad[]
 }
 
+// Secciones de empresa navegables (calcadas de buildConstructoraNav en
+// AdminSidebar.tsx) — catálogo separado de CATALOGO_ENTIDADES porque no
+// todo lo navegable es "creable" (Dashboard, Caja, Usuarios no tienen un
+// alta rápida) y viceversa.
+export type SeccionEmpresaKey =
+  | 'inicio' | 'presupuestos' | 'proveedores' | 'clientes' | 'inventario'
+  | 'personal' | 'cuentas' | 'ingresos' | 'gastos' | 'compras' | 'tesoreria' | 'usuarios'
+
+export interface DefinicionSeccionEmpresa {
+  key: SeccionEmpresaKey
+  label: string
+  ruta: string
+  modulo: ModuloKey | null // null = sin gate de módulo (ej. inicio)
+  soloAdmin?: boolean
+}
+
+// Secciones dentro de un proyecto (calcadas de buildDesarrolloNav /
+// buildObraNav) — un mismo segmento de URL puede aplicar a los dos tipos
+// de proyecto, o a uno solo.
+export type SeccionProyectoKey =
+  | 'dashboard' | 'tipologias' | 'amenities' | 'unidades' | 'asignado'
+  | 'reservas' | 'contratos' | 'certificados' | 'cobros' | 'cuentas' | 'gastos' | 'caja'
+
+export interface DefinicionSeccionProyecto {
+  key: SeccionProyectoKey
+  label: string
+  segmento: string
+  modulo: ModuloKey | null
+  tipos: ('desarrollo' | 'obra')[]
+  soloModoCuentas?: 'especificas'
+}
+
 // Nombres de tool válidos — METADATA_HERRAMIENTAS (herramientas.ts) es el
 // único lugar que decide, por nombre, si una tool ejecuta sola o necesita
 // confirmación explícita del usuario antes de escribir.
-export type NombreHerramienta = 'consultar_estructura' | 'navegar_a' | 'crear_proveedor' | 'crear_cliente' | 'crear_cuenta_propia'
+export type NombreHerramienta =
+  | 'consultar_estructura' | 'navegar_a' | 'listar_proyectos' | 'navegar_a_proyecto'
+  | 'crear_proveedor' | 'crear_cliente' | 'crear_cuenta_propia'
 
 export interface MetadataHerramienta {
   requiereConfirmacion: boolean

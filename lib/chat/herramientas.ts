@@ -1,8 +1,11 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { CATALOGO_ENTIDADES } from './catalogo-entidades'
+import { SECCIONES_EMPRESA, SECCIONES_PROYECTO } from './catalogo-secciones'
 import type { EntidadKey, NombreHerramienta, MetadataHerramienta } from './tipos'
 
 const ENTIDADES = Object.keys(CATALOGO_ENTIDADES) as EntidadKey[]
+const SECCIONES_EMPRESA_KEYS = SECCIONES_EMPRESA.map(s => s.key)
+const SECCIONES_PROYECTO_KEYS = SECCIONES_PROYECTO.map(s => s.key)
 
 // El input_schema de "crear_X" se arma desde el mismo catálogo que
 // consultar_estructura lee — así lo que el modelo puede escribir y lo que
@@ -38,13 +41,30 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'navegar_a',
-    description: 'Uso OBLIGATORIO cada vez que el usuario pida ir a una pantalla, o cuando ofrezcas navegar a una — nunca lo reemplaces por describir la ruta o un link en el texto. Esta tool es la que hace aparecer el botón real de navegación; no ejecuta la navegación en sí (eso lo hace el usuario al tocar ese botón), solo lo genera.',
+    description: 'Uso OBLIGATORIO cada vez que el usuario pida ir a una sección de la empresa (no un proyecto puntual — para eso usá navegar_a_proyecto), o cuando ofrezcas navegar a una. Nunca reemplaces esto por describir la ruta o un link en el texto. Esta tool es la que hace aparecer el botón real de navegación; no ejecuta la navegación en sí (eso lo hace el usuario al tocar ese botón), solo lo genera.',
     input_schema: {
       type: 'object',
       properties: {
-        entidad: { type: 'string', enum: ENTIDADES, description: 'A qué sección navegar' },
+        seccion: { type: 'string', enum: SECCIONES_EMPRESA_KEYS, description: 'A qué sección de la empresa navegar' },
       },
-      required: ['entidad'],
+      required: ['seccion'],
+    },
+  },
+  {
+    name: 'listar_proyectos',
+    description: 'Devuelve los proyectos (obras/desarrollos) a los que el usuario tiene acceso, con su id, nombre y tipo. Usar SIEMPRE antes de navegar_a_proyecto cuando no sepas el id exacto del proyecto que mencionó el usuario — buscá el que coincide por nombre (tolerá errores de tipeo y variantes) en vez de inventar un id.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'navegar_a_proyecto',
+    description: 'Uso OBLIGATORIO para llevar al usuario a un proyecto puntual o a una sección dentro de un proyecto puntual (ej. "Gastos de la obra Norte") — nunca inventes la ruta en texto. Necesita el id real del proyecto (conseguilo con listar_proyectos primero, nunca lo inventes). Si no se especifica sección, lleva al Dashboard del proyecto.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — nunca inventado' },
+        seccion: { type: 'string', enum: SECCIONES_PROYECTO_KEYS, description: 'Sección dentro del proyecto (opcional, default dashboard)' },
+      },
+      required: ['obraId'],
     },
   },
   {
@@ -70,6 +90,8 @@ export const TOOLS: Anthropic.Tool[] = [
 export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramienta> = {
   consultar_estructura: { requiereConfirmacion: false },
   navegar_a: { requiereConfirmacion: false },
+  listar_proyectos: { requiereConfirmacion: false },
+  navegar_a_proyecto: { requiereConfirmacion: false },
   crear_proveedor: { requiereConfirmacion: true, entidad: 'proveedor' },
   crear_cliente: { requiereConfirmacion: true, entidad: 'cliente' },
   crear_cuenta_propia: { requiereConfirmacion: true, entidad: 'cuenta_propia' },

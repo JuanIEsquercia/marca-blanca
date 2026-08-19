@@ -1,0 +1,115 @@
+import Anthropic from '@anthropic-ai/sdk'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { TOOLS, METADATA_HERRAMIENTAS } from './herramientas'
+import { ejecutarHerramienta } from './ejecutores'
+import type { ContextoChat, ChatStreamEvent, NombreHerramienta } from './tipos'
+
+// Corte de higiene contra un loop accidental (tool que se vuelve a llamar
+// sola sin avanzar) — no es el límite de cuota/costo, eso queda para la
+// fase de caché+cupos que se pospuso a propósito.
+const MAX_ITERACIONES = 8
+
+function buildSystemPrompt(ctx: ContextoChat): string {
+  const modulos = ctx.perfilRol === 'admin'
+    ? 'todos (es administrador)'
+    : (ctx.perfilPermisos.length > 0 ? ctx.perfilPermisos.join(', ') : 'ninguno a nivel empresa')
+
+  return [
+    `Sos el asistente del panel de administración de "${ctx.constructoraNombre}", un sistema de gestión para constructoras.`,
+    `Hablás con ${ctx.perfilNombre} (rol: ${ctx.perfilRol}). Módulos de empresa habilitados: ${modulos}.`,
+    '',
+    'Reglas estrictas:',
+    '- Solo respondés sobre este sistema: cómo se usa, qué significa cada cosa, y ejecutar acciones puntuales que el usuario pida.',
+    '- Si te preguntan algo sin relación con el sistema (cultura general, historia, clima, cualquier otro tema), respondé en una frase que no es tu función y ofrecé ayuda con el sistema. Nunca respondas la pregunta aunque sepas la respuesta.',
+    '- Para explicar cómo cargar algo, llamá SIEMPRE a consultar_estructura primero — nunca inventes campos de memoria ni asumas cuáles son obligatorios.',
+    '- Podés ofrecer navegar_a la pantalla correspondiente cuando tenga sentido.',
+    '- Para ejecutar una escritura (ej. crear_proveedor), armá el input completo con los datos que el usuario ya dio en la conversación y llamá a la tool directamente. La confirmación con el usuario la maneja el sistema aparte — no le preguntes "¿confirmás?" en el texto, ni digas que la acción ya se hizo (todavía no se ejecutó).',
+    '- Nunca propongas más de una escritura en el mismo turno.',
+  ].join('\n')
+}
+
+// Loop agéntico: dado un historial que ya termina en un turno 'user'
+// (mensaje nuevo del usuario, o el tool_result de una confirmación/
+// cancelación ya resuelta por el caller), corre hasta que Claude termine
+// en texto o proponga una escritura que necesita confirmación explícita.
+// El caller (app/api/admin/chat/route.ts) es quien arma ese historial de
+// entrada — este loop no sabe nada de "modo mensaje" vs "modo confirmación".
+export async function* ejecutarTurnoChat(
+  ctx: ContextoChat,
+  supabase: SupabaseClient,
+  historialEntrada: Anthropic.MessageParam[]
+): AsyncGenerator<ChatStreamEvent> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    yield { type: 'error', mensaje: 'Anthropic no configurado. Revisá ANTHROPIC_API_KEY en .env.local' }
+    return
+  }
+
+  const client = new Anthropic({ apiKey })
+  const messages: Anthropic.MessageParam[] = [...historialEntrada]
+  const system = buildSystemPrompt(ctx)
+
+  for (let i = 0; i < MAX_ITERACIONES; i++) {
+    let finalMessage: Anthropic.Message
+    try {
+      const stream = client.messages.stream({
+        model: 'claude-sonnet-5',
+        max_tokens: 1024,
+        system,
+        tools: TOOLS,
+        messages,
+      })
+
+      for await (const event of stream) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          yield { type: 'texto', delta: event.delta.text }
+        }
+      }
+
+      finalMessage = await stream.finalMessage()
+    } catch (err) {
+      yield { type: 'error', mensaje: err instanceof Error ? err.message : 'Error al hablar con el modelo' }
+      return
+    }
+
+    messages.push({ role: 'assistant', content: finalMessage.content })
+
+    const toolUses = finalMessage.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
+
+    if (finalMessage.stop_reason !== 'tool_use' || toolUses.length === 0) {
+      yield { type: 'fin', historial: messages }
+      return
+    }
+
+    const propuesta = toolUses.find(t => METADATA_HERRAMIENTAS[t.name as NombreHerramienta]?.requiereConfirmacion)
+    if (propuesta) {
+      const entidad = METADATA_HERRAMIENTAS[propuesta.name as NombreHerramienta].entidad
+      if (!entidad) {
+        yield { type: 'error', mensaje: `La tool "${propuesta.name}" requiere confirmación pero no tiene entidad asociada.` }
+        return
+      }
+      yield {
+        type: 'propuesta_pendiente',
+        toolUseId: propuesta.id,
+        herramienta: propuesta.name as NombreHerramienta,
+        entidad,
+        input: (propuesta.input ?? {}) as Record<string, unknown>,
+        historial: messages,
+      }
+      return
+    }
+
+    // Todas las tools de este turno son de solo lectura — se ejecutan
+    // directo y sus resultados vuelven en un único mensaje 'user' (la API
+    // exige que todos los tool_result de un mismo turno viajen juntos).
+    const resultados: Anthropic.ToolResultBlockParam[] = []
+    for (const t of toolUses) {
+      const resultado = await ejecutarHerramienta(t.name as NombreHerramienta, ctx, supabase, (t.input ?? {}) as Record<string, unknown>)
+      yield { type: 'herramienta_ejecutada', nombre: t.name, resultado }
+      resultados.push({ type: 'tool_result', tool_use_id: t.id, content: JSON.stringify(resultado) })
+    }
+    messages.push({ role: 'user', content: resultados })
+  }
+
+  yield { type: 'error', mensaje: 'Se alcanzó el máximo de pasos para esta respuesta. Probá reformular el pedido.' }
+}

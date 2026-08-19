@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { crearProveedorRapido } from '@/lib/proveedores'
 import type { Proveedor } from '@/types/database'
 
@@ -51,7 +52,7 @@ export default function ProveedorSelect({
     if (!form.razon_social.trim()) return
     setLoading(true)
     setError(null)
-    const nuevo = await crearProveedorRapido(constructoraId, form)
+    const nuevo = await crearProveedorRapido(createClient(), constructoraId, form)
     setLoading(false)
     if (!nuevo) { setError('Error al crear el proveedor'); return }
     onCreated?.(nuevo)

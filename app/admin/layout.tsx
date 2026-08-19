@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { getAuthUser, getConstructoraContext } from '@/lib/tenant'
 import AdminSidebar from '@/components/admin/AdminSidebar'
+import ChatAsistente from '@/components/admin/ChatAsistente'
 import { MODULOS, puedeAcceder } from '@/lib/permisos'
 import type { ModuloKey } from '@/lib/permisos'
 
@@ -75,6 +76,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           {children}
         </div>
       </main>
+      {constructoraCtx && (
+        <ChatAsistente
+          userName={constructoraCtx.perfilNombre || user.email || 'Usuario'}
+          userRole={rol}
+          permisosEmpresa={permisosEmpresa}
+          proyectos={proyectosAsignados}
+          constructoraNombre={constructoraCtx.constructoraNombre}
+        />
+      )}
     </div>
   )
 }

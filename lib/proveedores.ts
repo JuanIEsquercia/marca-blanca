@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Proveedor } from '@/types/database'
 
 export interface DatosProveedorRapido {
@@ -10,15 +10,18 @@ export interface DatosProveedorRapido {
   notas?: string
 }
 
-// Creación rápida desde un selector (Gastos, Compras, Certificados) sin
-// salir del formulario en curso. Mismo criterio simple que usa
+// Creación rápida desde un selector (Gastos, Compras, Certificados, el
+// chat) sin salir del formulario en curso. Mismo criterio simple que usa
 // ProveedoresManager.tsx: proveedores no tiene dedupe por nombre (a
 // diferencia de productos/rubros), así que es un insert directo — mismos
 // campos que el alta completa, para no dejar un proveedor "a medias".
-export async function crearProveedorRapido(constructoraId: string, datos: DatosProveedorRapido): Promise<Proveedor | null> {
+// Recibe el cliente de Supabase ya armado (en vez de crear el suyo propio)
+// para poder correr tanto con el cliente de browser (selectores) como con
+// el de servidor atado a cookies (tools del chat) — mismo criterio que
+// obtenerOCrearRubro en lib/rubros.ts.
+export async function crearProveedorRapido(supabase: SupabaseClient, constructoraId: string, datos: DatosProveedorRapido): Promise<Proveedor | null> {
   const razonSocial = datos.razon_social.trim()
   if (!razonSocial) return null
-  const supabase = createClient()
   const { data, error } = await supabase
     .from('proveedores')
     .insert({

@@ -34,7 +34,7 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'navegar_a',
-    description: 'Sugiere llevar al usuario a la pantalla del sistema donde se gestiona una entidad. No ejecuta la navegación (eso lo hace el usuario tocando el botón que se le muestra) — solo la propone.',
+    description: 'Uso OBLIGATORIO cada vez que el usuario pida ir a una pantalla, o cuando ofrezcas navegar a una — nunca lo reemplaces por describir la ruta o un link en el texto. Esta tool es la que hace aparecer el botón real de navegación; no ejecuta la navegación en sí (eso lo hace el usuario al tocar ese botón), solo lo genera.',
     input_schema: {
       type: 'object',
       properties: {

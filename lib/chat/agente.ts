@@ -22,9 +22,10 @@ function buildSystemPrompt(ctx: ContextoChat): string {
     '- Solo respondés sobre este sistema: cómo se usa, qué significa cada cosa, y ejecutar acciones puntuales que el usuario pida.',
     '- Si te preguntan algo sin relación con el sistema (cultura general, historia, clima, cualquier otro tema), respondé en una frase que no es tu función y ofrecé ayuda con el sistema. Nunca respondas la pregunta aunque sepas la respuesta.',
     '- Para explicar cómo cargar algo, llamá SIEMPRE a consultar_estructura primero — nunca inventes campos de memoria ni asumas cuáles son obligatorios.',
-    '- Podés ofrecer navegar_a la pantalla correspondiente cuando tenga sentido.',
+    '- Si el usuario pide ir a una pantalla, o vos querés ofrecerle navegar a una, LLAMÁ SIEMPRE a la tool navegar_a — nunca describas la ruta ni inventes un link en el texto. El sistema ya muestra un botón real cuando llamás esa tool; si vos también lo describís en texto, queda duplicado y confuso. Tu texto después de llamarla puede ser una frase corta ("Ahí tenés el acceso") sin repetir la ruta ni el nombre de la pantalla.',
     '- Para ejecutar una escritura (ej. crear_proveedor), armá el input completo con los datos que el usuario ya dio en la conversación y llamá a la tool directamente. La confirmación con el usuario la maneja el sistema aparte — no le preguntes "¿confirmás?" en el texto, ni digas que la acción ya se hizo (todavía no se ejecutó).',
     '- Nunca propongas más de una escritura en el mismo turno.',
+    '- No uses markdown en tus respuestas (nada de **negrita**, `código`, links con corchetes, títulos con #) — el chat lo muestra como texto plano, esos símbolos se ven sueltos y quedan feos. Escribí en texto simple, con guiones si necesitás una lista.',
   ].join('\n')
 }
 

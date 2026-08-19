@@ -96,6 +96,21 @@ export const TOOLS: Anthropic.Tool[] = [
     description: 'Da de alta una cuenta propia (banco o caja) de la empresa, sin asignar a ningún proyecto puntual. Solo un administrador puede hacer esto — si el usuario no lo es, avisá que no puede desde acá y ofrecé navegar a Cuentas dentro del proyecto que corresponda. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('cuenta_propia'),
   },
+  {
+    name: 'crear_categoria_gasto',
+    description: 'Da de alta una categoría de gasto nueva (ej. "Materiales", "Flete"), con un color por default — no se le pide color al usuario salvo que lo dé espontáneamente. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('categoria_gasto'),
+  },
+  {
+    name: 'crear_personal',
+    description: 'Da de alta una persona nueva en Personal. No asigna cuadrilla ni obra en este paso — si el usuario también quiere eso, decile que lo termina de asignar desde la pantalla de Personal una vez creada. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('persona'),
+  },
+  {
+    name: 'crear_cuadrilla',
+    description: 'Da de alta una cuadrilla nueva (agrupación de personal), sin capataz asignado todavía — eso se elige después desde la pantalla de Personal. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('cuadrilla'),
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -110,4 +125,7 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   crear_proveedor: { requiereConfirmacion: true, entidad: 'proveedor' },
   crear_cliente: { requiereConfirmacion: true, entidad: 'cliente' },
   crear_cuenta_propia: { requiereConfirmacion: true, entidad: 'cuenta_propia' },
+  crear_categoria_gasto: { requiereConfirmacion: true, entidad: 'categoria_gasto' },
+  crear_personal: { requiereConfirmacion: true, entidad: 'persona' },
+  crear_cuadrilla: { requiereConfirmacion: true, entidad: 'cuadrilla' },
 }

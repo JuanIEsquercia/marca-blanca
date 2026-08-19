@@ -42,4 +42,38 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'moneda', label: 'Moneda', requerido: true, opciones: ['ARS', 'USD'] },
     ],
   },
+  categoria_gasto: {
+    key: 'categoria_gasto',
+    label: 'Categoría de gasto',
+    modulo: 'gastos',
+    rutaNavegacion: '/admin/gastos',
+    campos: [
+      { nombre: 'nombre', label: 'Nombre', requerido: true, descripcion: 'Ej: "Materiales", "Honorarios profesionales"' },
+    ],
+  },
+  persona: {
+    key: 'persona',
+    label: 'Persona',
+    modulo: 'personal',
+    rutaNavegacion: '/admin/personal',
+    campos: [
+      { nombre: 'nombre', label: 'Nombre', requerido: true },
+      { nombre: 'dni', label: 'DNI', requerido: false },
+      { nombre: 'cuil', label: 'CUIL', requerido: false },
+      { nombre: 'telefono', label: 'Teléfono', requerido: false },
+      { nombre: 'tipo_contratacion', label: 'Tipo de contratación', requerido: false, opciones: ['relacion_dependencia', 'contratado', 'subcontratista'] },
+      { nombre: 'categoria', label: 'Categoría/oficio', requerido: false, descripcion: 'Ej: "Albañil", "Electricista"' },
+      { nombre: 'jornal', label: 'Jornal', requerido: false, descripcion: 'Monto del jornal diario' },
+    ],
+  },
+  cuadrilla: {
+    key: 'cuadrilla',
+    label: 'Cuadrilla',
+    modulo: 'personal',
+    rutaNavegacion: '/admin/personal',
+    campos: [
+      { nombre: 'nombre', label: 'Nombre', requerido: true, descripcion: 'Ej: "Cuadrilla 1", "Equipo de albañilería"' },
+      { nombre: 'notas', label: 'Notas', requerido: false },
+    ],
+  },
 }

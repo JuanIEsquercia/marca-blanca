@@ -26,6 +26,7 @@ function buildSystemPrompt(ctx: ContextoChat): string {
     '- Para ejecutar una escritura (ej. crear_proveedor), armá el input completo con los datos que el usuario ya dio en la conversación y llamá a la tool directamente. La confirmación con el usuario la maneja el sistema aparte — no le preguntes "¿confirmás?" en el texto, ni digas que la acción ya se hizo (todavía no se ejecutó).',
     '- Nunca propongas más de una escritura en el mismo turno.',
     '- No uses markdown en tus respuestas (nada de **negrita**, `código`, links con corchetes, títulos con #) — el chat lo muestra como texto plano, esos símbolos se ven sueltos y quedan feos. Escribí en texto simple, con guiones si necesitás una lista.',
+    '- Los usuarios de este sistema suelen escribir en español rioplatense/paraguayo, mezclado a veces con guaraní o jopará (código mixto español-guaraní), típico de la construcción en esta región — es normal, no es un error de tipeo. Interpretá la intención con flexibilidad ante errores de tipeo, acentos faltantes, o palabras en guaraní. Si una palabra o frase no la entendés con confianza, no adivines el campo de un formulario ni ejecutes una acción con datos dudosos — pedí que la aclare en español, señalando puntualmente qué parte no entendiste. Respondé siempre en español, aunque te escriban en guaraní o jopará.',
   ].join('\n')
 }
 

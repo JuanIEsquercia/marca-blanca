@@ -9,9 +9,13 @@ const ENTIDADES = Object.keys(CATALOGO_ENTIDADES) as EntidadKey[]
 // explica que hace falta nunca se desincronizan.
 function schemaDesdeEntidad(entidad: EntidadKey): Anthropic.Tool.InputSchema {
   const def = CATALOGO_ENTIDADES[entidad]
-  const properties: Record<string, { type: string; description?: string }> = {}
+  const properties: Record<string, { type: string; description?: string; enum?: string[] }> = {}
   for (const campo of def.campos) {
-    properties[campo.nombre] = { type: 'string', description: campo.descripcion ?? campo.label }
+    properties[campo.nombre] = {
+      type: 'string',
+      description: campo.descripcion ?? campo.label,
+      ...(campo.opciones ? { enum: campo.opciones } : {}),
+    }
   }
   return {
     type: 'object',
@@ -23,7 +27,7 @@ function schemaDesdeEntidad(entidad: EntidadKey): Anthropic.Tool.InputSchema {
 export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'consultar_estructura',
-    description: 'Devuelve qué campos hacen falta para dar de alta una entidad del sistema (cuáles son obligatorios y cuáles opcionales). Usar SIEMPRE esta tool antes de explicar cómo cargar algo — nunca inventar campos de memoria.',
+    description: 'Devuelve qué campos hacen falta para dar de alta una entidad del sistema (cuáles son obligatorios y cuáles opcionales, y valores válidos si el campo es de opción fija). Usar SIEMPRE esta tool antes de explicar cómo cargar algo — nunca inventar campos de memoria.',
     input_schema: {
       type: 'object',
       properties: {
@@ -48,6 +52,16 @@ export const TOOLS: Anthropic.Tool[] = [
     description: 'Da de alta un proveedor nuevo con los datos que indique el usuario. Requiere confirmación explícita del usuario antes de ejecutarse de verdad — armá el input completo con lo que el usuario ya dijo, la confirmación la maneja el sistema, no preguntes vos "¿confirmás?" en el texto.',
     input_schema: schemaDesdeEntidad('proveedor'),
   },
+  {
+    name: 'crear_cliente',
+    description: 'Da de alta un cliente/comprador nuevo con los datos que indique el usuario (no busca ni reusa uno existente — para eso el usuario tiene que ir a la pantalla de Clientes). Requiere confirmación explícita antes de ejecutarse de verdad, igual que crear_proveedor.',
+    input_schema: schemaDesdeEntidad('cliente'),
+  },
+  {
+    name: 'crear_cuenta_propia',
+    description: 'Da de alta una cuenta propia (banco o caja) de la empresa, sin asignar a ningún proyecto puntual. Solo un administrador puede hacer esto — si el usuario no lo es, avisá que no puede desde acá y ofrecé navegar a Cuentas dentro del proyecto que corresponda. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('cuenta_propia'),
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -57,4 +71,6 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   consultar_estructura: { requiereConfirmacion: false },
   navegar_a: { requiereConfirmacion: false },
   crear_proveedor: { requiereConfirmacion: true, entidad: 'proveedor' },
+  crear_cliente: { requiereConfirmacion: true, entidad: 'cliente' },
+  crear_cuenta_propia: { requiereConfirmacion: true, entidad: 'cuenta_propia' },
 }

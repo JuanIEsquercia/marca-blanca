@@ -5,13 +5,18 @@ import type { ModuloKey } from '@/lib/permisos'
 // crear tal cosa": alimenta tanto el input_schema de las tools de
 // escritura como la respuesta de consultar_estructura, para que nunca
 // puedan desincronizarse (ver lib/chat/catalogo-entidades.ts).
-export type EntidadKey = 'proveedor'
+export type EntidadKey = 'proveedor' | 'cliente' | 'cuenta_propia'
 
 export interface CampoEntidad {
   nombre: string
   label: string
   requerido: boolean
   descripcion?: string
+  // Si el campo solo acepta valores fijos (ej. tipo de cuenta, moneda), se
+  // declara acá para que el JSON schema de la tool lo exija con un enum
+  // real — más confiable que solo describirlo en texto y esperar que el
+  // modelo lo respete.
+  opciones?: string[]
 }
 
 export interface DefinicionEntidad {
@@ -29,7 +34,7 @@ export interface DefinicionEntidad {
 // Nombres de tool válidos — METADATA_HERRAMIENTAS (herramientas.ts) es el
 // único lugar que decide, por nombre, si una tool ejecuta sola o necesita
 // confirmación explícita del usuario antes de escribir.
-export type NombreHerramienta = 'consultar_estructura' | 'navegar_a' | 'crear_proveedor'
+export type NombreHerramienta = 'consultar_estructura' | 'navegar_a' | 'crear_proveedor' | 'crear_cliente' | 'crear_cuenta_propia'
 
 export interface MetadataHerramienta {
   requiereConfirmacion: boolean

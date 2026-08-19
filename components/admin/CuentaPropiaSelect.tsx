@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { crearCuentaPropiaRapida } from '@/lib/cuentasPropias'
 import { cn } from '@/lib/utils'
 import type { CuentaPropia } from '@/types/database'
@@ -66,7 +67,7 @@ export default function CuentaPropiaSelect({
     setLoading(true)
     setError(null)
     const nueva = await crearCuentaPropiaRapida(
-      constructoraId, nombre, tipo, (moneda ?? monedaNueva) as 'ARS' | 'USD', obraId,
+      createClient(), constructoraId, nombre, tipo, (moneda ?? monedaNueva) as 'ARS' | 'USD', obraId,
       parseFloat(saldoInicial) || 0
     )
     setLoading(false)

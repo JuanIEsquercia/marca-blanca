@@ -1,12 +1,16 @@
-import { createClient } from '@/lib/supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CuentaPropia } from '@/types/database'
 
 // Creación rápida desde un selector de cobro/pago (ContratoObraCard,
-// Gastos, Contratos, Cobros, PlanDePago) sin salir del formulario en
-// curso. Mismo criterio simple que usa CuentasPropiasManager.tsx —
+// Gastos, Contratos, Cobros, PlanDePago, el chat) sin salir del formulario
+// en curso. Mismo criterio simple que usa CuentasPropiasManager.tsx —
 // insert directo, sin dedupe (una constructora puede tener varias
-// cuentas con el mismo nombre, ej. "Caja" por obra).
+// cuentas con el mismo nombre, ej. "Caja" por obra). Recibe el cliente de
+// Supabase ya armado — mismo criterio que crearProveedorRapido en
+// lib/proveedores.ts — para poder correr tanto con el cliente de browser
+// como con el de servidor atado a cookies (tools del chat).
 export async function crearCuentaPropiaRapida(
+  supabase: SupabaseClient,
   constructoraId: string,
   nombre: string,
   tipo: 'banco' | 'caja',
@@ -16,7 +20,6 @@ export async function crearCuentaPropiaRapida(
 ): Promise<CuentaPropia | null> {
   const nombreLimpio = nombre.trim()
   if (!nombreLimpio) return null
-  const supabase = createClient()
   const { data, error } = await supabase
     .from('cuentas_propias')
     .insert({

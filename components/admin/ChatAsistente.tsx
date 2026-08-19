@@ -23,6 +23,8 @@ type MensajeUI =
 
 const LABEL_HERRAMIENTA: Record<string, string> = {
   crear_proveedor: 'Crear proveedor',
+  crear_cliente: 'Crear cliente',
+  crear_cuenta_propia: 'Crear cuenta propia',
 }
 
 function BurbujaTexto({ autor, texto }: { autor: 'usuario' | 'asistente'; texto: string }) {

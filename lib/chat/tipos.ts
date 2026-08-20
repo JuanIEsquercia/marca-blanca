@@ -114,6 +114,7 @@ export type NombreHerramienta =
   | 'crear_proveedor' | 'crear_cliente' | 'crear_cuenta_propia'
   | 'crear_categoria_gasto' | 'crear_personal' | 'crear_cuadrilla'
   | 'listar_proveedores' | 'listar_categorias_gasto' | 'crear_gasto'
+  | 'listar_cuentas_proveedor' | 'listar_certificados_pago_proveedor'
   | 'crear_orden_compra'
   | 'listar_contratos_obra' | 'consultar_rubros_contrato' | 'crear_certificado_avance'
   | 'listar_gastos_pendientes' | 'listar_cuentas_disponibles_gasto' | 'marcar_gasto_pagado'

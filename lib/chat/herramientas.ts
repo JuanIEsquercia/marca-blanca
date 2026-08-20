@@ -124,8 +124,31 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'crear_gasto',
-    description: 'Da de alta un gasto PENDIENTE (no lo marca como pagado — eso es una acción aparte, más adelante, desde el panel). El usuario puede pedir esto con otras palabras: "cargame una factura", "cargá una FC", "anotá un gasto", "meté un comprobante de X" — todo eso es crear_gasto. No pidas ni inventes desglose de IVA/monto neto, no hace falta. Si el usuario menciona un proyecto, proveedor o categoría, resolvé sus ids reales con listar_proyectos/listar_proveedores/listar_categorias_gasto antes de llamar a esta tool — nunca inventes un id. Si no se indica proyecto, el gasto queda "administrativo" (sin proyecto) y eso solo lo puede hacer un administrador. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    description: 'Da de alta un gasto PENDIENTE (no lo marca como pagado — eso es marcar_gasto_pagado, una acción aparte). El usuario puede pedir esto con otras palabras: "cargame una factura", "cargá una FC", "anotá un gasto", "meté un comprobante de X" — todo eso es crear_gasto. Antes de llamarla, resolvé por nombre cualquier proyecto/proveedor/categoría con listar_proyectos/listar_proveedores/listar_categorias_gasto — nunca inventes un id. Si el proveedor es un subcontratista con contrato de obra, este gasto puede además ligarse a un certificado suyo (listar_certificados_pago_proveedor) y a una de sus cuentas registradas (listar_cuentas_proveedor) — ofrecelos solo si el usuario lo pide o si hay una coincidencia clara, no los fuerces. El desglose de IVA/monto neto/percepciones y el número de comprobante son opcionales, se pueden omitir sin problema. Esta tool NO puede adjuntar una foto/escaneo del comprobante (comprobante_url) — si el usuario quiere eso, ofrecé navegar a Gastos, ahí sí se puede escanear. Si no se indica proyecto, el gasto queda "administrativo" (sin proyecto) y eso solo lo puede hacer un administrador. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('gasto'),
+  },
+  {
+    name: 'listar_cuentas_proveedor',
+    description: 'Devuelve las cuentas registradas de un proveedor (CBU, Alias, Efectivo, Cheque, Otro — cada proveedor puede tener varias). Usar cuando el usuario, al cargar un gasto, indique con qué cuenta del proveedor se relaciona el pago.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        proveedorId: { type: 'string', description: 'Id real del proveedor, obtenido de listar_proveedores' },
+      },
+      required: ['proveedorId'],
+    },
+  },
+  {
+    name: 'listar_certificados_pago_proveedor',
+    description: 'Devuelve los certificados de avance de los contratos donde este proveedor es SUBCONTRATISTA (con cuánto ya se pagó de cada uno y cuánto queda), para poder ligar un gasto a un certificado puntual. Si el proveedor no tiene ningún contrato de subcontratista, devuelve una lista vacía — no es un error, simplemente ese gasto no corresponde a ningún certificado.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        proveedorId: { type: 'string', description: 'Id real del proveedor, obtenido de listar_proveedores' },
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — opcional, para acotar a un solo proyecto' },
+      },
+      required: ['proveedorId'],
+    },
   },
   {
     name: 'crear_orden_compra',
@@ -309,6 +332,8 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   crear_personal: { requiereConfirmacion: true, entidad: 'persona' },
   crear_cuadrilla: { requiereConfirmacion: true, entidad: 'cuadrilla' },
   listar_proveedores: { requiereConfirmacion: false },
+  listar_cuentas_proveedor: { requiereConfirmacion: false },
+  listar_certificados_pago_proveedor: { requiereConfirmacion: false },
   listar_categorias_gasto: { requiereConfirmacion: false },
   crear_gasto: { requiereConfirmacion: true, entidad: 'gasto' },
   crear_orden_compra: { requiereConfirmacion: true, entidad: 'orden_compra' },

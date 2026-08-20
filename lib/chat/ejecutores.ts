@@ -263,7 +263,39 @@ async function ejecutarCrearGasto(ctx: ContextoChat, supabase: SupabaseClient, i
   const monto = numero(input.monto)
   if (!monto || monto <= 0) return { error: 'Falta un monto válido.' }
 
-  const obraId = texto(input.obra_id) ?? null
+  const proveedorId = texto(input.proveedor_id)
+  const certificadoId = texto(input.certificado_id)
+  let obraId = texto(input.obra_id) ?? null
+
+  // certificado_id (pago a subcontratista, ver ContratoObraCard.tsx "+
+  // Agregar pago"): si viene, manda sobre el resto — se valida que sea de
+  // un contrato de SUBCONTRATISTA (no cliente, esos se cobran, no se
+  // pagan) y, si también vinieron proveedor_id/obra_id, que coincidan.
+  if (certificadoId) {
+    const { data: cert } = await supabase.from('certificados_avance').select('id, obra_id, contrato_obra_id').eq('id', certificadoId).maybeSingle()
+    if (!cert) return { error: 'No se encontró ese certificado, o este usuario no tiene acceso.' }
+    const { data: contrato } = await supabase.from('contratos_obra').select('tipo, proveedor_id').eq('id', cert.contrato_obra_id).maybeSingle()
+    if (!contrato || contrato.tipo !== 'subcontratista') {
+      return { error: 'Ese certificado no es de un contrato con subcontratista — no corresponde pagarlo con un gasto.' }
+    }
+    if (proveedorId && contrato.proveedor_id !== proveedorId) {
+      return { error: 'Ese certificado no pertenece al proveedor indicado.' }
+    }
+    if (obraId && obraId !== cert.obra_id) {
+      return { error: 'Ese certificado no pertenece al proyecto indicado.' }
+    }
+    obraId = cert.obra_id
+  }
+
+  const cuentaProveedorId = texto(input.cuenta_proveedor_id)
+  if (cuentaProveedorId) {
+    const { data: cuenta } = await supabase.from('cuentas_proveedor').select('id, proveedor_id').eq('id', cuentaProveedorId).maybeSingle()
+    if (!cuenta) return { error: 'No se encontró esa cuenta de proveedor.' }
+    if (proveedorId && cuenta.proveedor_id !== proveedorId) {
+      return { error: 'Esa cuenta no pertenece al proveedor indicado.' }
+    }
+  }
+
   if (obraId) {
     const { data: obra } = await supabase.from('obras').select('id, nombre').eq('id', obraId).maybeSingle()
     if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
@@ -280,13 +312,91 @@ async function ejecutarCrearGasto(ctx: ContextoChat, supabase: SupabaseClient, i
     monto,
     moneda,
     obraId,
-    proveedorId: texto(input.proveedor_id),
+    proveedorId,
+    cuentaProveedorId,
     categoriaId: texto(input.categoria_id),
+    certificadoId,
+    numeroComprobante: texto(input.numero_comprobante),
+    montoNeto: numero(input.monto_neto),
+    iva: numero(input.iva),
+    percepciones: numero(input.percepciones),
     fechaVencimiento: texto(input.fecha_vencimiento),
     notas: texto(input.notas),
   })
   if (!nuevo) return { error: 'No se pudo crear el gasto.' }
   return { creado: true, id: nuevo.id, descripcion: nuevo.descripcion, monto: nuevo.monto, moneda: nuevo.moneda }
+}
+
+interface FilaCuentaProveedor { id: string; tipo: string; denominacion: string | null; numero: string | null; moneda: string }
+
+async function ejecutarListarCuentasProveedor(supabase: SupabaseClient, input: Record<string, unknown>) {
+  const proveedorId = texto(input.proveedorId)
+  if (!proveedorId) return { error: 'Falta indicar de qué proveedor — usá listar_proveedores primero.' }
+  const { data, error } = await supabase
+    .from('cuentas_proveedor')
+    .select('id, tipo, denominacion, numero, moneda')
+    .eq('proveedor_id', proveedorId)
+    .order('tipo')
+  if (error) return { error: 'No se pudo obtener las cuentas de este proveedor.' }
+  return { cuentas: (data ?? []) as FilaCuentaProveedor[] }
+}
+
+interface FilaCertificadoPago {
+  id: string
+  numero: number
+  periodo: string
+  estado: string
+  monto_certificado: number
+  contrato_obra_id: string
+}
+
+async function ejecutarListarCertificadosPagoProveedor(supabase: SupabaseClient, input: Record<string, unknown>) {
+  const proveedorId = texto(input.proveedorId)
+  if (!proveedorId) return { error: 'Falta indicar de qué proveedor — usá listar_proveedores primero.' }
+
+  let contratosQuery = supabase
+    .from('contratos_obra')
+    .select('id, descripcion')
+    .eq('proveedor_id', proveedorId)
+    .eq('tipo', 'subcontratista')
+  const obraId = texto(input.obraId)
+  if (obraId) contratosQuery = contratosQuery.eq('obra_id', obraId)
+  const { data: contratos } = await contratosQuery
+  if (!contratos || contratos.length === 0) return { certificados: [] }
+
+  const contratoIds = contratos.map(c => c.id)
+  const { data: certs } = await supabase
+    .from('certificados_avance')
+    .select('id, numero, periodo, estado, monto_certificado, contrato_obra_id')
+    .in('contrato_obra_id', contratoIds)
+    .order('numero')
+  if (!certs || certs.length === 0) return { certificados: [] }
+
+  const { data: gastos } = await supabase
+    .from('gastos')
+    .select('certificado_id, monto')
+    .in('certificado_id', certs.map(c => c.id))
+
+  const pagadoPorCert: Record<string, number> = {}
+  for (const g of (gastos ?? []) as { certificado_id: string | null; monto: number }[]) {
+    if (!g.certificado_id) continue
+    pagadoPorCert[g.certificado_id] = (pagadoPorCert[g.certificado_id] ?? 0) + g.monto
+  }
+
+  const contratoDescPorId = new Map(contratos.map(c => [c.id, c.descripcion]))
+
+  return {
+    certificados: (certs as FilaCertificadoPago[]).map(c => ({
+      id: c.id,
+      numero: c.numero,
+      periodo: c.periodo,
+      estado: c.estado,
+      contrato: contratoDescPorId.get(c.contrato_obra_id) ?? null,
+      monto_certificado: c.monto_certificado,
+      ya_pagado: redondear2(pagadoPorCert[c.id] ?? 0),
+      saldo_sin_pagar: redondear2(c.monto_certificado - (pagadoPorCert[c.id] ?? 0)),
+    })),
+  }
 }
 
 interface ItemOrdenValido { nombre: string; cantidad: number; unidad?: string }
@@ -956,6 +1066,8 @@ export async function ejecutarHerramienta(
     case 'listar_proveedores': return ejecutarListarProveedores(ctx, supabase)
     case 'listar_categorias_gasto': return ejecutarListarCategoriasGasto(ctx, supabase)
     case 'crear_gasto': return ejecutarCrearGasto(ctx, supabase, input)
+    case 'listar_cuentas_proveedor': return ejecutarListarCuentasProveedor(supabase, input)
+    case 'listar_certificados_pago_proveedor': return ejecutarListarCertificadosPagoProveedor(supabase, input)
     case 'crear_orden_compra': return ejecutarCrearOrdenCompra(ctx, supabase, input)
     case 'listar_contratos_obra': return ejecutarListarContratosObra(supabase, input)
     case 'consultar_rubros_contrato': return ejecutarConsultarRubrosContrato(supabase, input)

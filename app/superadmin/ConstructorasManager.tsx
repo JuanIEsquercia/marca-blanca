@@ -23,6 +23,8 @@ interface Constructora {
   emailFacturacion: string | null
   telefonoContacto: string | null
   direccion: string | null
+  chatLimiteMensualUsd: number
+  chatConsumoMesActualUsd: number
 }
 
 const LABEL_CONDICION_IVA: Record<string, string> = {
@@ -64,6 +66,11 @@ export default function ConstructorasManager({ initialData }: Props) {
   const [facturacionForm, setFacturacionForm] = useState({
     razonSocial: '', cuit: '', condicionIva: '', emailFacturacion: '', telefonoContacto: '', direccion: '',
   })
+
+  // Límite mensual del chat IA (lib/chat/limite.ts) — el consumo del mes
+  // actual es de solo lectura acá, solo el límite se edita.
+  const [editingChatLimiteId, setEditingChatLimiteId] = useState<string | null>(null)
+  const [chatLimiteInput, setChatLimiteInput] = useState('')
 
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -206,6 +213,35 @@ export default function ConstructorasManager({ initialData }: Props) {
     } else {
       const d = await res.json()
       setError(d.error ?? 'Error al guardar los datos de facturación')
+    }
+    setLoadingId(null)
+  }
+
+  // ── Editar límite mensual del chat IA ────────────────────────────
+  function startEditChatLimite(c: Constructora) {
+    setEditingChatLimiteId(c.id)
+    setChatLimiteInput(String(c.chatLimiteMensualUsd))
+    setError(null)
+  }
+
+  async function handleGuardarChatLimite(id: string) {
+    const valor = Number(chatLimiteInput)
+    if (!Number.isFinite(valor) || valor < 0) {
+      setError('El límite tiene que ser un número mayor o igual a 0')
+      return
+    }
+    setLoadingId(id)
+    const res = await fetch('/api/superadmin/constructoras', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ constructoraId: id, chatLimiteMensualUsd: valor }),
+    })
+    if (res.ok) {
+      setLista(prev => prev.map(c => c.id === id ? { ...c, chatLimiteMensualUsd: valor } : c))
+      setEditingChatLimiteId(null)
+    } else {
+      const d = await res.json()
+      setError(d.error ?? 'Error al guardar el límite')
     }
     setLoadingId(null)
   }
@@ -531,6 +567,63 @@ export default function ConstructorasManager({ initialData }: Props) {
                           className="text-slate-500 hover:text-slate-200 text-[10px] underline underline-offset-2 shrink-0"
                         >
                           {c.cuit || c.razonSocial ? 'Editar' : 'Completar'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Límite mensual del chat IA */}
+                  <div className="px-4 py-3 border-b border-slate-800">
+                    {editingChatLimiteId === c.id ? (
+                      <div className="flex items-center gap-2">
+                        <label className="text-[10px] text-slate-500 shrink-0">Límite mensual (USD)</label>
+                        <input
+                          autoFocus
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={chatLimiteInput}
+                          onChange={e => setChatLimiteInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleGuardarChatLimite(c.id)
+                            if (e.key === 'Escape') setEditingChatLimiteId(null)
+                          }}
+                          className="w-24 bg-slate-800 border border-indigo-500 rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
+                        />
+                        <button
+                          onClick={() => handleGuardarChatLimite(c.id)}
+                          disabled={loadingId === c.id}
+                          className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          {loadingId === c.id ? '...' : 'Guardar'}
+                        </button>
+                        <button onClick={() => setEditingChatLimiteId(null)} className="px-2 text-xs text-slate-400 hover:text-white">
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-500 shrink-0">Chat IA</span>
+                        <span className="flex-1 text-xs">
+                          <span className={
+                            c.chatConsumoMesActualUsd >= c.chatLimiteMensualUsd
+                              ? 'text-red-400 font-medium'
+                              : c.chatConsumoMesActualUsd >= c.chatLimiteMensualUsd * 0.8
+                              ? 'text-amber-400 font-medium'
+                              : 'text-slate-300'
+                          }>
+                            ${c.chatConsumoMesActualUsd.toFixed(2)}
+                          </span>
+                          <span className="text-slate-500"> de ${c.chatLimiteMensualUsd.toFixed(2)} este mes</span>
+                          {c.chatConsumoMesActualUsd >= c.chatLimiteMensualUsd && (
+                            <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/50 text-red-300">bloqueado</span>
+                          )}
+                        </span>
+                        <button
+                          onClick={() => startEditChatLimite(c)}
+                          className="text-slate-500 hover:text-slate-200 text-[10px] underline underline-offset-2 shrink-0"
+                        >
+                          Cambiar límite
                         </button>
                       </div>
                     )}

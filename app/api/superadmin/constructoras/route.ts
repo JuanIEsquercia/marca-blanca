@@ -1,5 +1,6 @@
 import { createAdminClient, listarTodosLosUsuarios, traducirErrorAuth } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { calcularConsumoMesActualPorConstructora } from '@/lib/chat/limite'
 import { NextResponse } from 'next/server'
 import type { CondicionIva } from '@/types/database'
 
@@ -53,13 +54,15 @@ export async function GET() {
     { data: perfiles },
     authUsers,
     { data: numeros },
+    consumoPorConstructora,
   ] = await Promise.all([
     adminClient.from('constructoras')
-      .select('id, nombre, owner_id, created_at, razon_social, cuit, condicion_iva, email_facturacion, telefono_contacto, direccion')
+      .select('id, nombre, owner_id, created_at, razon_social, cuit, condicion_iva, email_facturacion, telefono_contacto, direccion, chat_limite_mensual_usd')
       .order('created_at', { ascending: false }),
     adminClient.from('perfiles').select('id, nombre, rol, constructora_id').not('constructora_id', 'is', null),
     listarTodosLosUsuarios(adminClient),
     adminClient.from('whatsapp_numeros').select('constructora_id, kapso_phone_id, numero').eq('activo', true),
+    calcularConsumoMesActualPorConstructora(adminClient),
   ])
 
   const result = (constructoras ?? []).map(c => {
@@ -82,6 +85,8 @@ export async function GET() {
       emailFacturacion: c.email_facturacion,
       telefonoContacto: c.telefono_contacto,
       direccion: c.direccion,
+      chatLimiteMensualUsd: c.chat_limite_mensual_usd,
+      chatConsumoMesActualUsd: consumoPorConstructora[c.id] ?? 0,
     }
   })
 
@@ -160,7 +165,7 @@ export async function PATCH(request: Request) {
   if (!caller) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
 
   const body = await request.json()
-  const { constructoraId, nombre, kapsoPhoneId, numeroWhatsapp, datosFacturacion } = body
+  const { constructoraId, nombre, kapsoPhoneId, numeroWhatsapp, datosFacturacion, chatLimiteMensualUsd } = body
   if (!constructoraId) {
     return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
   }
@@ -171,6 +176,22 @@ export async function PATCH(request: Request) {
     const { error } = await adminClient
       .from('constructoras')
       .update({ nombre: nombre.trim() })
+      .eq('id', constructoraId)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // Límite mensual del chat IA (lib/chat/limite.ts) — 0 es un valor válido a
+  // propósito (bloquea el chat de esa constructora de entrada, útil para
+  // probar el corte sin esperar a que un uso real llegue al tope).
+  if (chatLimiteMensualUsd !== undefined) {
+    const valor = Number(chatLimiteMensualUsd)
+    if (!Number.isFinite(valor) || valor < 0) {
+      return NextResponse.json({ error: 'El límite mensual tiene que ser un número mayor o igual a 0' }, { status: 400 })
+    }
+    const { error } = await adminClient
+      .from('constructoras')
+      .update({ chat_limite_mensual_usd: valor })
       .eq('id', constructoraId)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

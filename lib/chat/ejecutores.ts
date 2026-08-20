@@ -8,6 +8,7 @@ import { crearCategoriaCostoRapida } from '@/lib/categoriasCosto'
 import { crearPersonalRapido, crearCuadrillaRapida } from '@/lib/personal'
 import { crearGastoRapido } from '@/lib/gastos'
 import { obtenerCuentasPropias } from '@/lib/tesoreria'
+import { obtenerIngresos } from '@/lib/ingresos'
 import type { TipoContratacion } from '@/types/database'
 import { CATALOGO_ENTIDADES } from './catalogo-entidades'
 import { SECCIONES_EMPRESA, SECCIONES_PROYECTO } from './catalogo-secciones'
@@ -809,6 +810,34 @@ async function ejecutarMarcarCobroCobrado(ctx: ContextoChat, supabase: SupabaseC
   return { cobrado: true, id: cobro.id, monto: cobro.monto, moneda: cobro.moneda }
 }
 
+// Reusa el mismo consolidado que ya alimenta la pantalla de Ingresos
+// (cuotas de venta + cobros de obra, normalizados en una sola forma) en vez
+// de reimplementar el cruce acá — así el chat nunca puede quedar
+// desincronizado de lo que el usuario ve en esa pantalla. Lo pendiente
+// siempre viene completo sin importar la ventana de 12 meses (ver el
+// comentario de obtenerIngresos), por eso no hace falta exponer ese
+// parámetro acá.
+async function ejecutarListarPendientesCobro(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const todos = await obtenerIngresos(supabase, ctx.constructoraId, true)
+  const obraId = texto(input.obraId)
+  const pendientes = todos
+    .filter(i => !i.pagado)
+    .filter(i => !obraId || i.obraId === obraId)
+
+  return {
+    pendientes: pendientes.slice(0, 40).map(i => ({
+      origen: i.origen === 'cobro_proyecto' ? 'certificado_obra' : 'cuota_venta',
+      proyecto: i.obraNombre,
+      cliente: i.clienteNombre,
+      descripcion: i.descripcion,
+      monto: i.monto,
+      moneda: i.moneda,
+      fecha_vencimiento: i.fechaVencimiento,
+    })),
+    total: pendientes.length,
+  }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -844,5 +873,6 @@ export async function ejecutarHerramienta(
     case 'listar_cobros_pendientes': return ejecutarListarCobrosPendientes(ctx, supabase, input)
     case 'listar_cuentas_disponibles_cobro': return ejecutarListarCuentasDisponiblesCobro(ctx, supabase, input)
     case 'marcar_cobro_cobrado': return ejecutarMarcarCobroCobrado(ctx, supabase, input)
+    case 'listar_pendientes_cobro': return ejecutarListarPendientesCobro(ctx, supabase, input)
   }
 }

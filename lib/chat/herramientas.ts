@@ -271,6 +271,16 @@ export const TOOLS: Anthropic.Tool[] = [
     description: 'Marca un cobro pendiente como efectivamente cobrado, con la cuenta a la que entró la plata. Llamá antes a listar_cobros_pendientes (para el id del cobro) y listar_cuentas_disponibles_cobro (para una cuenta válida) — nunca inventes ninguno de los dos ids. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('pago_cobro'),
   },
+  {
+    name: 'listar_pendientes_cobro',
+    description: 'Devuelve TODO lo pendiente de cobrar en toda la empresa (o en un proyecto puntual si se indica): certificados de obra sin cobrar y cuotas de venta de unidades sin cobrar, juntos. Uso OBLIGATORIO cuando el usuario pregunta en general "¿qué tengo pendiente de cobrar?", "¿qué certificados me deben?", sin nombrar un contrato puntual — no le pidas que primero especifique el proyecto o contrato, esta tool ya barre todo lo que puede ver. Si en cambio ya sabés el contrato exacto (el usuario lo nombró), usá mejor listar_certificados_contrato, que da más detalle por certificado.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — opcional, para acotar a un solo proyecto' },
+      },
+    },
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -303,4 +313,5 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   listar_cobros_pendientes: { requiereConfirmacion: false },
   listar_cuentas_disponibles_cobro: { requiereConfirmacion: false },
   marcar_cobro_cobrado: { requiereConfirmacion: true, entidad: 'pago_cobro' },
+  listar_pendientes_cobro: { requiereConfirmacion: false },
 }

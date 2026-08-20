@@ -118,6 +118,7 @@ export type NombreHerramienta =
   | 'listar_contratos_obra' | 'consultar_rubros_contrato' | 'crear_certificado_avance'
   | 'listar_gastos_pendientes' | 'listar_cuentas_disponibles_gasto' | 'marcar_gasto_pagado'
   | 'listar_certificados_contrato' | 'crear_cobro' | 'listar_cobros_pendientes' | 'listar_cuentas_disponibles_cobro' | 'marcar_cobro_cobrado'
+  | 'listar_pendientes_cobro'
 
 export interface MetadataHerramienta {
   requiereConfirmacion: boolean

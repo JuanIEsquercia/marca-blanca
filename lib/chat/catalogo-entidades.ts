@@ -126,6 +126,7 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'gasto_id', label: 'Gasto', requerido: true, descripcion: 'Id real del gasto pendiente, obtenido de listar_gastos_pendientes' },
       { nombre: 'cuenta_propia_id', label: 'Cuenta', requerido: true, descripcion: 'Id real de la cuenta desde la que se paga, obtenida de listar_cuentas_disponibles_gasto — no cualquier cuenta de la empresa sirve, depende del proyecto del gasto' },
       { nombre: 'fecha_pago', label: 'Fecha de pago', requerido: false, descripcion: 'Formato YYYY-MM-DD — si se omite, hoy' },
+      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible con lo que se va a pagar y con qué cuenta, ej. "Factura Proveedor ABC — $50.000 ARS, con Banco Nación" — armala con los datos que ya te devolvieron listar_gastos_pendientes/listar_cuentas_disponibles_gasto. Es lo único que el usuario lee para verificar antes de confirmar, los ids no se muestran.' },
     ],
   },
   cobro: {
@@ -150,6 +151,7 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'cobro_id', label: 'Cobro', requerido: true, descripcion: 'Id real del cobro pendiente, obtenido de listar_cobros_pendientes' },
       { nombre: 'cuenta_propia_id', label: 'Cuenta', requerido: true, descripcion: 'Id real de la cuenta a la que entró la plata, obtenida de listar_cuentas_disponibles_cobro' },
       { nombre: 'fecha_pago', label: 'Fecha de cobro', requerido: false, descripcion: 'Formato YYYY-MM-DD — si se omite, hoy' },
+      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible con lo que se va a cobrar y con qué cuenta, ej. "José Ramón Vidal — 174.590 USD, con Banco Francés" — armala con los datos que ya te devolvieron listar_cobros_pendientes/listar_cuentas_disponibles_cobro. Es lo único que el usuario lee para verificar antes de confirmar, los ids no se muestran.' },
     ],
   },
 }

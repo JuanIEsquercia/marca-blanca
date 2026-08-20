@@ -51,9 +51,17 @@ function formatValorPropuesta(valor: unknown): string {
 
 function formatObjeto(obj: Record<string, unknown>): string {
   return Object.entries(obj)
-    .filter(([, v]) => v !== null && v !== undefined && v !== '')
+    .filter(([k, v]) => v !== null && v !== undefined && v !== '' && !esClaveId(k))
     .map(([k, v]) => `${k}: ${v}`)
     .join(', ')
+}
+
+// Un id (gasto_id, cuenta_propia_id, contrato_obra_item_id...) no le dice
+// nada al usuario que tiene que revisar antes de confirmar — son plomería
+// para el sistema, no algo verificable a simple vista. Se ocultan de la
+// tarjeta de confirmación en vez de mostrar un UUID crudo.
+function esClaveId(clave: string): boolean {
+  return /(^|_)id$/i.test(clave)
 }
 
 function BurbujaTexto({ autor, texto }: { autor: 'usuario' | 'asistente'; texto: string }) {
@@ -93,13 +101,18 @@ function PropuestaCard({
   onConfirmar: () => void
   onCancelar: () => void
 }) {
-  const campos = Object.entries(input).filter(([, v]) => v !== null && v !== undefined && v !== '')
+  // "resumen" (marcar_gasto_pagado/marcar_cobro_cobrado) es una frase ya
+  // armada por el modelo para que el usuario verifique de un vistazo, sin
+  // ids — se destaca aparte y no se repite en la lista genérica de abajo.
+  const resumen = typeof input.resumen === 'string' ? input.resumen : null
+  const campos = Object.entries(input).filter(([k, v]) => v !== null && v !== undefined && v !== '' && k !== 'resumen' && !esClaveId(k))
   return (
     <div className="flex justify-start">
       <div className="max-w-[90%] w-full bg-white border border-amber-200 rounded-2xl p-3.5 space-y-2.5">
         <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
           {LABEL_HERRAMIENTA[herramienta] ?? herramienta}
         </p>
+        {resumen && <p className="text-sm text-slate-800 font-medium">{resumen}</p>}
         <div className="space-y-1">
           {campos.map(([clave, valor]) => (
             <div key={clave} className="flex justify-between gap-3 text-xs">

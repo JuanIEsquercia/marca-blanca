@@ -338,6 +338,16 @@ async function ejecutarCrearGasto(ctx: ContextoChat, supabase: SupabaseClient, i
   return { creado: true, id: nuevo.id, descripcion: nuevo.descripcion, monto: nuevo.monto, moneda: nuevo.moneda }
 }
 
+// El modelo NO debe sumar montos a mano en el texto de su respuesta (ya
+// pasó: se comió un ítem grande y dio un total mal) — cualquier tool que
+// devuelva una lista de montos tiene que traer el total ya calculado acá,
+// agrupado por moneda (nunca se suman ARS y USD entre sí).
+function totalesPorMoneda(items: { monto: number; moneda: string }[]): Record<string, number> {
+  const totales: Record<string, number> = {}
+  for (const it of items) totales[it.moneda] = redondear2((totales[it.moneda] ?? 0) + it.monto)
+  return totales
+}
+
 interface FilaCuentaProveedor { id: string; tipo: string; denominacion: string | null; numero: string | null; moneda: string }
 
 async function ejecutarListarCuentasProveedor(supabase: SupabaseClient, input: Record<string, unknown>) {
@@ -683,8 +693,9 @@ async function ejecutarListarGastosPendientes(ctx: ContextoChat, supabase: Supab
 
   const { data, error } = await query
   if (error) return { error: 'No se pudo obtener los gastos pendientes.' }
+  const filas = (data ?? []) as unknown as FilaGastoPendiente[]
   return {
-    gastos: ((data ?? []) as unknown as FilaGastoPendiente[]).map(g => ({
+    gastos: filas.map(g => ({
       id: g.id,
       descripcion: g.descripcion,
       monto: g.monto,
@@ -693,6 +704,9 @@ async function ejecutarListarGastosPendientes(ctx: ContextoChat, supabase: Supab
       proveedor: g.proveedores?.razon_social ?? null,
       proyecto: g.obras?.nombre ?? (g.obra_id ? null : 'Administrativo (sin proyecto)'),
     })),
+    // Total ya calculado por moneda — nunca sumar los montos de arriba a
+    // mano en la respuesta, usar este campo tal cual.
+    totales_por_moneda: totalesPorMoneda(filas),
   }
 }
 
@@ -872,8 +886,9 @@ async function ejecutarListarCobrosPendientes(ctx: ContextoChat, supabase: Supab
 
   const { data, error } = await query
   if (error) return { error: 'No se pudo obtener los cobros pendientes.' }
+  const filas = (data ?? []) as unknown as FilaCobroPendiente[]
   return {
-    cobros: ((data ?? []) as unknown as FilaCobroPendiente[]).map(c => ({
+    cobros: filas.map(c => ({
       id: c.id,
       numero: c.numero,
       monto: c.monto,
@@ -882,6 +897,9 @@ async function ejecutarListarCobrosPendientes(ctx: ContextoChat, supabase: Supab
       proyecto: c.obras?.nombre ?? null,
       certificado: c.certificados_avance ? `N°${c.certificados_avance.numero} (${c.certificados_avance.periodo})` : null,
     })),
+    // Total ya calculado por moneda — nunca sumar los montos de arriba a
+    // mano en la respuesta, usar este campo tal cual.
+    totales_por_moneda: totalesPorMoneda(filas),
   }
 }
 
@@ -958,10 +976,13 @@ interface FilaCobroConCertificado {
 async function ejecutarListarPendientesCobro(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
   const todos = await obtenerIngresos(supabase, ctx.constructoraId, true)
   const obraId = texto(input.obraId)
-  const pendientes = todos
+  const pendientesCompletos = todos
     .filter(i => !i.pagado)
     .filter(i => !obraId || i.obraId === obraId)
-    .slice(0, 40)
+  // Los totales salen de la lista COMPLETA, no de los primeros 40 que se
+  // muestran — así el total nunca queda corto por el recorte de abajo.
+  const totalesPorMonedaCalculado = totalesPorMoneda(pendientesCompletos)
+  const pendientes = pendientesCompletos.slice(0, 40)
 
   // Un cobro con plan de pago (cuotas/cheques) llega acá como "<id real>-cuota-N"
   // — se despoja el sufijo para consultar el cobro real, el certificado del
@@ -996,7 +1017,12 @@ async function ejecutarListarPendientesCobro(ctx: ContextoChat, supabase: Supaba
         fecha_vencimiento: i.fechaVencimiento,
       }
     }),
-    total: pendientes.length,
+    // Total de plata ya calculado por moneda sobre TODOS los pendientes
+    // (no solo los que se listan arriba) — nunca sumar los montos
+    // individuales a mano en la respuesta, usar este campo tal cual.
+    totales_por_moneda: totalesPorMonedaCalculado,
+    cantidad_items_listados: pendientes.length,
+    cantidad_items_total: pendientesCompletos.length,
   }
 }
 

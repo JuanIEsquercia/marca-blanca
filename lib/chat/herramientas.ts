@@ -231,7 +231,7 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'listar_gastos_pendientes',
-    description: 'Devuelve los gastos en estado Pendiente (no pagados todavía) que este usuario puede ver, opcionalmente filtrados por proyecto y/o proveedor. El usuario puede pedir esto como "pagar una factura", "saldar una deuda", "cancelarle a X" — usar antes de marcar_gasto_pagado para encontrar el gasto real, nunca inventar un id.',
+    description: 'Devuelve los gastos en estado Pendiente (no pagados todavía) que este usuario puede ver, opcionalmente filtrados por proyecto y/o proveedor, con "totales_por_moneda" ya calculado (si el usuario pide el total, usá ese campo, nunca sumes los montos individuales a mano). El usuario puede pedir esto como "pagar una factura", "saldar una deuda", "cancelarle a X" — usar antes de marcar_gasto_pagado para encontrar el gasto real, nunca inventar un id.',
     input_schema: {
       type: 'object',
       properties: {
@@ -274,7 +274,7 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'listar_cobros_pendientes',
-    description: 'Devuelve los cobros en estado Pendiente (todavía no cobrados) que este usuario puede ver, opcionalmente filtrados por proyecto y/o contrato. Usar antes de marcar_cobro_cobrado para encontrar el cobro real, nunca inventar un id.',
+    description: 'Devuelve los cobros en estado Pendiente (todavía no cobrados) que este usuario puede ver, opcionalmente filtrados por proyecto y/o contrato, con "totales_por_moneda" ya calculado (si el usuario pide el total, usá ese campo, nunca sumes los montos individuales a mano). Usar antes de marcar_cobro_cobrado para encontrar el cobro real, nunca inventar un id.',
     input_schema: {
       type: 'object',
       properties: {
@@ -301,7 +301,7 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'listar_pendientes_cobro',
-    description: 'Devuelve TODO lo pendiente de cobrar en toda la empresa (o en un proyecto puntual si se indica): cobros de obra sin cobrar y cuotas de venta de unidades sin cobrar, juntos. "origen":"cobro_obra" solo dice que es un cobro de un proyecto de construcción (obra) — NO dice que venga de un certificado. Si viene de un certificado real o no lo indica el campo "certificado" de CADA ítem por separado (N°/período, o "sin certificado"): un mismo proyecto puede tener cobros con certificado y cobros sueltos (anticipos/señas) mezclados, así que nunca rotules un proyecto entero o un grupo como "(certificado de obra)" — el certificado es una propiedad de cada cobro individual, fijate ítem por ítem. Uso OBLIGATORIO cuando el usuario pregunta en general "¿qué tengo pendiente de cobrar?", "¿qué me deben?", sin nombrar un contrato puntual — no le pidas que primero especifique el proyecto o contrato, esta tool ya barre todo lo que puede ver. Si en cambio ya sabés el contrato exacto (el usuario lo nombró), usá mejor listar_certificados_contrato, que da más detalle por certificado.',
+    description: 'Devuelve TODO lo pendiente de cobrar en toda la empresa (o en un proyecto puntual si se indica): cobros de obra sin cobrar y cuotas de venta de unidades sin cobrar, juntos. "origen":"cobro_obra" solo dice que es un cobro de un proyecto de construcción (obra) — NO dice que venga de un certificado. Si viene de un certificado real o no lo indica el campo "certificado" de CADA ítem por separado (N°/período, o "sin certificado"): un mismo proyecto puede tener cobros con certificado y cobros sueltos (anticipos/señas) mezclados, así que nunca rotules un proyecto entero o un grupo como "(certificado de obra)" — el certificado es una propiedad de cada cobro individual, fijate ítem por ítem. La respuesta trae "totales_por_moneda" ya calculado — para decir cuánto suma en total, usá ESE campo tal cual, nunca sumes los montos individuales de la lista a mano (los redondeos/errores de conteo son un riesgo real). Uso OBLIGATORIO cuando el usuario pregunta en general "¿qué tengo pendiente de cobrar?", "¿qué me deben?", sin nombrar un contrato puntual — no le pidas que primero especifique el proyecto o contrato, esta tool ya barre todo lo que puede ver. Si en cambio ya sabés el contrato exacto (el usuario lo nombró), usá mejor listar_certificados_contrato, que da más detalle por certificado.',
     input_schema: {
       type: 'object',
       properties: {

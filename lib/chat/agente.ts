@@ -1,13 +1,33 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { TOOLS, METADATA_HERRAMIENTAS } from './herramientas'
+import { TOOLS_CACHEABLE, METADATA_HERRAMIENTAS } from './herramientas'
 import { ejecutarHerramienta } from './ejecutores'
 import type { ContextoChat, ChatStreamEvent, NombreHerramienta } from './tipos'
 
 // Corte de higiene contra un loop accidental (tool que se vuelve a llamar
-// sola sin avanzar) — no es el límite de cuota/costo, eso queda para la
-// fase de caché+cupos que se pospuso a propósito.
+// sola sin avanzar) — no es el límite de cuota/costo, ver chat_uso más abajo
+// para el registro de consumo real (migration_069.sql).
 const MAX_ITERACIONES = 8
+const MODELO = 'claude-sonnet-5'
+
+// Best-effort: si el insert de auditoría falla (RLS, red, lo que sea), no
+// tiene que tirar abajo la respuesta del chat — se resigna la métrica de
+// esa llamada puntual antes que interrumpir al usuario.
+async function registrarUso(supabase: SupabaseClient, ctx: ContextoChat, usage: Anthropic.Usage) {
+  try {
+    await supabase.from('chat_uso').insert({
+      constructora_id: ctx.constructoraId,
+      perfil_id: ctx.perfilId,
+      modelo: MODELO,
+      tokens_entrada: usage.input_tokens,
+      tokens_salida: usage.output_tokens,
+      tokens_cache_lectura: usage.cache_read_input_tokens ?? 0,
+      tokens_cache_escritura: usage.cache_creation_input_tokens ?? 0,
+    })
+  } catch {
+    // silencioso a propósito, ver comentario arriba
+  }
+}
 
 function buildSystemPrompt(ctx: ContextoChat): string {
   const modulos = ctx.perfilRol === 'admin'
@@ -79,10 +99,14 @@ export async function* ejecutarTurnoChat(
     let finalMessage: Anthropic.Message
     try {
       const stream = client.messages.stream({
-        model: 'claude-sonnet-5',
+        model: MODELO,
         max_tokens: 1024,
-        system,
-        tools: TOOLS,
+        // Array con cache_control en vez de string plano: el system prompt
+        // es idéntico entre mensajes de la MISMA conversación (mismo ctx),
+        // así que cachearlo evita reprocesarlo/cobrarlo de nuevo en cada
+        // mensaje de seguimiento (ver también TOOLS_CACHEABLE).
+        system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+        tools: TOOLS_CACHEABLE,
         messages,
       })
 
@@ -93,6 +117,7 @@ export async function* ejecutarTurnoChat(
       }
 
       finalMessage = await stream.finalMessage()
+      await registrarUso(supabase, ctx, finalMessage.usage)
     } catch (err) {
       yield { type: 'error', mensaje: err instanceof Error ? err.message : 'Error al hablar con el modelo' }
       return

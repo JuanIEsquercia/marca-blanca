@@ -326,3 +326,13 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   listar_pendientes_cobro: { requiereConfirmacion: false },
   consultar_cashflow: { requiereConfirmacion: false },
 }
+
+// El catálogo entero es idéntico en cada request (no depende del usuario,
+// a diferencia del system prompt) — un solo cache_control en el último tool
+// le dice a la API que cachee TODO lo anterior (todas las tools), así un
+// mensaje de seguimiento en la misma conversación no vuelve a cobrar ni a
+// procesar ~30 definiciones de tool de nuevo. Se computa una vez a nivel de
+// módulo, no en cada request.
+export const TOOLS_CACHEABLE: Anthropic.Tool[] = TOOLS.map((tool, i) =>
+  i === TOOLS.length - 1 ? { ...tool, cache_control: { type: 'ephemeral' } } : tool
+)

@@ -44,6 +44,7 @@ export async function POST(request: Request) {
   const ctx: ContextoChat = {
     constructoraId: ctxTenant.constructoraId,
     constructoraNombre: ctxTenant.constructoraNombre,
+    perfilId: ctxTenant.userId,
     perfilRol: ctxTenant.perfilRol,
     perfilPermisos: ctxTenant.perfilPermisos,
     perfilProyectos: ctxTenant.perfilProyectos,

@@ -132,6 +132,7 @@ export interface MetadataHerramienta {
 export interface ContextoChat {
   constructoraId: string
   constructoraNombre: string
+  perfilId: string
   perfilRol: 'admin' | 'operador'
   perfilPermisos: string[]
   perfilProyectos: { obraId: string; permisos: string[] }[]

@@ -43,8 +43,8 @@ function agruparPeriodos(mesesFlujo: MesFlujo[], mesesRaw: Mes[], vista: VistaPe
   const grupos = new Map<string, { label: string; items: MesFlujo[] }>()
   mesesFlujo.forEach((m, i) => {
     const { year, month } = mesesRaw[i]
-    const clave = vista === 'trimestre' ? `${year}-Q${Math.ceil(month / 3)}` : `${year}`
-    const label = vista === 'trimestre' ? `Q${Math.ceil(month / 3)} ${year}` : `${year}`
+    const clave = vista === 'trimestre' ? `${year}-T${Math.ceil(month / 3)}` : `${year}`
+    const label = vista === 'trimestre' ? `T${Math.ceil(month / 3)} ${year}` : `${year}`
     const grupo = grupos.get(clave) ?? { label, items: [] }
     grupo.items.push(m)
     grupos.set(clave, grupo)
@@ -109,6 +109,15 @@ function formatARS(n: number) {
 }
 function formatUSD(n: number) {
   return formatCurrency(n, 'USD')
+}
+// Para el eje del gráfico: formatCurrency da 2 decimales + separador de
+// miles ("US$ 1.234.567,89"), demasiado largo para un tick — "notation:
+// compact" lo deja en algo como "US$ 1,2 M".
+function formatCompacto(n: number, moneda: string) {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency', currency: moneda === 'ARS' ? 'ARS' : 'USD',
+    notation: 'compact', maximumFractionDigits: 1,
+  }).format(n)
 }
 
 const FILTRO_TODOS = 'todos'
@@ -328,8 +337,8 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
               </span>
             </div>
 
-            {cuentasUSD.length > 0 && <FlujoChart titulo="USD" datos={datosChartUsd} formatear={formatUSD} />}
-            {cuentasARS.length > 0 && <FlujoChart titulo="ARS" datos={datosChartArs} formatear={formatARS} />}
+            {cuentasUSD.length > 0 && <FlujoChart titulo="USD" moneda="USD" datos={datosChartUsd} formatear={formatUSD} />}
+            {cuentasARS.length > 0 && <FlujoChart titulo="ARS" moneda="ARS" datos={datosChartArs} formatear={formatARS} />}
 
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
@@ -555,27 +564,40 @@ interface PuntoChartFlujo {
   'Egresos proyectados': number
 }
 
-// Barras agrupadas (no apiladas) a propósito: apilar "realizado" +
-// "proyectado" como si fueran lo mismo daría un total que no es ni lo
-// cobrado ni lo esperado, una cifra ambigua. Separadas, cada barra se lee
-// sola. Colores más claros para lo proyectado — nunca el mismo tono que lo
-// ya realizado, para no confundirlos de un vistazo.
-function FlujoChart({ titulo, datos, formatear }: { titulo: string; datos: PuntoChartFlujo[]; formatear: (n: number) => string }) {
+// Dos barras por período (Ingresos | Egresos, una al lado de la otra —
+// la comparación que más importa de un vistazo), cada una apilada en dos
+// tramos: lo realizado (color fuerte, abajo) y lo proyectado/pendiente
+// (mismo color pero más claro, arriba) — nunca un tercer/cuarto color que
+// compita visualmente, lo proyectado se lee como "más de lo mismo, todavía
+// no confirmado", no como una categoría aparte.
+function FlujoChart({ titulo, moneda, datos, formatear }: { titulo: string; moneda: string; datos: PuntoChartFlujo[]; formatear: (n: number) => string }) {
+  const muchosPuntos = datos.length > 8
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4">
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Flujo {titulo}</p>
-      <div className="h-64">
+      <div className={muchosPuntos ? 'h-80' : 'h-72'}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={datos} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={n => formatear(n).replace(/\.\d+$/, '')} width={70} />
-            <Tooltip formatter={(value: number | string | readonly (number | string)[] | undefined) => formatear(typeof value === 'number' ? value : 0)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="Ingresos" fill="#2563eb" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="Ingresos proyectados" fill="#93c5fd" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="Egresos" fill="#dc2626" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="Egresos proyectados" fill="#fb923c" radius={[3, 3, 0, 0]} />
+          <BarChart data={datos} margin={{ top: 8, right: 12, left: 4, bottom: muchosPuntos ? 24 : 4 }} barGap={4} barCategoryGap={muchosPuntos ? '20%' : '30%'}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 11, fill: '#64748b' }}
+              angle={muchosPuntos ? -35 : 0}
+              textAnchor={muchosPuntos ? 'end' : 'middle'}
+              height={muchosPuntos ? 40 : 24}
+            />
+            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={n => formatCompacto(n, moneda)} width={64} />
+            <Tooltip
+              formatter={(value: number | string | readonly (number | string)[] | undefined) => formatear(typeof value === 'number' ? value : 0)}
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
+              labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+              cursor={{ fill: '#f8fafc' }}
+            />
+            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" iconSize={8} />
+            <Bar dataKey="Ingresos" stackId="ing" fill="#2563eb" radius={[0, 0, 0, 0]} maxBarSize={48} />
+            <Bar dataKey="Ingresos proyectados" stackId="ing" fill="#bfdbfe" radius={[4, 4, 0, 0]} maxBarSize={48} />
+            <Bar dataKey="Egresos" stackId="egr" fill="#dc2626" radius={[0, 0, 0, 0]} maxBarSize={48} />
+            <Bar dataKey="Egresos proyectados" stackId="egr" fill="#fecaca" radius={[4, 4, 0, 0]} maxBarSize={48} />
           </BarChart>
         </ResponsiveContainer>
       </div>

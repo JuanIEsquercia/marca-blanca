@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { cn, formatCurrency, sumarMontos } from '@/lib/utils'
 import type { CuentaPropia } from '@/types/database'
 
@@ -12,7 +13,7 @@ interface CuentaConSaldo extends CuentaPropia {
 }
 
 export interface MovimientoFlujo {
-  tipo: 'ingreso' | 'egreso' | 'comprometido'
+  tipo: 'ingreso' | 'egreso' | 'comprometido' | 'ingreso_comprometido'
   moneda: string
   monto: number
   fecha: string | null
@@ -27,6 +28,39 @@ interface MesFlujo {
   egresos_ars: number
   comprometido_usd: number
   comprometido_ars: number
+  ingreso_comprometido_usd: number
+  ingreso_comprometido_ars: number
+}
+
+type VistaPeriodo = 'mes' | 'trimestre' | 'año'
+
+// Agrupa la serie mensual (siempre calculada mes a mes) en trimestres o
+// años sumando los meses correspondientes — no hace falta volver a la base
+// para cambiar el nivel de agregación, ni una función de cálculo aparte.
+function agruparPeriodos(mesesFlujo: MesFlujo[], mesesRaw: Mes[], vista: VistaPeriodo): MesFlujo[] {
+  if (vista === 'mes') return mesesFlujo
+
+  const grupos = new Map<string, { label: string; items: MesFlujo[] }>()
+  mesesFlujo.forEach((m, i) => {
+    const { year, month } = mesesRaw[i]
+    const clave = vista === 'trimestre' ? `${year}-Q${Math.ceil(month / 3)}` : `${year}`
+    const label = vista === 'trimestre' ? `Q${Math.ceil(month / 3)} ${year}` : `${year}`
+    const grupo = grupos.get(clave) ?? { label, items: [] }
+    grupo.items.push(m)
+    grupos.set(clave, grupo)
+  })
+
+  return [...grupos.values()].map(({ label, items }) => ({
+    label,
+    ingresos_usd: sumarMontos(items.map(i => i.ingresos_usd)),
+    ingresos_ars: sumarMontos(items.map(i => i.ingresos_ars)),
+    egresos_usd: sumarMontos(items.map(i => i.egresos_usd)),
+    egresos_ars: sumarMontos(items.map(i => i.egresos_ars)),
+    comprometido_usd: sumarMontos(items.map(i => i.comprometido_usd)),
+    comprometido_ars: sumarMontos(items.map(i => i.comprometido_ars)),
+    ingreso_comprometido_usd: sumarMontos(items.map(i => i.ingreso_comprometido_usd)),
+    ingreso_comprometido_ars: sumarMontos(items.map(i => i.ingreso_comprometido_ars)),
+  }))
 }
 
 interface Mes {
@@ -96,6 +130,7 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
   const [tab, setTab] = useState<'flujo' | 'porCobrar' | 'porPagar'>('flujo')
   const [proyectoFiltro, setProyectoFiltro] = useState<string>(FILTRO_TODOS)
   const [paginaCobrar, setPaginaCobrar] = useState(0)
+  const [vista, setVista] = useState<VistaPeriodo>('mes')
 
   const cuentasARS = cuentas.filter(c => c.moneda === 'ARS')
   const cuentasUSD = cuentas.filter(c => c.moneda === 'USD')
@@ -128,9 +163,31 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
         egresos_ars: sumarMontos(delMes.filter(m => m.tipo === 'egreso' && m.moneda === 'ARS').map(m => m.monto)),
         comprometido_usd: sumarMontos(delMes.filter(m => m.tipo === 'comprometido' && m.moneda === 'USD').map(m => m.monto)),
         comprometido_ars: sumarMontos(delMes.filter(m => m.tipo === 'comprometido' && m.moneda === 'ARS').map(m => m.monto)),
+        ingreso_comprometido_usd: sumarMontos(delMes.filter(m => m.tipo === 'ingreso_comprometido' && m.moneda === 'USD').map(m => m.monto)),
+        ingreso_comprometido_ars: sumarMontos(delMes.filter(m => m.tipo === 'ingreso_comprometido' && m.moneda === 'ARS').map(m => m.monto)),
       }
     })
   }, [movimientos, meses, proyectoFiltro])
+
+  const periodos = useMemo(() => agruparPeriodos(flujoMensual, meses, vista), [flujoMensual, meses, vista])
+
+  // Recharts quiere un solo array de puntos con todas las series adentro —
+  // "realizado" y "proyectado" (comprometido) van como series separadas
+  // para poder distinguirlas visualmente, nunca como si fueran lo mismo.
+  const datosChartUsd = useMemo(() => periodos.map(p => ({
+    label: p.label,
+    'Ingresos': p.ingresos_usd,
+    'Ingresos proyectados': p.ingreso_comprometido_usd,
+    'Egresos': p.egresos_usd,
+    'Egresos proyectados': p.comprometido_usd,
+  })), [periodos])
+  const datosChartArs = useMemo(() => periodos.map(p => ({
+    label: p.label,
+    'Ingresos': p.ingresos_ars,
+    'Ingresos proyectados': p.ingreso_comprometido_ars,
+    'Egresos': p.egresos_ars,
+    'Egresos proyectados': p.comprometido_ars,
+  })), [periodos])
 
   const gastosPendientesFiltrados = proyectoFiltro === FILTRO_TODOS
     ? gastosPendientes
@@ -251,68 +308,100 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
         </div>
 
         {tab === 'flujo' && (
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Mes</th>
-                    <th className="text-right px-4 py-3 font-semibold text-slate-600 text-blue-700">Ingresos USD</th>
-                    <th className="text-right px-4 py-3 font-semibold text-slate-600 text-blue-700">Ingresos ARS</th>
-                    <th className="text-right px-4 py-3 font-semibold text-slate-600 text-red-700">Egresos USD</th>
-                    <th className="text-right px-4 py-3 font-semibold text-slate-600 text-red-700">Egresos ARS</th>
-                    <th className="text-right px-4 py-3 font-semibold text-slate-600">Saldo USD</th>
-                    <th className="text-right px-4 py-3 font-semibold text-slate-600">Saldo ARS</th>
-                    <th className="text-right px-4 py-3 font-semibold text-slate-600 text-orange-600">Comprometido</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {flujoMensual.map(mes => {
-                    const saldoUsd = mes.ingresos_usd - mes.egresos_usd
-                    const saldoArs = mes.ingresos_ars - mes.egresos_ars
-                    return (
-                      <tr key={mes.label} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-medium text-slate-700">{mes.label}</td>
-                        <td className="px-4 py-3 text-right text-blue-700">
-                          {mes.ingresos_usd > 0 ? formatUSD(mes.ingresos_usd) : <span className="text-slate-300">—</span>}
-                        </td>
-                        <td className="px-4 py-3 text-right text-blue-700">
-                          {mes.ingresos_ars > 0 ? formatARS(mes.ingresos_ars) : <span className="text-slate-300">—</span>}
-                        </td>
-                        <td className="px-4 py-3 text-right text-red-600">
-                          {mes.egresos_usd > 0 ? formatUSD(mes.egresos_usd) : <span className="text-slate-300">—</span>}
-                        </td>
-                        <td className="px-4 py-3 text-right text-red-600">
-                          {mes.egresos_ars > 0 ? formatARS(mes.egresos_ars) : <span className="text-slate-300">—</span>}
-                        </td>
-                        <td className={cn(
-                          'px-4 py-3 text-right font-semibold',
-                          saldoUsd > 0 ? 'text-green-600' : saldoUsd < 0 ? 'text-red-600' : 'text-slate-400'
-                        )}>
-                          {saldoUsd !== 0 ? formatUSD(saldoUsd) : '—'}
-                        </td>
-                        <td className={cn(
-                          'px-4 py-3 text-right font-semibold',
-                          saldoArs > 0 ? 'text-green-600' : saldoArs < 0 ? 'text-red-600' : 'text-slate-400'
-                        )}>
-                          {saldoArs !== 0 ? formatARS(saldoArs) : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-right text-orange-600 text-xs">
-                          {mes.comprometido_usd > 0 && <span className="block">{formatUSD(mes.comprometido_usd)}</span>}
-                          {mes.comprometido_ars > 0 && <span className="block">{formatARS(mes.comprometido_ars)}</span>}
-                          {mes.comprometido_usd === 0 && mes.comprometido_ars === 0 && <span className="text-slate-300">—</span>}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+          <div className="space-y-4">
+            {/* Vista: mes / trimestre / año — agrupa la misma serie, no vuelve a pedir datos */}
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 w-fit">
+              {(['mes', 'trimestre', 'año'] as const).map(v => (
+                <button
+                  key={v}
+                  onClick={() => setVista(v)}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors',
+                    vista === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  )}
+                >
+                  {v === 'año' ? 'Año' : v === 'trimestre' ? 'Trimestre' : 'Mes'}
+                </button>
+              ))}
+              <span className="px-2 text-[11px] text-slate-400 border-l border-slate-300 ml-1">
+                12 atrás + 12 adelante (proyectado) desde hoy
+              </span>
             </div>
-            {flujoMensual.length === 0 && (
-              <div className="text-center py-12 text-slate-400 text-sm">
-                No hay movimientos registrados aún.
+
+            {cuentasUSD.length > 0 && <FlujoChart titulo="USD" datos={datosChartUsd} formatear={formatUSD} />}
+            {cuentasARS.length > 0 && <FlujoChart titulo="ARS" datos={datosChartArs} formatear={formatARS} />}
+
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600">{vista === 'año' ? 'Año' : vista === 'trimestre' ? 'Trimestre' : 'Mes'}</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-blue-700">Ingresos USD</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-blue-300">Proyectados USD</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-blue-700">Ingresos ARS</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-blue-300">Proyectados ARS</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-red-700">Egresos USD</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-red-700">Egresos ARS</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600">Saldo USD</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600">Saldo ARS</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-orange-600">Egresos comprometidos</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {periodos.map(mes => {
+                      const saldoUsd = mes.ingresos_usd - mes.egresos_usd
+                      const saldoArs = mes.ingresos_ars - mes.egresos_ars
+                      return (
+                        <tr key={mes.label} className="hover:bg-slate-50">
+                          <td className="px-4 py-3 font-medium text-slate-700">{mes.label}</td>
+                          <td className="px-4 py-3 text-right text-blue-700">
+                            {mes.ingresos_usd > 0 ? formatUSD(mes.ingresos_usd) : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right text-blue-400 text-xs">
+                            {mes.ingreso_comprometido_usd > 0 ? formatUSD(mes.ingreso_comprometido_usd) : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right text-blue-700">
+                            {mes.ingresos_ars > 0 ? formatARS(mes.ingresos_ars) : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right text-blue-400 text-xs">
+                            {mes.ingreso_comprometido_ars > 0 ? formatARS(mes.ingreso_comprometido_ars) : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right text-red-600">
+                            {mes.egresos_usd > 0 ? formatUSD(mes.egresos_usd) : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right text-red-600">
+                            {mes.egresos_ars > 0 ? formatARS(mes.egresos_ars) : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className={cn(
+                            'px-4 py-3 text-right font-semibold',
+                            saldoUsd > 0 ? 'text-green-600' : saldoUsd < 0 ? 'text-red-600' : 'text-slate-400'
+                          )}>
+                            {saldoUsd !== 0 ? formatUSD(saldoUsd) : '—'}
+                          </td>
+                          <td className={cn(
+                            'px-4 py-3 text-right font-semibold',
+                            saldoArs > 0 ? 'text-green-600' : saldoArs < 0 ? 'text-red-600' : 'text-slate-400'
+                          )}>
+                            {saldoArs !== 0 ? formatARS(saldoArs) : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-right text-orange-600 text-xs">
+                            {mes.comprometido_usd > 0 && <span className="block">{formatUSD(mes.comprometido_usd)}</span>}
+                            {mes.comprometido_ars > 0 && <span className="block">{formatARS(mes.comprometido_ars)}</span>}
+                            {mes.comprometido_usd === 0 && mes.comprometido_ars === 0 && <span className="text-slate-300">—</span>}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
-            )}
+              {periodos.length === 0 && (
+                <div className="text-center py-12 text-slate-400 text-sm">
+                  No hay movimientos registrados aún.
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -453,6 +542,42 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
             </div>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+interface PuntoChartFlujo {
+  label: string
+  'Ingresos': number
+  'Ingresos proyectados': number
+  'Egresos': number
+  'Egresos proyectados': number
+}
+
+// Barras agrupadas (no apiladas) a propósito: apilar "realizado" +
+// "proyectado" como si fueran lo mismo daría un total que no es ni lo
+// cobrado ni lo esperado, una cifra ambigua. Separadas, cada barra se lee
+// sola. Colores más claros para lo proyectado — nunca el mismo tono que lo
+// ya realizado, para no confundirlos de un vistazo.
+function FlujoChart({ titulo, datos, formatear }: { titulo: string; datos: PuntoChartFlujo[]; formatear: (n: number) => string }) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Flujo {titulo}</p>
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={datos} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} />
+            <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={n => formatear(n).replace(/\.\d+$/, '')} width={70} />
+            <Tooltip formatter={(value: number | string | readonly (number | string)[] | undefined) => formatear(typeof value === 'number' ? value : 0)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="Ingresos" fill="#2563eb" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="Ingresos proyectados" fill="#93c5fd" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="Egresos" fill="#dc2626" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="Egresos proyectados" fill="#fb923c" radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
     </div>
   )

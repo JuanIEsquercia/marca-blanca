@@ -9,11 +9,16 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = { title: 'Caja' }
 export const dynamic = 'force-dynamic'
 
-function getLast12Months() {
+// 12 meses atrás (histórico real) + el actual + 11 adelante (proyectado a
+// partir de vencimientos ya conocidos: cuotas de venta, cobros y gastos
+// pendientes) — 24 meses en total. TesoreriaView agrupa esto en trimestres
+// o años sumando los meses correspondientes, no hace falta traer los datos
+// de nuevo por cada nivel de agregación.
+function getMonthRange(mesesAtras: number, mesesAdelante: number) {
   const months = []
   const now = new Date()
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+  for (let i = -mesesAtras; i < mesesAdelante; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
     months.push({
       year: d.getFullYear(),
       month: d.getMonth() + 1,
@@ -29,14 +34,16 @@ export default async function TesoreriaPage() {
 
   const supabase = await createClient()
 
-  // El flujo mensual solo muestra los últimos 12 meses (`meses`, abajo) —
-  // filtrar estas 4 queries a esa misma ventana evita traer TODO el
-  // historial de la constructora en cada carga (sin esto, quedaba sujeto al
-  // límite default de PostgREST de ~1000 filas y subestimaba los totales
-  // silenciosamente en tenants con historial largo). Los gastos Pendientes
-  // NO se filtran por fecha: una deuda vieja sigue siendo relevante aunque
-  // esté fuera de la ventana del gráfico.
-  const meses = getLast12Months()
+  // El flujo mensual muestra 12 meses atrás (histórico) + 12 adelante
+  // (proyección) — filtrar lo YA PAGADO/COBRADO a esa ventana evita traer
+  // todo el historial de la constructora en cada carga (sin esto, quedaba
+  // sujeto al límite default de PostgREST de ~1000 filas y subestimaba los
+  // totales silenciosamente en tenants con historial largo). Lo Pendiente
+  // (gastos, cobros, cuotas) NO se filtra por fecha en ningún sentido: una
+  // deuda vieja sigue siendo relevante, y un vencimiento lejano en el
+  // futuro (cuota 40/60 de un plan largo) igual tiene que poder proyectarse
+  // más adelante si el usuario extiende la ventana.
+  const meses = getMonthRange(12, 12)
   const ventanaInicio = `${meses[0].year}-${String(meses[0].month).padStart(2, '0')}-01`
 
   const [
@@ -49,10 +56,15 @@ export default async function TesoreriaPage() {
     ingresosConsolidados,
   ] = await Promise.all([
     supabase.from('obras').select('id, nombre').eq('constructora_id', ctx.constructoraId).order('nombre'),
+    // Antes solo traía Pagadas — ahora también las Pendientes (con su
+    // fecha_vencimiento, ya conocida de antemano al generarse el plan de
+    // cuotas) para poder proyectar ingresos futuros, no solo mostrar lo ya
+    // cobrado.
     supabase.from('cuotas')
-      .select('monto_base, monto_cobrado, fecha_pago, estado_pago, contratos_venta!inner(obra_id, estado)')
-      .eq('constructora_id', ctx.constructoraId).eq('estado_pago', 'Pagado').gte('fecha_pago', ventanaInicio)
-      .eq('contratos_venta.estado', 'vigente'),
+      .select('monto_base, monto_cobrado, fecha_pago, fecha_vencimiento, estado_pago, contratos_venta!inner(obra_id, estado)')
+      .eq('constructora_id', ctx.constructoraId)
+      .eq('contratos_venta.estado', 'vigente')
+      .or(`estado_pago.neq.Pagado,fecha_pago.gte.${ventanaInicio}`),
     supabase.from('contratos_venta').select('entrega_efectiva, fecha_firma, obra_id')
       .eq('constructora_id', ctx.constructoraId).eq('estado', 'vigente').gte('fecha_firma', ventanaInicio),
     // Un gasto con plan de pago (migration_064) sigue "Pendiente" a nivel de
@@ -69,9 +81,12 @@ export default async function TesoreriaPage() {
       .eq('constructora_id', ctx.constructoraId)
       .or(`estado.eq.Pendiente,fecha_pago.gte.${ventanaInicio}`),
     // Mismo criterio que gastos: un cobro con plan de pago parcial sigue
-    // "Pendiente" hasta que cierra del todo.
+    // "Pendiente" hasta que cierra del todo. fecha_vencimiento nueva acá
+    // (antes no se traía) para poder ubicar los pendientes en el mes que
+    // corresponde de la proyección, en vez de solo mostrarlos en la lista
+    // plana "Por cobrar".
     supabase.from('cobros_proyecto')
-      .select('monto, moneda, fecha_pago, fecha, obra_id, estado, pagos:cobro_pagos(estado, monto, fecha_pago)')
+      .select('monto, moneda, fecha_pago, fecha, fecha_vencimiento, obra_id, estado, pagos:cobro_pagos(estado, monto, fecha_pago)')
       .eq('constructora_id', ctx.constructoraId)
       .or(`estado.eq.Pendiente,fecha.gte.${ventanaInicio}`),
     calcularCajaEmpresa(supabase, ctx.constructoraId),
@@ -93,10 +108,23 @@ export default async function TesoreriaPage() {
     }
     return [{ liquidado: g.estado === 'Pagado', monto: g.monto ?? 0, fecha: g.estado === 'Pagado' ? g.fecha_pago : g.fecha_vencimiento }]
   }
-  function expandirCobro(c: { estado: string; monto: number | null; fecha_pago: string | null; fecha: string; pagos?: PagoConFecha[] | null }) {
+  // A diferencia de gastos, acá antes se descartaban los pendientes (solo
+  // interesaba lo ya Cobrado) — ahora también se devuelven, marcados
+  // `liquidado: false` con su fecha de vencimiento, para poder proyectarlos
+  // en el mes que corresponde (mismo criterio que expandirGasto).
+  function expandirCobro(c: { estado: string; monto: number | null; fecha_pago: string | null; fecha: string; fecha_vencimiento: string | null; pagos?: PagoConFecha[] | null }) {
     const pagos = c.pagos ?? []
-    if (pagos.length > 0) return pagos.filter(p => p.estado === 'Cobrado').map(p => ({ monto: p.monto, fecha: p.fecha_pago }))
-    return c.estado === 'Cobrado' ? [{ monto: c.monto ?? 0, fecha: c.fecha_pago ?? c.fecha }] : []
+    if (pagos.length > 0) {
+      return pagos.map(p => ({ liquidado: p.estado === 'Cobrado', monto: p.monto, fecha: p.fecha_pago }))
+    }
+    return [{ liquidado: c.estado === 'Cobrado', monto: c.monto ?? 0, fecha: c.estado === 'Cobrado' ? (c.fecha_pago ?? c.fecha) : (c.fecha_vencimiento ?? c.fecha) }]
+  }
+  // Cuotas: mismo criterio, Pagada cuenta como ingreso real (fecha_pago),
+  // Pendiente como proyección (fecha_vencimiento, ya fijada de antemano al
+  // generarse el plan de cuotas del contrato).
+  function expandirCuota(c: { estado_pago: string; monto_base: number; monto_cobrado: number | null; fecha_pago: string | null; fecha_vencimiento: string }) {
+    const liquidado = c.estado_pago === 'Pagado'
+    return { liquidado, monto: liquidado ? (c.monto_cobrado ?? c.monto_base) : c.monto_base, fecha: liquidado ? c.fecha_pago : c.fecha_vencimiento }
   }
 
   // Serie normalizada de movimientos con su obra_id — antes el "Flujo
@@ -104,16 +132,21 @@ export default async function TesoreriaPage() {
   // ingreso/egreso; ahora el filtro de proyecto en TesoreriaView recalcula
   // esto mismo del lado del cliente sin ir de nuevo a la base.
   const movimientos: MovimientoFlujo[] = [
-    ...(cuotas ?? []).map(c => ({
-      tipo: 'ingreso' as const, moneda: 'USD', monto: c.monto_cobrado ?? c.monto_base ?? 0,
-      fecha: c.fecha_pago, obraId: (c.contratos_venta as unknown as { obra_id: string } | null)?.obra_id ?? null,
-    })),
+    ...(cuotas ?? []).map(c => {
+      const mov = expandirCuota(c)
+      return {
+        tipo: (mov.liquidado ? 'ingreso' : 'ingreso_comprometido') as 'ingreso' | 'ingreso_comprometido',
+        moneda: 'USD', monto: mov.monto, fecha: mov.fecha,
+        obraId: (c.contratos_venta as unknown as { obra_id: string } | null)?.obra_id ?? null,
+      }
+    }),
     ...(contratos ?? []).filter(c => (c.entrega_efectiva ?? 0) > 0).map(c => ({
       tipo: 'ingreso' as const, moneda: 'USD', monto: c.entrega_efectiva ?? 0,
       fecha: c.fecha_firma, obraId: c.obra_id,
     })),
     ...(cobrosProyecto ?? []).flatMap(c => expandirCobro(c).map(mov => ({
-      tipo: 'ingreso' as const, moneda: c.moneda, monto: mov.monto, fecha: mov.fecha, obraId: c.obra_id,
+      tipo: (mov.liquidado ? 'ingreso' : 'ingreso_comprometido') as 'ingreso' | 'ingreso_comprometido',
+      moneda: c.moneda, monto: mov.monto, fecha: mov.fecha, obraId: c.obra_id,
     }))),
     ...(gastos ?? []).flatMap(g => expandirGasto(g).map(mov => ({
       tipo: (mov.liquidado ? 'egreso' : 'comprometido') as 'egreso' | 'comprometido',

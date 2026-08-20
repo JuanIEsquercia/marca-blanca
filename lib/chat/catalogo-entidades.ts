@@ -104,4 +104,17 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'notas', label: 'Notas', requerido: false },
     ],
   },
+  certificado_avance: {
+    key: 'certificado_avance',
+    label: 'Certificado de avance',
+    modulo: 'certificados',
+    rutaNavegacion: '/admin/proyectos/{obraId}/certificados',
+    campos: [
+      { nombre: 'contrato_id', label: 'Contrato', requerido: true, descripcion: 'Id real del contrato, obtenido de listar_contratos_obra' },
+      { nombre: 'periodo', label: 'Período', requerido: true, descripcion: 'Ej: "Enero 2026", "Semana del 1 al 15/03"' },
+      { nombre: 'items', label: 'Avance por rubro', requerido: true, descripcion: 'Nuevo % de avance ACUMULADO (no incremental) para cada rubro que cambió — obtené los rubros y su avance actual con consultar_rubros_contrato antes. Los rubros no mencionados quedan con el mismo % que ya tenían.' },
+      { nombre: 'descripcion_avances', label: 'Descripción de los avances', requerido: false },
+      { nombre: 'notas', label: 'Notas', requerido: false },
+    ],
+  },
 }

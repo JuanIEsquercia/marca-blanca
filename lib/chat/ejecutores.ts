@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { redondear2 } from '@/lib/utils'
 import { puedeAcceder } from '@/lib/permisos'
 import { crearProveedorRapido } from '@/lib/proveedores'
 import { crearCompradorRapido } from '@/lib/compradores'
@@ -116,12 +117,25 @@ async function ejecutarNavegarAProyecto(ctx: ContextoChat, supabase: SupabaseCli
     return { error: `Este usuario no tiene el módulo ${def.label} habilitado en el proyecto "${obra.nombre}".` }
   }
 
+  // contratoId (solo tiene sentido para seccion='certificados', ver
+  // certificados/page.tsx): valida que el contrato sea de ESTA obra antes
+  // de armar el ?contrato= — nunca confía en un id suelto del modelo.
+  const contratoId = texto(input.contratoId)
+  let contratoLabel = ''
+  if (contratoId && def.key === 'certificados') {
+    const { data: contrato } = await supabase.from('contratos_obra').select('id, tipo').eq('id', contratoId).eq('obra_id', obraId).maybeSingle()
+    if (!contrato) return { error: 'No se encontró ese contrato en este proyecto.' }
+    contratoLabel = ` (${contrato.tipo === 'cliente' ? 'contrato cliente' : 'subcontratista'})`
+  }
+
+  const ruta = contratoId && contratoLabel ? `/admin/proyectos/${obra.id}/${def.segmento}?contrato=${contratoId}` : `/admin/proyectos/${obra.id}/${def.segmento}`
+
   return {
     obraId: obra.id,
     obraNombre: obra.nombre,
     seccion: def.key,
-    ruta: `/admin/proyectos/${obra.id}/${def.segmento}`,
-    label: `Ir a ${def.label} — ${obra.nombre}`,
+    ruta,
+    label: `Ir a ${def.label}${contratoLabel} — ${obra.nombre}`,
   }
 }
 
@@ -343,6 +357,182 @@ async function ejecutarCrearOrdenCompra(ctx: ContextoChat, supabase: SupabaseCli
   return { creado: true, id: orden.id, numero: orden.numero, items: items.length }
 }
 
+interface FilaContratoObra {
+  id: string
+  tipo: 'cliente' | 'subcontratista'
+  estado: string
+  moneda: string
+  compradores: { nombre_completo: string } | null
+  proveedores: { razon_social: string } | null
+}
+
+async function ejecutarListarContratosObra(supabase: SupabaseClient, input: Record<string, unknown>) {
+  const obraId = texto(input.obraId)
+  if (!obraId) return { error: 'Falta indicar de qué proyecto — usá listar_proyectos primero.' }
+  const { data, error } = await supabase
+    .from('contratos_obra')
+    .select('id, tipo, estado, moneda, compradores(nombre_completo), proveedores(razon_social)')
+    .eq('obra_id', obraId)
+    .order('created_at', { ascending: true })
+  if (error) return { error: 'No se pudo obtener los contratos de este proyecto.' }
+  return {
+    contratos: ((data ?? []) as unknown as FilaContratoObra[]).map(c => ({
+      id: c.id,
+      tipo: c.tipo,
+      estado: c.estado,
+      moneda: c.moneda,
+      contraparte: c.tipo === 'cliente' ? (c.compradores?.nombre_completo ?? 'Cliente') : (c.proveedores?.razon_social ?? 'Subcontratista'),
+    })),
+  }
+}
+
+// Calcula, por rubro, el % acumulado máximo ya certificado en certificados
+// previos de ESE contrato — mismo criterio que avanceAcumuladoPrevio en
+// ContratoObraCard.tsx (un rubro puede aparecer en varios certificados; lo
+// que importa es el último acumulado, no la suma).
+async function previoPorItemDeContrato(supabase: SupabaseClient, contratoId: string): Promise<Record<string, number>> {
+  const { data } = await supabase
+    .from('certificado_items')
+    .select('contrato_obra_item_id, pct_avance_acumulado, certificados_avance!inner(contrato_obra_id)')
+    .eq('certificados_avance.contrato_obra_id', contratoId)
+  const previo: Record<string, number> = {}
+  for (const ci of (data ?? []) as { contrato_obra_item_id: string; pct_avance_acumulado: number }[]) {
+    previo[ci.contrato_obra_item_id] = Math.max(previo[ci.contrato_obra_item_id] ?? 0, ci.pct_avance_acumulado)
+  }
+  return previo
+}
+
+async function ejecutarConsultarRubrosContrato(supabase: SupabaseClient, input: Record<string, unknown>) {
+  const contratoId = texto(input.contratoId)
+  if (!contratoId) return { error: 'Falta indicar de qué contrato — usá listar_contratos_obra primero.' }
+
+  const { data: items, error: errItems } = await supabase
+    .from('contrato_obra_items')
+    .select('id, rubro, unidad, monto_contratado')
+    .eq('contrato_obra_id', contratoId)
+    .order('orden')
+  if (errItems) return { error: 'No se pudo obtener los rubros de este contrato.' }
+  if (!items || items.length === 0) return { error: 'Este contrato no tiene rubros cargados por ítem — no se puede certificar por rubro.' }
+
+  const previoPorItem = await previoPorItemDeContrato(supabase, contratoId)
+
+  return {
+    rubros: items.map(it => ({
+      id: it.id,
+      rubro: it.rubro,
+      unidad: it.unidad,
+      monto_contratado: it.monto_contratado,
+      pct_avance_acumulado_actual: previoPorItem[it.id] ?? 0,
+    })),
+  }
+}
+
+interface ItemPctInput { id: string; pct: number }
+
+function parsearItemsCertificado(valor: unknown): ItemPctInput[] {
+  if (!Array.isArray(valor)) return []
+  const items: ItemPctInput[] = []
+  for (const raw of valor) {
+    if (typeof raw !== 'object' || raw === null) continue
+    const r = raw as Record<string, unknown>
+    const id = texto(r.contrato_obra_item_id)
+    const pct = numero(r.pct_avance_acumulado)
+    if (!id || pct === undefined || pct < 0 || pct > 100) continue
+    items.push({ id, pct })
+  }
+  return items
+}
+
+// Mismo flujo de dos pasos que handleCertSubmit en ContratoObraCard.tsx: el
+// header nace con monto_certificado/porcentaje_avance en 0 (placeholder), y
+// el trigger recalcular_monto_certificado los recalcula solo al insertar
+// los certificado_items — por eso se re-lee el certificado al final en vez
+// de calcular el total acá.
+async function ejecutarCrearCertificadoAvance(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const contratoId = texto(input.contrato_id)
+  const periodo = texto(input.periodo)
+  if (!contratoId) return { error: 'Falta indicar el contrato.' }
+  if (!periodo) return { error: 'Falta el período que cubre este certificado.' }
+
+  const { data: contrato } = await supabase.from('contratos_obra').select('id, obra_id').eq('id', contratoId).maybeSingle()
+  if (!contrato) return { error: 'No se encontró ese contrato, o este usuario no tiene acceso.' }
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'certificados', contrato.obra_id)) {
+    return { error: 'Este usuario no tiene el módulo Certificados habilitado en este proyecto.' }
+  }
+
+  const { data: itemsContrato, error: errItemsContrato } = await supabase
+    .from('contrato_obra_items')
+    .select('id, monto_contratado')
+    .eq('contrato_obra_id', contratoId)
+  if (errItemsContrato || !itemsContrato || itemsContrato.length === 0) {
+    return { error: 'Este contrato no tiene rubros cargados por ítem — no se puede certificar por rubro.' }
+  }
+
+  const itemsInput = parsearItemsCertificado(input.items)
+  if (itemsInput.length === 0) return { error: 'Falta indicar el % de avance de al menos un rubro.' }
+
+  const idsValidos = new Set(itemsContrato.map(i => i.id))
+  for (const i of itemsInput) {
+    if (!idsValidos.has(i.id)) return { error: 'Uno de los rubros indicados no pertenece a este contrato — volvé a consultar_rubros_contrato.' }
+  }
+
+  const previoPorItem = await previoPorItemDeContrato(supabase, contratoId)
+  for (const i of itemsInput) {
+    const previo = previoPorItem[i.id] ?? 0
+    if (i.pct < previo) return { error: `No se puede bajar el avance de un rubro (ya tenía ${previo}% acumulado).` }
+  }
+  const pctPorItem = new Map(itemsInput.map(i => [i.id, i.pct]))
+
+  const { data: nuevoCert, error: errCert } = await supabase
+    .from('certificados_avance')
+    .insert({
+      contrato_obra_id: contratoId,
+      obra_id: contrato.obra_id,
+      constructora_id: ctx.constructoraId,
+      periodo,
+      porcentaje_avance: 0,
+      monto_certificado: 0,
+      descripcion_avances: texto(input.descripcion_avances) ?? null,
+      notas: texto(input.notas) ?? null,
+      estado: 'borrador',
+    })
+    .select('id')
+    .single()
+  if (errCert || !nuevoCert) return { error: 'No se pudo crear el certificado.' }
+
+  const filas = itemsContrato.map(item => {
+    const previo = previoPorItem[item.id] ?? 0
+    const nuevo = pctPorItem.get(item.id) ?? previo
+    return {
+      certificado_id: nuevoCert.id,
+      contrato_obra_item_id: item.id,
+      constructora_id: ctx.constructoraId,
+      pct_avance_acumulado: nuevo,
+      monto_certificado: redondear2(((nuevo - previo) / 100) * item.monto_contratado),
+    }
+  })
+
+  const { error: errCertItems } = await supabase.from('certificado_items').insert(filas)
+  if (errCertItems) {
+    await supabase.from('certificados_avance').delete().eq('id', nuevoCert.id)
+    return { error: `No se pudo cargar el avance por rubro: ${errCertItems.message}` }
+  }
+
+  const { data: certFinal } = await supabase
+    .from('certificados_avance')
+    .select('numero, monto_certificado, porcentaje_avance')
+    .eq('id', nuevoCert.id)
+    .maybeSingle()
+
+  return {
+    creado: true,
+    id: nuevoCert.id,
+    numero: certFinal?.numero,
+    monto_certificado: certFinal?.monto_certificado,
+    porcentaje_avance: certFinal?.porcentaje_avance,
+  }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -367,5 +557,8 @@ export async function ejecutarHerramienta(
     case 'listar_categorias_gasto': return ejecutarListarCategoriasGasto(ctx, supabase)
     case 'crear_gasto': return ejecutarCrearGasto(ctx, supabase, input)
     case 'crear_orden_compra': return ejecutarCrearOrdenCompra(ctx, supabase, input)
+    case 'listar_contratos_obra': return ejecutarListarContratosObra(supabase, input)
+    case 'consultar_rubros_contrato': return ejecutarConsultarRubrosContrato(supabase, input)
+    case 'crear_certificado_avance': return ejecutarCrearCertificadoAvance(ctx, supabase, input)
   }
 }

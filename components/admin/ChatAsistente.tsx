@@ -30,6 +30,7 @@ const LABEL_HERRAMIENTA: Record<string, string> = {
   crear_cuadrilla: 'Crear cuadrilla',
   crear_gasto: 'Crear gasto',
   crear_orden_compra: 'Crear orden de compra',
+  crear_certificado_avance: 'Certificar avance',
 }
 
 // Un valor de input puede ser un array de objetos (ej. "items" de una

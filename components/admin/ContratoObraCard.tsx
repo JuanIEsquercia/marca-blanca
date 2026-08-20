@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, estaVencido, formatCurrency, formatDate, redondear2 } from '@/lib/utils'
 import { obtenerOCrearRubro } from '@/lib/rubros'
@@ -23,6 +23,10 @@ interface Props {
   puedeCrearCuenta: boolean
   readOnly?: boolean
   rubros?: string[]
+  // ?contrato=<id> desde navegar_a_proyecto del chat (ver certificados/page.tsx)
+  // — abre directo el formulario de "Nuevo certificado" de este contrato y le
+  // hace scroll, en vez de dejar al usuario a buscarlo entre varios contratos.
+  abrirCertInicial?: boolean
   onChanged: () => void
 }
 
@@ -55,8 +59,9 @@ const EMPTY_REGISTRAR_PAGO = { fecha_pago: new Date().toISOString().split('T')[0
 // siempre) o Pagos a proveedor (contrato con un subcontratista, genera
 // gastos en vez de cobros_proyecto). Extraído de CertificadosManager para
 // poder mostrar varios contratos por proyecto en vez de uno solo.
-export default function ContratoObraCard({ contrato, certificados, contratoObraItems, cuentasPropias, constructoraId, obraId, puedeCrearCuenta, readOnly = false, rubros = [], onChanged }: Props) {
+export default function ContratoObraCard({ contrato, certificados, contratoObraItems, cuentasPropias, constructoraId, obraId, puedeCrearCuenta, readOnly = false, rubros = [], abrirCertInicial = false, onChanged }: Props) {
   const esCliente = contrato.tipo === 'cliente'
+  const rootRef = useRef<HTMLDivElement>(null)
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -69,11 +74,6 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
   // el que avanzarEstado() lleva a 'presentado').
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
   const [marcandoLote, setMarcandoLote] = useState(false)
-  const [showCertForm, setShowCertForm] = useState(false)
-  const [certForm, setCertForm] = useState(EMPTY_CERT)
-  const [itemPcts, setItemPcts] = useState<Record<string, string>>({})
-  const [showAdicionalForm, setShowAdicionalForm] = useState(false)
-  const [adicionalFilas, setAdicionalFilas] = useState<FilaItem[]>([nuevaFilaItem()])
 
   const usaItems = contratoObraItems.length > 0
 
@@ -84,6 +84,22 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
     }
   }
 
+  // abrirCertInicial (?contrato=<id> del chat, ver certificados/page.tsx):
+  // arranca el form ya abierto con los % iniciales calculados, en vez de
+  // setearlo recién en un efecto — evita un render en cascada solo para
+  // algo que ya se puede resolver en el estado inicial.
+  const abrirPorDefecto = abrirCertInicial && !readOnly
+  const [showCertForm, setShowCertForm] = useState(abrirPorDefecto)
+  const [certForm, setCertForm] = useState(EMPTY_CERT)
+  const [itemPcts, setItemPcts] = useState<Record<string, string>>(() => {
+    if (!abrirPorDefecto) return {}
+    const iniciales: Record<string, string> = {}
+    for (const item of contratoObraItems) iniciales[item.id] = String(avanceAcumuladoPrevio[item.id] ?? 0)
+    return iniciales
+  })
+  const [showAdicionalForm, setShowAdicionalForm] = useState(false)
+  const [adicionalFilas, setAdicionalFilas] = useState<FilaItem[]>([nuevaFilaItem()])
+
   function abrirNuevoCert() {
     setShowCertForm(true)
     setCertForm(EMPTY_CERT)
@@ -92,6 +108,11 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
     setItemPcts(iniciales)
     setError(null)
   }
+
+  useEffect(() => {
+    if (abrirPorDefecto) rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const totalCertificarEsteItem = (item: ContratoObraItem) => {
     const nuevoPct = parseFloat(itemPcts[item.id] ?? '0') || 0
@@ -462,7 +483,7 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
   const nombreParte = esCliente ? (contrato.compradores?.nombre_completo ?? 'Cliente') : (contrato.proveedores?.razon_social ?? 'Subcontratista')
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+    <div ref={rootRef} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
       {/* ── Encabezado del contrato ── */}
       <div className="p-5 border-b border-slate-100">
         <div className="flex items-start justify-between flex-wrap gap-3">

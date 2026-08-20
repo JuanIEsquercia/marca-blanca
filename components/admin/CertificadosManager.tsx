@@ -26,9 +26,10 @@ interface Props {
   puedeCrearCuenta: boolean
   readOnly?: boolean
   rubros?: string[]
+  contratoIdInicial?: string
 }
 
-export default function CertificadosManager({ contratos, certificados, contratoObraItems = [], proveedores = [], compradores = [], cuentasPropias, constructoraId, obraId, puedeCrearProveedor, puedeCrearCuenta, readOnly = false, rubros = [] }: Props) {
+export default function CertificadosManager({ contratos, certificados, contratoObraItems = [], proveedores = [], compradores = [], cuentasPropias, constructoraId, obraId, puedeCrearProveedor, puedeCrearCuenta, readOnly = false, rubros = [], contratoIdInicial }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [loading, setLoading] = useState(false)
@@ -197,6 +198,7 @@ export default function CertificadosManager({ contratos, certificados, contratoO
               puedeCrearCuenta={puedeCrearCuenta}
               readOnly={readOnly}
               rubros={rubros}
+              abrirCertInicial={contrato.id === contratoIdInicial}
               onChanged={refresh}
             />
           ))}

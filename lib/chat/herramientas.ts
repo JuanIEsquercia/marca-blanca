@@ -71,12 +71,13 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'navegar_a_proyecto',
-    description: 'Uso OBLIGATORIO para llevar al usuario a un proyecto puntual o a una sección dentro de un proyecto puntual (ej. "Gastos de la obra Norte") — nunca inventes la ruta en texto. Necesita el id real del proyecto (conseguilo con listar_proyectos primero, nunca lo inventes). Si no se especifica sección, lleva al Dashboard del proyecto.',
+    description: 'Uso OBLIGATORIO para llevar al usuario a un proyecto puntual o a una sección dentro de un proyecto puntual (ej. "Gastos de la obra Norte") — nunca inventes la ruta en texto. Necesita el id real del proyecto (conseguilo con listar_proyectos primero, nunca lo inventes). Si no se especifica sección, lleva al Dashboard del proyecto. Para llevar directo al certificado de un contrato puntual (sección "certificados"), sumá contratoId (obtenido de listar_contratos_obra) — abre ya el formulario de ese contrato en vez de la lista general.',
     input_schema: {
       type: 'object',
       properties: {
         obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — nunca inventado' },
         seccion: { type: 'string', enum: SECCIONES_PROYECTO_KEYS, description: 'Sección dentro del proyecto (opcional, default dashboard)' },
+        contratoId: { type: 'string', description: 'Solo si seccion es "certificados" y el usuario pidió ir directo a un contrato puntual — id real obtenido de listar_contratos_obra' },
       },
       required: ['obraId'],
     },
@@ -152,6 +153,54 @@ export const TOOLS: Anthropic.Tool[] = [
       required: ['items'],
     },
   },
+  {
+    name: 'listar_contratos_obra',
+    description: 'Devuelve los contratos de un proyecto (id, tipo cliente/subcontratista, con quién, estado). Usar antes de consultar_rubros_contrato o crear_certificado_avance cuando el usuario mencione un contrato por proyecto o por proveedor/cliente — buscá el que coincide en vez de inventar un id. Un proyecto puede tener varios contratos (uno con el cliente y uno por cada subcontratista).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos' },
+      },
+      required: ['obraId'],
+    },
+  },
+  {
+    name: 'consultar_rubros_contrato',
+    description: 'Devuelve los rubros (ítems) de un contrato con su monto contratado y el % de avance acumulado ya certificado hasta ahora. Uso OBLIGATORIO antes de certificar avance — con esto le preguntás al usuario el nuevo % de cada rubro que cambió, en vez de adivinar.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        contratoId: { type: 'string', description: 'Id real del contrato, obtenido de listar_contratos_obra' },
+      },
+      required: ['contratoId'],
+    },
+  },
+  {
+    name: 'crear_certificado_avance',
+    description: 'Certifica el avance de un contrato: da de alta un certificado nuevo con el % de avance ACUMULADO (no incremental) de cada rubro que el usuario indicó — llamá antes a consultar_rubros_contrato para saber los rubros, sus ids y su % actual. Los rubros que no se mencionan quedan con el mismo % que ya tenían (sin cambio este período). Nunca bajes el % de un rubro por debajo del que ya tenía. Requiere confirmación explícita antes de ejecutarse de verdad — el certificado queda en estado "borrador", no genera un cobro/pago automáticamente.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        contrato_id: { type: 'string', description: 'Id real del contrato, obtenido de listar_contratos_obra' },
+        periodo: { type: 'string', description: 'Ej: "Enero 2026", "Semana del 1 al 15/03"' },
+        items: {
+          type: 'array',
+          description: 'Rubros cuyo % de avance acumulado cambió este período — al menos uno',
+          items: {
+            type: 'object',
+            properties: {
+              contrato_obra_item_id: { type: 'string', description: 'Id real del rubro, obtenido de consultar_rubros_contrato' },
+              pct_avance_acumulado: { type: 'string', description: 'Nuevo % ACUMULADO de este rubro (0 a 100), no el incremento' },
+            },
+            required: ['contrato_obra_item_id', 'pct_avance_acumulado'],
+          },
+        },
+        descripcion_avances: { type: 'string' },
+        notas: { type: 'string' },
+      },
+      required: ['contrato_id', 'periodo', 'items'],
+    },
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -173,4 +222,7 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   listar_categorias_gasto: { requiereConfirmacion: false },
   crear_gasto: { requiereConfirmacion: true, entidad: 'gasto' },
   crear_orden_compra: { requiereConfirmacion: true, entidad: 'orden_compra' },
+  listar_contratos_obra: { requiereConfirmacion: false },
+  consultar_rubros_contrato: { requiereConfirmacion: false },
+  crear_certificado_avance: { requiereConfirmacion: true, entidad: 'certificado_avance' },
 }

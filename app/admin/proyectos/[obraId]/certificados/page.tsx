@@ -10,10 +10,22 @@ import type { Gasto } from '@/types/database'
 export const metadata: Metadata = { title: 'Contratos' }
 export const dynamic = 'force-dynamic'
 
-export default async function CertificadosPage({ params }: { params: Promise<{ obraId: string }> }) {
+interface Props {
+  params: Promise<{ obraId: string }>
+  searchParams: Promise<{ contrato?: string }>
+}
+
+export default async function CertificadosPage({ params, searchParams }: Props) {
   const { obraId } = await params
   const ctx = await getProyectoContext(obraId)
   if (!ctx) redirect('/admin')
+
+  // ?contrato=<id> abre directo el formulario de "Nuevo certificado" de ese
+  // contrato — hoy lo usa navegar_a_proyecto del chat (lib/chat/ejecutores.ts)
+  // para poder llevar al usuario directo al certificado que pidió, en vez de
+  // solo a la pantalla de Contratos en general. Mismo patrón que ?tab= en
+  // app/admin/compras/page.tsx.
+  const contratoIdInicial = (await searchParams).contrato
 
   const supabase = await createClient()
 
@@ -111,6 +123,7 @@ export default async function CertificadosPage({ params }: { params: Promise<{ o
         obraId={obraId}
         readOnly={ctx.obraEstado === 'finalizada'}
         rubros={rubros}
+        contratoIdInicial={contratoIdInicial}
         puedeCrearProveedor={puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'proveedores', null)}
         puedeCrearCuenta={puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'cuentas', obraId)}
       />

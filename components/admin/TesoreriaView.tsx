@@ -95,6 +95,16 @@ interface IngresoPendiente {
   obraId: string | null
 }
 
+// IVA es un desglose opcional en gastos/cobros (no afecta caja) — la
+// mayoría de los registros probablemente no lo tiene cargado, así que esto
+// se muestra como referencia parcial, nunca como una posición fiscal
+// completa. cantidadConDesglose/cantidadTotal es lo que permite avisarlo.
+export interface ResumenIva {
+  porMoneda: Record<string, number>
+  cantidadConDesglose: number
+  cantidadTotal: number
+}
+
 interface Props {
   cuentas: CuentaConSaldo[]
   movimientos: MovimientoFlujo[]
@@ -102,6 +112,8 @@ interface Props {
   proyectos: Proyecto[]
   gastosPendientes: GastoPendiente[]
   ingresosPendientes: IngresoPendiente[]
+  resumenIvaGastos: ResumenIva
+  resumenIvaCobros: ResumenIva
 }
 
 function formatARS(n: number) {
@@ -135,7 +147,7 @@ function labelVentana(inicio: Date, fin: Date) {
   return `${fmt(inicio)} – ${fmt(sumarMeses(fin, -1))}`
 }
 
-export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, gastosPendientes, ingresosPendientes }: Props) {
+export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, gastosPendientes, ingresosPendientes, resumenIvaGastos, resumenIvaCobros }: Props) {
   const [tab, setTab] = useState<'flujo' | 'porCobrar' | 'porPagar'>('flujo')
   const [proyectoFiltro, setProyectoFiltro] = useState<string>(FILTRO_TODOS)
   const [paginaCobrar, setPaginaCobrar] = useState(0)
@@ -261,6 +273,18 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
           <p className="text-xs mt-1">Creá tus cuentas en <strong>Configuración → Cuentas</strong> para ver los saldos.</p>
         </div>
       )}
+
+      {/* IVA — referencia parcial, no una posición fiscal completa (ver ResumenIva) */}
+      <div>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">IVA (referencia)</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <TarjetaIva titulo="IVA en gastos" resumen={resumenIvaGastos} bg="bg-red-50 border-red-200" text="text-red-600" />
+          <TarjetaIva titulo="IVA en cobros" resumen={resumenIvaCobros} bg="bg-blue-50 border-blue-200" text="text-blue-600" />
+        </div>
+        <p className="text-[11px] text-slate-400 mt-2">
+          Solo suma lo que ya tiene el desglose de IVA cargado — no es una posición fiscal completa. Se completa opcionalmente al registrar cada gasto/cobro.
+        </p>
+      </div>
 
       {/* Tabs: Flujo mensual | Comprometido pendiente */}
       <div>
@@ -615,6 +639,29 @@ function TablaFlujoMoneda({
       {periodos.length === 0 && (
         <div className="text-center py-12 text-slate-400 text-sm">No hay movimientos en {moneda}.</div>
       )}
+    </div>
+  )
+}
+
+function TarjetaIva({ titulo, resumen, bg, text }: { titulo: string; resumen: ResumenIva; bg: string; text: string }) {
+  const monedas = Object.keys(resumen.porMoneda)
+  return (
+    <div className={cn('border rounded-xl p-4', bg)}>
+      <p className={cn('text-xs font-medium mb-1', text)}>{titulo}</p>
+      {monedas.length === 0 ? (
+        <p className="text-lg font-semibold text-slate-300">—</p>
+      ) : (
+        <div className="space-y-0.5">
+          {monedas.map(m => (
+            <p key={m} className={cn('text-xl font-bold', text)}>
+              {m === 'USD' ? formatUSD(resumen.porMoneda[m]) : formatARS(resumen.porMoneda[m])}
+            </p>
+          ))}
+        </div>
+      )}
+      <p className="text-[11px] text-slate-400 mt-1">
+        {resumen.cantidadConDesglose} de {resumen.cantidadTotal} con desglose de IVA
+      </p>
     </div>
   )
 }

@@ -3,8 +3,23 @@ import { createClient } from '@/lib/supabase/server'
 import { getConstructoraContext } from '@/lib/tenant'
 import { calcularCajaEmpresa } from '@/lib/tesoreria'
 import { obtenerIngresos } from '@/lib/ingresos'
-import TesoreriaView, { type MovimientoFlujo } from '@/components/admin/TesoreriaView'
+import { sumarMontos } from '@/lib/utils'
+import TesoreriaView, { type MovimientoFlujo, type ResumenIva } from '@/components/admin/TesoreriaView'
 import type { Metadata } from 'next'
+
+// IVA es un desglose OPCIONAL en gastos/cobros (no afecta caja, ver
+// schema.sql) — la mayoría de los registros probablemente no lo tienen
+// cargado. Este resumen suma lo que SÍ está cargado y cuenta cuántos de
+// cuántos lo tienen, para poder avisar que es una referencia parcial y no
+// una posición fiscal completa (decisión del usuario 2026-08-20: mostrar
+// esto "best-effort con aviso" en vez de exigir el desglose siempre).
+function calcularResumenIva(filas: { iva: number | null; moneda: string }[]): ResumenIva {
+  const conDesglose = filas.filter(f => f.iva !== null && f.iva > 0)
+  const porMoneda: Record<string, number> = {}
+  for (const f of conDesglose) porMoneda[f.moneda] = (porMoneda[f.moneda] ?? 0) + (f.iva ?? 0)
+  for (const moneda in porMoneda) porMoneda[moneda] = sumarMontos([porMoneda[moneda]])
+  return { porMoneda, cantidadConDesglose: conDesglose.length, cantidadTotal: filas.length }
+}
 
 export const metadata: Metadata = { title: 'Caja' }
 export const dynamic = 'force-dynamic'
@@ -86,7 +101,7 @@ export default async function TesoreriaPage() {
     // corresponde de la proyección, en vez de solo mostrarlos en la lista
     // plana "Por cobrar".
     supabase.from('cobros_proyecto')
-      .select('monto, moneda, fecha_pago, fecha, fecha_vencimiento, obra_id, estado, pagos:cobro_pagos(estado, monto, fecha_pago)')
+      .select('monto, moneda, fecha_pago, fecha, fecha_vencimiento, iva, obra_id, estado, pagos:cobro_pagos(estado, monto, fecha_pago)')
       .eq('constructora_id', ctx.constructoraId)
       .or(`estado.eq.Pendiente,fecha.gte.${ventanaInicio}`),
     calcularCajaEmpresa(supabase, ctx.constructoraId),
@@ -196,6 +211,9 @@ export default async function TesoreriaPage() {
       obraId: i.obraId,
     }))
 
+  const resumenIvaGastos = calcularResumenIva(gastos ?? [])
+  const resumenIvaCobros = calcularResumenIva(cobrosProyecto ?? [])
+
   return (
     <div>
       <div className="mb-6">
@@ -209,6 +227,8 @@ export default async function TesoreriaPage() {
         proyectos={obras ?? []}
         gastosPendientes={gastosPendientes}
         ingresosPendientes={ingresosPendientes}
+        resumenIvaGastos={resumenIvaGastos}
+        resumenIvaCobros={resumenIvaCobros}
       />
     </div>
   )

@@ -76,7 +76,7 @@ export const TOOLS: Anthropic.Tool[] = [
       type: 'object',
       properties: {
         obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — nunca inventado' },
-        seccion: { type: 'string', enum: SECCIONES_PROYECTO_KEYS, description: 'Sección dentro del proyecto (opcional, default dashboard)' },
+        seccion: { type: 'string', enum: SECCIONES_PROYECTO_KEYS, description: 'Sección dentro del proyecto (opcional, default dashboard). OJO, no confundir por el nombre: "certificados" es la sección "Contratos" de un proyecto tipo OBRA (contrato con cliente/subcontratista + certificación de avance) — "contratos" es la sección "Ventas" de un proyecto tipo DESARROLLO (venta de unidades por cuotas). Un "contrato de obra" siempre es seccion="certificados", nunca seccion="contratos". Fijate el tipo del proyecto (lo devuelve listar_proyectos) antes de elegir.' },
         contratoId: { type: 'string', description: 'Solo si seccion es "certificados" y el usuario pidió ir directo a un contrato puntual — id real obtenido de listar_contratos_obra' },
       },
       required: ['obraId'],

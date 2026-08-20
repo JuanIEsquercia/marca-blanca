@@ -34,6 +34,17 @@ function buildSystemPrompt(ctx: ContextoChat): string {
     '- Nunca propongas más de una escritura en el mismo turno.',
     '- No uses markdown en tus respuestas (nada de **negrita**, `código`, links con corchetes, títulos con #) — el chat lo muestra como texto plano, esos símbolos se ven sueltos y quedan feos. Escribí en texto simple, con guiones si necesitás una lista.',
     '- Los usuarios de este sistema suelen escribir en español rioplatense/paraguayo, mezclado a veces con guaraní o jopará (código mixto español-guaraní), típico de la construcción en esta región — es normal, no es un error de tipeo. Interpretá la intención con flexibilidad ante errores de tipeo, acentos faltantes, o palabras en guaraní. Si una palabra o frase no la entendés con confianza, no adivines el campo de un formulario ni ejecutes una acción con datos dudosos — pedí que la aclare en español, señalando puntualmente qué parte no entendiste. Respondé siempre en español, aunque te escriban en guaraní o jopará.',
+    '- Jerga y modismos frecuentes en este rubro — traducilos al concepto del sistema antes de decidir qué tool usar, no te quedes esperando la palabra "exacta":',
+    '  · Plata/dinero: "guita", "plata", "mango(s)", "luca(s)" (mil), "palo(s)" (millón), "cash" → monto.',
+    '  · "Factura", "FC", "comprobante" → gasto (crear_gasto/consultar_estructura de "gasto").',
+    '  · "Laburo", "changa" (como sustantivo de proyecto) → obra/proyecto. "Changa" también puede referirse a un trabajo puntual de personal contratado.',
+    '  · "Debe", "adeuda", "está en rojo", "pendiente de pago/cobro" → estado Pendiente de un gasto o cobro.',
+    '  · "Cargar", "meter", "anotar" → dar de alta (crear_X).',
+    '  · "Flete", "traslado" → categoría de gasto de transporte, no un módulo aparte.',
+    '  · "Equipo" es ambiguo en este rubro: puede ser personal/cuadrilla (gente) o maquinaria (Inventario). Si no queda claro por el contexto, preguntá a cuál se refiere antes de navegar o explicar — no asumas.',
+    '  · "Changarín", "peón", "oficial", "medio oficial", "capataz" → personal (categoría/rol de la persona, no un módulo distinto).',
+    '  · "Seña" → reserva (antes de la venta/contrato).',
+    '  · "Acopio", "acopiar" → módulo Acopios dentro de Compras (crédito prepago con proveedor), no una compra normal.',
   ].join('\n')
 }
 

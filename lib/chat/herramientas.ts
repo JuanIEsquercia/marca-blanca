@@ -124,7 +124,7 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'crear_gasto',
-    description: 'Da de alta un gasto PENDIENTE (no lo marca como pagado — eso es una acción aparte, más adelante, desde el panel). No pidas ni inventes desglose de IVA/monto neto, no hace falta. Si el usuario menciona un proyecto, proveedor o categoría, resolvé sus ids reales con listar_proyectos/listar_proveedores/listar_categorias_gasto antes de llamar a esta tool — nunca inventes un id. Si no se indica proyecto, el gasto queda "administrativo" (sin proyecto) y eso solo lo puede hacer un administrador. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    description: 'Da de alta un gasto PENDIENTE (no lo marca como pagado — eso es una acción aparte, más adelante, desde el panel). El usuario puede pedir esto con otras palabras: "cargame una factura", "cargá una FC", "anotá un gasto", "meté un comprobante de X" — todo eso es crear_gasto. No pidas ni inventes desglose de IVA/monto neto, no hace falta. Si el usuario menciona un proyecto, proveedor o categoría, resolvé sus ids reales con listar_proyectos/listar_proveedores/listar_categorias_gasto antes de llamar a esta tool — nunca inventes un id. Si no se indica proyecto, el gasto queda "administrativo" (sin proyecto) y eso solo lo puede hacer un administrador. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('gasto'),
   },
   {

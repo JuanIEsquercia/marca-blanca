@@ -337,80 +337,28 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
               </span>
             </div>
 
-            {cuentasUSD.length > 0 && <FlujoChart titulo="USD" moneda="USD" datos={datosChartUsd} formatear={formatUSD} />}
-            {cuentasARS.length > 0 && <FlujoChart titulo="ARS" moneda="ARS" datos={datosChartArs} formatear={formatARS} />}
-
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">{vista === 'año' ? 'Año' : vista === 'trimestre' ? 'Trimestre' : 'Mes'}</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-blue-700">Ingresos USD</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-blue-300">Proyectados USD</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-blue-700">Ingresos ARS</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-blue-300">Proyectados ARS</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-red-700">Egresos USD</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-red-700">Egresos ARS</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600">Saldo USD</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600">Saldo ARS</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600 text-orange-600">Egresos comprometidos</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {periodos.map(mes => {
-                      const saldoUsd = mes.ingresos_usd - mes.egresos_usd
-                      const saldoArs = mes.ingresos_ars - mes.egresos_ars
-                      return (
-                        <tr key={mes.label} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 font-medium text-slate-700">{mes.label}</td>
-                          <td className="px-4 py-3 text-right text-blue-700">
-                            {mes.ingresos_usd > 0 ? formatUSD(mes.ingresos_usd) : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right text-blue-400 text-xs">
-                            {mes.ingreso_comprometido_usd > 0 ? formatUSD(mes.ingreso_comprometido_usd) : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right text-blue-700">
-                            {mes.ingresos_ars > 0 ? formatARS(mes.ingresos_ars) : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right text-blue-400 text-xs">
-                            {mes.ingreso_comprometido_ars > 0 ? formatARS(mes.ingreso_comprometido_ars) : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right text-red-600">
-                            {mes.egresos_usd > 0 ? formatUSD(mes.egresos_usd) : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right text-red-600">
-                            {mes.egresos_ars > 0 ? formatARS(mes.egresos_ars) : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className={cn(
-                            'px-4 py-3 text-right font-semibold',
-                            saldoUsd > 0 ? 'text-green-600' : saldoUsd < 0 ? 'text-red-600' : 'text-slate-400'
-                          )}>
-                            {saldoUsd !== 0 ? formatUSD(saldoUsd) : '—'}
-                          </td>
-                          <td className={cn(
-                            'px-4 py-3 text-right font-semibold',
-                            saldoArs > 0 ? 'text-green-600' : saldoArs < 0 ? 'text-red-600' : 'text-slate-400'
-                          )}>
-                            {saldoArs !== 0 ? formatARS(saldoArs) : '—'}
-                          </td>
-                          <td className="px-4 py-3 text-right text-orange-600 text-xs">
-                            {mes.comprometido_usd > 0 && <span className="block">{formatUSD(mes.comprometido_usd)}</span>}
-                            {mes.comprometido_ars > 0 && <span className="block">{formatARS(mes.comprometido_ars)}</span>}
-                            {mes.comprometido_usd === 0 && mes.comprometido_ars === 0 && <span className="text-slate-300">—</span>}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+            {cuentasUSD.length > 0 && (
+              <div className="space-y-3">
+                <FlujoChart titulo="USD" moneda="USD" datos={datosChartUsd} formatear={formatUSD} />
+                <TablaFlujoMoneda
+                  periodoLabel={vista === 'año' ? 'Año' : vista === 'trimestre' ? 'Trimestre' : 'Mes'}
+                  periodos={periodos} moneda="USD" formatear={formatUSD}
+                  ingresos={p => p.ingresos_usd} ingresosProyectados={p => p.ingreso_comprometido_usd}
+                  egresos={p => p.egresos_usd} egresosProyectados={p => p.comprometido_usd}
+                />
               </div>
-              {periodos.length === 0 && (
-                <div className="text-center py-12 text-slate-400 text-sm">
-                  No hay movimientos registrados aún.
-                </div>
-              )}
-            </div>
+            )}
+            {cuentasARS.length > 0 && (
+              <div className="space-y-3">
+                <FlujoChart titulo="ARS" moneda="ARS" datos={datosChartArs} formatear={formatARS} />
+                <TablaFlujoMoneda
+                  periodoLabel={vista === 'año' ? 'Año' : vista === 'trimestre' ? 'Trimestre' : 'Mes'}
+                  periodos={periodos} moneda="ARS" formatear={formatARS}
+                  ingresos={p => p.ingresos_ars} ingresosProyectados={p => p.ingreso_comprometido_ars}
+                  egresos={p => p.egresos_ars} egresosProyectados={p => p.comprometido_ars}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -601,6 +549,72 @@ function FlujoChart({ titulo, moneda, datos, formatear }: { titulo: string; mone
           </BarChart>
         </ResponsiveContainer>
       </div>
+    </div>
+  )
+}
+
+// Antes era UNA tabla con una columna por moneda por concepto (Ingresos
+// USD, Ingresos ARS, Proyectados USD, Proyectados ARS...) — 10 columnas,
+// scroll lateral incómodo. Separada por moneda (igual criterio que los
+// gráficos de arriba, que ya no mezclan ARS/USD) queda en 4 columnas fijas
+// sin scroll: Período, Ingresos, Egresos, Saldo — lo proyectado no es una
+// columna aparte, es una segunda línea más chica adentro de la celda que
+// ya corresponde (mismo patrón visual que las barras apiladas del gráfico).
+function TablaFlujoMoneda({
+  periodoLabel, periodos, moneda, formatear, ingresos, ingresosProyectados, egresos, egresosProyectados,
+}: {
+  periodoLabel: string
+  periodos: MesFlujo[]
+  moneda: string
+  formatear: (n: number) => string
+  ingresos: (p: MesFlujo) => number
+  ingresosProyectados: (p: MesFlujo) => number
+  egresos: (p: MesFlujo) => number
+  egresosProyectados: (p: MesFlujo) => number
+}) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-slate-50 border-b border-slate-200">
+            <th className="text-left px-4 py-3 font-semibold text-slate-600">{periodoLabel}</th>
+            <th className="text-right px-4 py-3 font-semibold text-blue-700">Ingresos</th>
+            <th className="text-right px-4 py-3 font-semibold text-red-700">Egresos</th>
+            <th className="text-right px-4 py-3 font-semibold text-slate-600">Saldo</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {periodos.map(p => {
+            const ing = ingresos(p)
+            const ingProy = ingresosProyectados(p)
+            const egr = egresos(p)
+            const egrProy = egresosProyectados(p)
+            const saldo = ing - egr
+            return (
+              <tr key={p.label} className="hover:bg-slate-50">
+                <td className="px-4 py-3 font-medium text-slate-700">{p.label}</td>
+                <td className="px-4 py-3 text-right">
+                  {ing > 0 ? <span className="text-blue-700 font-medium">{formatear(ing)}</span> : <span className="text-slate-300">—</span>}
+                  {ingProy > 0 && <span className="block text-[11px] text-blue-400">+ {formatear(ingProy)} proyectado</span>}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {egr > 0 ? <span className="text-red-600 font-medium">{formatear(egr)}</span> : <span className="text-slate-300">—</span>}
+                  {egrProy > 0 && <span className="block text-[11px] text-red-400">+ {formatear(egrProy)} comprometido</span>}
+                </td>
+                <td className={cn(
+                  'px-4 py-3 text-right font-semibold',
+                  saldo > 0 ? 'text-green-600' : saldo < 0 ? 'text-red-600' : 'text-slate-400'
+                )}>
+                  {saldo !== 0 ? formatear(saldo) : '—'}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      {periodos.length === 0 && (
+        <div className="text-center py-12 text-slate-400 text-sm">No hay movimientos en {moneda}.</div>
+      )}
     </div>
   )
 }

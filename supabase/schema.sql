@@ -47,7 +47,10 @@ CREATE TABLE IF NOT EXISTS constructoras (
   nombre      TEXT NOT NULL,
   owner_id    UUID REFERENCES perfiles(id) ON DELETE SET NULL,
   activa      BOOLEAN NOT NULL DEFAULT true,
-  created_at  TIMESTAMPTZ DEFAULT NOW()
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  -- migration_070.sql: tope mensual de uso del asistente de chat, en USD
+  -- estimados — ver lib/chat/limite.ts.
+  chat_limite_mensual_usd NUMERIC(10,2) NOT NULL DEFAULT 100.00
 );
 
 -- migration_045: datos fiscales/de facturación (suscripción de la

@@ -1,9 +1,11 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getConstructoraContext } from '@/lib/tenant'
 import { ejecutarTurnoChat } from '@/lib/chat/agente'
 import { ejecutarHerramienta } from '@/lib/chat/ejecutores'
+import { verificarLimiteMensual } from '@/lib/chat/limite'
 import type { ContextoChat, ChatStreamEvent, NombreHerramienta } from '@/lib/chat/tipos'
 
 export const runtime = 'nodejs'
@@ -33,6 +35,20 @@ function buscarToolUsePropuesto(historial: Anthropic.MessageParam[], toolUseId: 
 export async function POST(request: Request) {
   const ctxTenant = await getConstructoraContext()
   if (!ctxTenant) return NextResponse.json({ error: 'Sin sesión' }, { status: 401 })
+
+  // Chequeo de tope ANTES de tocar el body/el modelo — un tenant bloqueado
+  // no debe generar ni un token más, ni siquiera para leer la propuesta que
+  // esté confirmando.
+  const limite = await verificarLimiteMensual(createAdminClient(), ctxTenant.constructoraId)
+  if (limite.bloqueado) {
+    const evento: ChatStreamEvent = {
+      type: 'error',
+      mensaje: `Se alcanzó el límite de uso del asistente para este mes ($${limite.costoActualUSD.toFixed(2)} de $${limite.limiteUSD.toFixed(2)}). Vuelve a estar disponible el próximo mes, o un administrador puede ampliar el límite.`,
+    }
+    return new Response(JSON.stringify(evento) + '\n', {
+      headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
+    })
+  }
 
   let body: ChatRequestBody
   try {

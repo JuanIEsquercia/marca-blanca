@@ -824,23 +824,57 @@ async function ejecutarMarcarCobroCobrado(ctx: ContextoChat, supabase: SupabaseC
 // siempre viene completo sin importar la ventana de 12 meses (ver el
 // comentario de obtenerIngresos), por eso no hace falta exponer ese
 // parámetro acá.
+interface FilaCobroConCertificado {
+  id: string
+  certificado_id: string | null
+  certificados_avance: { numero: number; periodo: string } | null
+}
+
+// obtenerIngresos() (lib/ingresos.ts) no distingue si un cobro_proyecto
+// viene de un certificado o es un cobro suelto (anticipo/seña sin
+// certificado, ver ejecutarCrearCobro) — rotular todo como "certificado"
+// sería falso. Se resuelve acá con una consulta aparte en vez de asumir.
 async function ejecutarListarPendientesCobro(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
   const todos = await obtenerIngresos(supabase, ctx.constructoraId, true)
   const obraId = texto(input.obraId)
   const pendientes = todos
     .filter(i => !i.pagado)
     .filter(i => !obraId || i.obraId === obraId)
+    .slice(0, 40)
+
+  // Un cobro con plan de pago (cuotas/cheques) llega acá como "<id real>-cuota-N"
+  // — se despoja el sufijo para consultar el cobro real, el certificado del
+  // que depende (si tiene uno) es el mismo para todas sus cuotas.
+  const idsCobroReal = [...new Set(
+    pendientes.filter(i => i.origen === 'cobro_proyecto').map(i => i.id.split('-cuota-')[0])
+  )]
+
+  const certificadoPorCobro: Record<string, { numero: number; periodo: string } | null> = {}
+  if (idsCobroReal.length > 0) {
+    const { data } = await supabase
+      .from('cobros_proyecto')
+      .select('id, certificado_id, certificados_avance(numero, periodo)')
+      .in('id', idsCobroReal)
+    for (const row of (data ?? []) as unknown as FilaCobroConCertificado[]) {
+      certificadoPorCobro[row.id] = row.certificado_id ? row.certificados_avance : null
+    }
+  }
 
   return {
-    pendientes: pendientes.slice(0, 40).map(i => ({
-      origen: i.origen === 'cobro_proyecto' ? 'certificado_obra' : 'cuota_venta',
-      proyecto: i.obraNombre,
-      cliente: i.clienteNombre,
-      descripcion: i.descripcion,
-      monto: i.monto,
-      moneda: i.moneda,
-      fecha_vencimiento: i.fechaVencimiento,
-    })),
+    pendientes: pendientes.map(i => {
+      const esCobroObra = i.origen === 'cobro_proyecto'
+      const cert = esCobroObra ? certificadoPorCobro[i.id.split('-cuota-')[0]] : undefined
+      return {
+        origen: esCobroObra ? 'cobro_obra' : 'cuota_venta',
+        certificado: cert ? `N°${cert.numero} (${cert.periodo})` : (esCobroObra ? 'sin certificado (anticipo/seña/cobro suelto)' : null),
+        proyecto: i.obraNombre,
+        cliente: i.clienteNombre,
+        descripcion: i.descripcion,
+        monto: i.monto,
+        moneda: i.moneda,
+        fecha_vencimiento: i.fechaVencimiento,
+      }
+    }),
     total: pendientes.length,
   }
 }

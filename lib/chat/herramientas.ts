@@ -228,6 +228,49 @@ export const TOOLS: Anthropic.Tool[] = [
     description: 'Marca un gasto pendiente como pagado, con la cuenta desde la que salió la plata. Llamá antes a listar_gastos_pendientes (para el id del gasto) y listar_cuentas_disponibles_gasto (para una cuenta válida para ESE gasto) — nunca inventes ninguno de los dos ids. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('pago_gasto'),
   },
+  {
+    name: 'listar_certificados_contrato',
+    description: 'Devuelve los certificados de un contrato con su monto certificado, cuánto ya se cobró de cada uno y cuánto queda sin cobrar. Solo tiene sentido para contratos con el cliente (tipo "cliente") — un contrato con subcontratista no se cobra, se paga con un gasto. Uso OBLIGATORIO antes de crear_cobro para saber el id real del certificado y no proponer cobrar de más.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        contratoId: { type: 'string', description: 'Id real del contrato, obtenido de listar_contratos_obra' },
+      },
+      required: ['contratoId'],
+    },
+  },
+  {
+    name: 'crear_cobro',
+    description: 'Da de alta un cobro PENDIENTE contra un certificado ya cargado (no lo marca como cobrado — eso es marcar_cobro_cobrado, un paso aparte). El usuario puede pedir esto como "cobrale al cliente", "registrá un cobro", "facturale el certificado". Llamá antes a listar_certificados_contrato para el id real del certificado — nunca inventes uno. No pidas desglose de IVA/monto neto, no hace falta. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('cobro'),
+  },
+  {
+    name: 'listar_cobros_pendientes',
+    description: 'Devuelve los cobros en estado Pendiente (todavía no cobrados) que este usuario puede ver, opcionalmente filtrados por proyecto y/o contrato. Usar antes de marcar_cobro_cobrado para encontrar el cobro real, nunca inventar un id.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — opcional' },
+        contratoId: { type: 'string', description: 'Id real del contrato, obtenido de listar_contratos_obra — opcional' },
+      },
+    },
+  },
+  {
+    name: 'listar_cuentas_disponibles_cobro',
+    description: 'Devuelve las cuentas propias válidas para recibir un cobro puntual — depende del proyecto del cobro y de si ese proyecto usa cuentas propias o el pool de la empresa. Uso OBLIGATORIO antes de marcar_cobro_cobrado para elegir una cuenta real.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        cobroId: { type: 'string', description: 'Id real del cobro, obtenido de listar_cobros_pendientes' },
+      },
+      required: ['cobroId'],
+    },
+  },
+  {
+    name: 'marcar_cobro_cobrado',
+    description: 'Marca un cobro pendiente como efectivamente cobrado, con la cuenta a la que entró la plata. Llamá antes a listar_cobros_pendientes (para el id del cobro) y listar_cuentas_disponibles_cobro (para una cuenta válida) — nunca inventes ninguno de los dos ids. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('pago_cobro'),
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -255,4 +298,9 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   listar_gastos_pendientes: { requiereConfirmacion: false },
   listar_cuentas_disponibles_gasto: { requiereConfirmacion: false },
   marcar_gasto_pagado: { requiereConfirmacion: true, entidad: 'pago_gasto' },
+  listar_certificados_contrato: { requiereConfirmacion: false },
+  crear_cobro: { requiereConfirmacion: true, entidad: 'cobro' },
+  listar_cobros_pendientes: { requiereConfirmacion: false },
+  listar_cuentas_disponibles_cobro: { requiereConfirmacion: false },
+  marcar_cobro_cobrado: { requiereConfirmacion: true, entidad: 'pago_cobro' },
 }

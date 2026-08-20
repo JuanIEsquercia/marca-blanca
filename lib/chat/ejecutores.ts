@@ -632,6 +632,183 @@ async function ejecutarMarcarGastoPagado(ctx: ContextoChat, supabase: SupabaseCl
   return { pagado: true, id: gasto.id, descripcion: gasto.descripcion, monto: gasto.monto, moneda: gasto.moneda }
 }
 
+interface FilaCertificadoParaCobro {
+  id: string
+  numero: number
+  periodo: string
+  estado: string
+  monto_certificado: number
+}
+
+async function ejecutarListarCertificadosContrato(supabase: SupabaseClient, input: Record<string, unknown>) {
+  const contratoId = texto(input.contratoId)
+  if (!contratoId) return { error: 'Falta indicar de qué contrato — usá listar_contratos_obra primero.' }
+
+  const { data: certs, error: errCerts } = await supabase
+    .from('certificados_avance')
+    .select('id, numero, periodo, estado, monto_certificado')
+    .eq('contrato_obra_id', contratoId)
+    .order('numero')
+  if (errCerts) return { error: 'No se pudo obtener los certificados de este contrato.' }
+  if (!certs || certs.length === 0) return { certificados: [] }
+
+  const { data: cobros } = await supabase
+    .from('cobros_proyecto')
+    .select('certificado_id, monto')
+    .eq('contrato_obra_id', contratoId)
+  const cobradoPorCert: Record<string, number> = {}
+  for (const c of (cobros ?? []) as { certificado_id: string | null; monto: number }[]) {
+    if (!c.certificado_id) continue
+    cobradoPorCert[c.certificado_id] = (cobradoPorCert[c.certificado_id] ?? 0) + c.monto
+  }
+
+  return {
+    certificados: (certs as FilaCertificadoParaCobro[]).map(c => ({
+      id: c.id,
+      numero: c.numero,
+      periodo: c.periodo,
+      estado: c.estado,
+      monto_certificado: c.monto_certificado,
+      ya_cobrado_o_en_curso: redondear2(cobradoPorCert[c.id] ?? 0),
+      saldo_sin_cobro: redondear2(c.monto_certificado - (cobradoPorCert[c.id] ?? 0)),
+    })),
+  }
+}
+
+async function ejecutarCrearCobro(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const certificadoId = texto(input.certificado_id)
+  if (!certificadoId) return { error: 'Falta indicar el certificado.' }
+  const monto = numero(input.monto)
+  if (!monto || monto <= 0) return { error: 'Falta un monto válido.' }
+
+  const { data: cert } = await supabase.from('certificados_avance').select('id, obra_id, contrato_obra_id').eq('id', certificadoId).maybeSingle()
+  if (!cert) return { error: 'No se encontró ese certificado, o este usuario no tiene acceso.' }
+
+  const { data: contrato } = await supabase.from('contratos_obra').select('tipo, moneda').eq('id', cert.contrato_obra_id).maybeSingle()
+  if (!contrato) return { error: 'No se encontró el contrato de ese certificado.' }
+  if (contrato.tipo !== 'cliente') {
+    return { error: 'Este certificado es de un contrato con un subcontratista — a un subcontratista se le paga con un gasto, no se le cobra.' }
+  }
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'cobros', cert.obra_id)) {
+    return { error: 'Este usuario no tiene el módulo Cobros habilitado en este proyecto.' }
+  }
+
+  const moneda = input.moneda === 'USD' || input.moneda === 'ARS' ? input.moneda : contrato.moneda
+  const fecha = texto(input.fecha_vencimiento) ?? new Date().toISOString().slice(0, 10)
+
+  const { data: nuevo, error } = await supabase
+    .from('cobros_proyecto')
+    .insert({
+      obra_id: cert.obra_id,
+      constructora_id: ctx.constructoraId,
+      contrato_obra_id: cert.contrato_obra_id,
+      certificado_id: certificadoId,
+      fecha,
+      fecha_vencimiento: fecha,
+      monto,
+      moneda,
+      notas: texto(input.notas) ?? null,
+      estado: 'Pendiente',
+    })
+    .select('id, numero, monto, moneda')
+    .single()
+  if (error || !nuevo) return { error: `No se pudo crear el cobro: ${error?.message ?? 'error desconocido'}` }
+
+  return { creado: true, id: nuevo.id, numero: nuevo.numero, monto: nuevo.monto, moneda: nuevo.moneda }
+}
+
+interface FilaCobroPendiente {
+  id: string
+  numero: number | null
+  monto: number
+  moneda: string
+  fecha_vencimiento: string | null
+  obras: { nombre: string } | null
+  certificados_avance: { numero: number; periodo: string } | null
+}
+
+async function ejecutarListarCobrosPendientes(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  let query = supabase
+    .from('cobros_proyecto')
+    .select('id, numero, monto, moneda, fecha_vencimiento, obras(nombre), certificados_avance(numero, periodo)')
+    .eq('constructora_id', ctx.constructoraId)
+    .eq('estado', 'Pendiente')
+    .order('fecha_vencimiento', { ascending: true })
+    .limit(30)
+
+  const obraId = texto(input.obraId)
+  if (obraId) query = query.eq('obra_id', obraId)
+  const contratoId = texto(input.contratoId)
+  if (contratoId) query = query.eq('contrato_obra_id', contratoId)
+
+  const { data, error } = await query
+  if (error) return { error: 'No se pudo obtener los cobros pendientes.' }
+  return {
+    cobros: ((data ?? []) as unknown as FilaCobroPendiente[]).map(c => ({
+      id: c.id,
+      numero: c.numero,
+      monto: c.monto,
+      moneda: c.moneda,
+      fecha_vencimiento: c.fecha_vencimiento,
+      proyecto: c.obras?.nombre ?? null,
+      certificado: c.certificados_avance ? `N°${c.certificados_avance.numero} (${c.certificados_avance.periodo})` : null,
+    })),
+  }
+}
+
+interface CobroParaPago { id: string; obra_id: string; moneda: string; estado: string; monto: number }
+
+async function obtenerCobroParaPago(supabase: SupabaseClient, cobroId: string): Promise<CobroParaPago | null> {
+  const { data } = await supabase.from('cobros_proyecto').select('id, obra_id, moneda, estado, monto').eq('id', cobroId).maybeSingle()
+  return data as CobroParaPago | null
+}
+
+// Mismo criterio que cuentasValidasParaGasto — un cobro de un proyecto en
+// modo "específicas" solo entra a SUS cuentas, nunca al pool ni a las de
+// otro proyecto.
+async function cuentasValidasParaCobro(supabase: SupabaseClient, constructoraId: string, cobro: CobroParaPago) {
+  const { data: obra } = await supabase.from('obras').select('modo_cuentas').eq('id', cobro.obra_id).maybeSingle()
+  const modo = (obra?.modo_cuentas as 'empresa' | 'especificas' | null) ?? 'empresa'
+  return obtenerCuentasPropias(supabase, constructoraId, cobro.obra_id, modo, cobro.moneda)
+}
+
+async function ejecutarListarCuentasDisponiblesCobro(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const cobroId = texto(input.cobroId)
+  if (!cobroId) return { error: 'Falta indicar de qué cobro — usá listar_cobros_pendientes primero.' }
+  const cobro = await obtenerCobroParaPago(supabase, cobroId)
+  if (!cobro) return { error: 'No se encontró ese cobro, o este usuario no tiene acceso.' }
+  const cuentas = await cuentasValidasParaCobro(supabase, ctx.constructoraId, cobro)
+  return { cuentas: cuentas.map(c => ({ id: c.id, nombre: c.nombre, moneda: c.moneda })) }
+}
+
+async function ejecutarMarcarCobroCobrado(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const cobroId = texto(input.cobro_id)
+  const cuentaId = texto(input.cuenta_propia_id)
+  if (!cobroId) return { error: 'Falta indicar el cobro.' }
+  if (!cuentaId) return { error: 'Falta indicar la cuenta.' }
+
+  const cobro = await obtenerCobroParaPago(supabase, cobroId)
+  if (!cobro) return { error: 'No se encontró ese cobro, o este usuario no tiene acceso.' }
+  if (cobro.estado === 'Cobrado') return { error: 'Ese cobro ya está marcado como cobrado.' }
+
+  const cuentas = await cuentasValidasParaCobro(supabase, ctx.constructoraId, cobro)
+  if (!cuentas.some(c => c.id === cuentaId)) {
+    return { error: 'Esa cuenta no es válida para este cobro — volvé a llamar a listar_cuentas_disponibles_cobro.' }
+  }
+
+  const { error } = await supabase
+    .from('cobros_proyecto')
+    .update({
+      estado: 'Cobrado',
+      fecha_pago: texto(input.fecha_pago) ?? new Date().toISOString().slice(0, 10),
+      cuenta_propia_id: cuentaId,
+    })
+    .eq('id', cobroId)
+  if (error) return { error: 'No se pudo registrar el cobro.' }
+
+  return { cobrado: true, id: cobro.id, monto: cobro.monto, moneda: cobro.moneda }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -662,5 +839,10 @@ export async function ejecutarHerramienta(
     case 'listar_gastos_pendientes': return ejecutarListarGastosPendientes(ctx, supabase, input)
     case 'listar_cuentas_disponibles_gasto': return ejecutarListarCuentasDisponiblesGasto(ctx, supabase, input)
     case 'marcar_gasto_pagado': return ejecutarMarcarGastoPagado(ctx, supabase, input)
+    case 'listar_certificados_contrato': return ejecutarListarCertificadosContrato(supabase, input)
+    case 'crear_cobro': return ejecutarCrearCobro(ctx, supabase, input)
+    case 'listar_cobros_pendientes': return ejecutarListarCobrosPendientes(ctx, supabase, input)
+    case 'listar_cuentas_disponibles_cobro': return ejecutarListarCuentasDisponiblesCobro(ctx, supabase, input)
+    case 'marcar_cobro_cobrado': return ejecutarMarcarCobroCobrado(ctx, supabase, input)
   }
 }

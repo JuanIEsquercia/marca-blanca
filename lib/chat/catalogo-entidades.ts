@@ -128,4 +128,28 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'fecha_pago', label: 'Fecha de pago', requerido: false, descripcion: 'Formato YYYY-MM-DD — si se omite, hoy' },
     ],
   },
+  cobro: {
+    key: 'cobro',
+    label: 'Cobro',
+    modulo: 'cobros',
+    rutaNavegacion: '/admin/proyectos/{obraId}/cobros',
+    campos: [
+      { nombre: 'certificado_id', label: 'Certificado', requerido: true, descripcion: 'Id real del certificado que se cobra, obtenido de listar_certificados_contrato — solo aplica a contratos con el cliente, no a subcontratistas' },
+      { nombre: 'monto', label: 'Monto', requerido: true, descripcion: 'Monto del cobro (número)' },
+      { nombre: 'moneda', label: 'Moneda', requerido: false, opciones: ['ARS', 'USD'], descripcion: 'Si se omite, la del contrato' },
+      { nombre: 'fecha_vencimiento', label: 'Fecha de vencimiento', requerido: false, descripcion: 'Formato YYYY-MM-DD — si se omite, hoy' },
+      { nombre: 'notas', label: 'Notas', requerido: false },
+    ],
+  },
+  pago_cobro: {
+    key: 'pago_cobro',
+    label: 'Registrar cobro efectivo',
+    modulo: 'cobros',
+    rutaNavegacion: '/admin/proyectos/{obraId}/cobros',
+    campos: [
+      { nombre: 'cobro_id', label: 'Cobro', requerido: true, descripcion: 'Id real del cobro pendiente, obtenido de listar_cobros_pendientes' },
+      { nombre: 'cuenta_propia_id', label: 'Cuenta', requerido: true, descripcion: 'Id real de la cuenta a la que entró la plata, obtenida de listar_cuentas_disponibles_cobro' },
+      { nombre: 'fecha_pago', label: 'Fecha de cobro', requerido: false, descripcion: 'Formato YYYY-MM-DD — si se omite, hoy' },
+    ],
+  },
 }

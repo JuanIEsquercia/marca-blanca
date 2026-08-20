@@ -241,7 +241,7 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'crear_cobro',
-    description: 'Da de alta un cobro PENDIENTE contra un certificado ya cargado (no lo marca como cobrado — eso es marcar_cobro_cobrado, un paso aparte). El usuario puede pedir esto como "cobrale al cliente", "registrá un cobro", "facturale el certificado". Llamá antes a listar_certificados_contrato para el id real del certificado — nunca inventes uno. No pidas desglose de IVA/monto neto, no hace falta. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    description: 'Da de alta un cobro PENDIENTE de un contrato con el cliente (no lo marca como cobrado — eso es marcar_cobro_cobrado, un paso aparte). El usuario puede pedir esto como "cobrale al cliente", "registrá un cobro", "facturale el certificado", "cobrá un anticipo/seña". Necesita el contrato (listar_contratos_obra) — el certificado es OPCIONAL: si el usuario menciona un certificado puntual, resolvelo con listar_certificados_contrato, pero un cobro también puede no venir de ningún certificado (anticipos, señas, cobros sueltos) — en ese caso no inventes uno, dejalo sin certificado. No pidas desglose de IVA/monto neto, no hace falta. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('cobro'),
   },
   {

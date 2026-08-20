@@ -135,11 +135,12 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
     modulo: 'cobros',
     rutaNavegacion: '/admin/proyectos/{obraId}/cobros',
     campos: [
-      { nombre: 'certificado_id', label: 'Certificado', requerido: true, descripcion: 'Id real del certificado que se cobra, obtenido de listar_certificados_contrato — solo aplica a contratos con el cliente, no a subcontratistas' },
+      { nombre: 'contrato_id', label: 'Contrato', requerido: true, descripcion: 'Id real del contrato con el cliente, obtenido de listar_contratos_obra — solo aplica a contratos tipo "cliente", no a subcontratistas' },
+      { nombre: 'certificado_id', label: 'Certificado', requerido: false, descripcion: 'Id real del certificado que se cobra, obtenido de listar_certificados_contrato — OPCIONAL: un cobro puede no venir de ningún certificado (ej. un anticipo o seña cobrado antes de certificar avance). Omitir si no aplica.' },
       { nombre: 'monto', label: 'Monto', requerido: true, descripcion: 'Monto del cobro (número)' },
       { nombre: 'moneda', label: 'Moneda', requerido: false, opciones: ['ARS', 'USD'], descripcion: 'Si se omite, la del contrato' },
       { nombre: 'fecha_vencimiento', label: 'Fecha de vencimiento', requerido: false, descripcion: 'Formato YYYY-MM-DD — si se omite, hoy' },
-      { nombre: 'notas', label: 'Notas', requerido: false },
+      { nombre: 'notas', label: 'Notas', requerido: false, descripcion: 'Útil para aclarar el origen cuando no hay certificado, ej. "Anticipo", "Seña"' },
     ],
   },
   pago_cobro: {

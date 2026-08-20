@@ -676,22 +676,29 @@ async function ejecutarListarCertificadosContrato(supabase: SupabaseClient, inpu
   }
 }
 
+// El certificado es opcional a propósito (ver CobrosObraManager.tsx,
+// mkEmptyCobro/handleNuevoSubmit): un cobro puede no venir de ningún
+// certificado — anticipos o señas cobrados antes de certificar avance son
+// un caso real y frecuente. Lo único obligatorio de verdad es el contrato.
 async function ejecutarCrearCobro(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
-  const certificadoId = texto(input.certificado_id)
-  if (!certificadoId) return { error: 'Falta indicar el certificado.' }
+  const contratoId = texto(input.contrato_id)
+  if (!contratoId) return { error: 'Falta indicar el contrato.' }
   const monto = numero(input.monto)
   if (!monto || monto <= 0) return { error: 'Falta un monto válido.' }
 
-  const { data: cert } = await supabase.from('certificados_avance').select('id, obra_id, contrato_obra_id').eq('id', certificadoId).maybeSingle()
-  if (!cert) return { error: 'No se encontró ese certificado, o este usuario no tiene acceso.' }
-
-  const { data: contrato } = await supabase.from('contratos_obra').select('tipo, moneda').eq('id', cert.contrato_obra_id).maybeSingle()
-  if (!contrato) return { error: 'No se encontró el contrato de ese certificado.' }
+  const { data: contrato } = await supabase.from('contratos_obra').select('id, obra_id, tipo, moneda').eq('id', contratoId).maybeSingle()
+  if (!contrato) return { error: 'No se encontró ese contrato, o este usuario no tiene acceso.' }
   if (contrato.tipo !== 'cliente') {
-    return { error: 'Este certificado es de un contrato con un subcontratista — a un subcontratista se le paga con un gasto, no se le cobra.' }
+    return { error: 'Este contrato es con un subcontratista — a un subcontratista se le paga con un gasto, no se le cobra.' }
   }
-  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'cobros', cert.obra_id)) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'cobros', contrato.obra_id)) {
     return { error: 'Este usuario no tiene el módulo Cobros habilitado en este proyecto.' }
+  }
+
+  const certificadoId = texto(input.certificado_id)
+  if (certificadoId) {
+    const { data: cert } = await supabase.from('certificados_avance').select('id').eq('id', certificadoId).eq('contrato_obra_id', contratoId).maybeSingle()
+    if (!cert) return { error: 'Ese certificado no pertenece a este contrato — volvé a consultar listar_certificados_contrato.' }
   }
 
   const moneda = input.moneda === 'USD' || input.moneda === 'ARS' ? input.moneda : contrato.moneda
@@ -700,10 +707,10 @@ async function ejecutarCrearCobro(ctx: ContextoChat, supabase: SupabaseClient, i
   const { data: nuevo, error } = await supabase
     .from('cobros_proyecto')
     .insert({
-      obra_id: cert.obra_id,
+      obra_id: contrato.obra_id,
       constructora_id: ctx.constructoraId,
-      contrato_obra_id: cert.contrato_obra_id,
-      certificado_id: certificadoId,
+      contrato_obra_id: contratoId,
+      certificado_id: certificadoId ?? null,
       fecha,
       fecha_vencimiento: fecha,
       monto,

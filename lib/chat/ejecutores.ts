@@ -7,7 +7,7 @@ import { crearCuentaPropiaRapida } from '@/lib/cuentasPropias'
 import { crearCategoriaCostoRapida } from '@/lib/categoriasCosto'
 import { crearPersonalRapido, crearCuadrillaRapida } from '@/lib/personal'
 import { crearGastoRapido } from '@/lib/gastos'
-import { obtenerCuentasPropias } from '@/lib/tesoreria'
+import { obtenerCuentasPropias, calcularCajaEmpresa, calcularCajaProyecto } from '@/lib/tesoreria'
 import { obtenerIngresos } from '@/lib/ingresos'
 import type { TipoContratacion } from '@/types/database'
 import { CATALOGO_ENTIDADES } from './catalogo-entidades'
@@ -879,6 +879,60 @@ async function ejecutarListarPendientesCobro(ctx: ContextoChat, supabase: Supaba
   }
 }
 
+// Reusa calcularCajaEmpresa/calcularCajaProyecto de lib/tesoreria.ts — la
+// misma lógica que arma /admin/tesoreria y la Caja de cada proyecto, para
+// que el chat nunca pueda dar un número de caja distinto al que el usuario
+// ve en esas pantallas.
+async function ejecutarConsultarCashflow(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'tesoreria', null)) {
+    return { error: 'Este usuario no tiene el módulo Caja habilitado.' }
+  }
+
+  const obraId = texto(input.obraId)
+
+  if (!obraId) {
+    const cuentas = await calcularCajaEmpresa(supabase, ctx.constructoraId)
+    const totalesPorMoneda: Record<string, { ingresos: number; egresos: number; saldo_actual: number }> = {}
+    for (const c of cuentas) {
+      const t = totalesPorMoneda[c.moneda] ?? { ingresos: 0, egresos: 0, saldo_actual: 0 }
+      t.ingresos = redondear2(t.ingresos + c.ingresos_ventas)
+      t.egresos = redondear2(t.egresos + c.egresos_gastos)
+      t.saldo_actual = redondear2(t.saldo_actual + c.saldo_actual)
+      totalesPorMoneda[c.moneda] = t
+    }
+    return {
+      alcance: 'empresa',
+      cuentas: cuentas.map(c => ({
+        nombre: c.nombre,
+        tipo: c.tipo,
+        moneda: c.moneda,
+        proyecto: c.obra_nombre ?? 'Pool de empresa',
+        ingresos: c.ingresos_ventas,
+        egresos: c.egresos_gastos,
+        saldo_actual: c.saldo_actual,
+      })),
+      totales_por_moneda: totalesPorMoneda,
+    }
+  }
+
+  const { data: obra } = await supabase.from('obras').select('id, nombre, tipo, modo_cuentas').eq('id', obraId).maybeSingle()
+  if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+
+  const caja = await calcularCajaProyecto(supabase, {
+    constructoraId: ctx.constructoraId,
+    obraId: obra.id,
+    obraTipo: obra.tipo,
+    obraModo: (obra.modo_cuentas ?? 'empresa') as 'empresa' | 'especificas',
+  })
+
+  return {
+    alcance: 'proyecto',
+    proyecto: obra.nombre,
+    cuentas: caja.cuentasConSaldo,
+    totales_por_moneda: caja.totalesPorMoneda,
+  }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -915,5 +969,6 @@ export async function ejecutarHerramienta(
     case 'listar_cuentas_disponibles_cobro': return ejecutarListarCuentasDisponiblesCobro(ctx, supabase, input)
     case 'marcar_cobro_cobrado': return ejecutarMarcarCobroCobrado(ctx, supabase, input)
     case 'listar_pendientes_cobro': return ejecutarListarPendientesCobro(ctx, supabase, input)
+    case 'consultar_cashflow': return ejecutarConsultarCashflow(ctx, supabase, input)
   }
 }

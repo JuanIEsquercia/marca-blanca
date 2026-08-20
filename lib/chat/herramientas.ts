@@ -281,6 +281,16 @@ export const TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+  {
+    name: 'consultar_cashflow',
+    description: 'Devuelve el estado de caja: saldo actual, ingresos y egresos por cuenta, agrupados por moneda (ARS/USD nunca se suman entre sí). Sin obraId trae el consolidado de TODA la empresa (todas las cuentas activas, de cualquier proyecto o del pool) — con obraId, el detalle de un proyecto puntual. Usar cuando el usuario pregunte por el cashflow, la caja, cuánta plata hay, o el flujo de fondos.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — opcional, omitir para el consolidado de toda la empresa' },
+      },
+    },
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -314,4 +324,5 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   listar_cuentas_disponibles_cobro: { requiereConfirmacion: false },
   marcar_cobro_cobrado: { requiereConfirmacion: true, entidad: 'pago_cobro' },
   listar_pendientes_cobro: { requiereConfirmacion: false },
+  consultar_cashflow: { requiereConfirmacion: false },
 }

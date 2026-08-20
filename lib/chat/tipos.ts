@@ -119,6 +119,7 @@ export type NombreHerramienta =
   | 'listar_gastos_pendientes' | 'listar_cuentas_disponibles_gasto' | 'marcar_gasto_pagado'
   | 'listar_certificados_contrato' | 'crear_cobro' | 'listar_cobros_pendientes' | 'listar_cuentas_disponibles_cobro' | 'marcar_cobro_cobrado'
   | 'listar_pendientes_cobro'
+  | 'consultar_cashflow'
 
 export interface MetadataHerramienta {
   requiereConfirmacion: boolean

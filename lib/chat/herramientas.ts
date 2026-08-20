@@ -114,8 +114,13 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'listar_proveedores',
-    description: 'Devuelve los proveedores de la empresa (id y razón social). Usar antes de crear_gasto cuando el usuario mencione un proveedor por nombre — buscá el que coincide (tolerá errores de tipeo) en vez de inventar un id; si no hay ninguno que coincida con confianza, dejá el gasto sin proveedor y decilo.',
-    input_schema: { type: 'object', properties: {} },
+    description: 'Devuelve los proveedores de la empresa (id y razón social). Usar antes de crear_gasto cuando el usuario mencione un proveedor por nombre — buscá el que coincide (tolerá errores de tipeo) en vez de inventar un id; si no hay ninguno que coincida con confianza, dejá el gasto sin proveedor y decilo. Si el usuario ya dio una parte del nombre, mandala en "nombre" para acotar la búsqueda en vez de traer todos — más rápido y más barato que filtrar vos la lista completa. Sin "nombre" trae los primeros 50 (si el usuario pide explícitamente "toda la nómina" y sabés que hay más, decíselo).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nombre: { type: 'string', description: 'Parte del nombre/razón social para acotar la búsqueda — opcional' },
+      },
+    },
   },
   {
     name: 'listar_categorias_gasto',

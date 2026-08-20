@@ -108,6 +108,13 @@ export async function* ejecutarTurnoChat(
         system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
         tools: TOOLS_CACHEABLE,
         messages,
+        // cache_control a nivel request: además del system y las tools
+        // (arriba), esto marca el último bloque cacheable de `messages` —
+        // en una charla larga de ida y vuelta (preguntas, listar_proveedores,
+        // ir confirmando cómo queda antes de mandar la escritura), cada
+        // mensaje nuevo solo paga por lo que se agregó, no por reprocesar
+        // toda la conversación acumulada hasta ahora de nuevo.
+        cache_control: { type: 'ephemeral' },
       })
 
       for await (const event of stream) {

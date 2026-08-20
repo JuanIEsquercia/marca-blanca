@@ -234,17 +234,28 @@ async function ejecutarCrearCuadrilla(ctx: ContextoChat, supabase: SupabaseClien
   return { creado: true, id: nueva.id, nombre: nueva.nombre }
 }
 
-async function ejecutarListarProveedores(ctx: ContextoChat, supabase: SupabaseClient) {
+async function ejecutarListarProveedores(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
   // Misma lógica que ejecutarListarProyectos: la RLS de `proveedores` ya
   // devuelve vacío si este usuario no tiene el módulo — no hace falta
-  // duplicar el chequeo acá.
-  const { data, error } = await supabase
+  // duplicar el chequeo acá. Tope de 50 + filtro opcional por nombre: una
+  // constructora con muchos proveedores no debería mandar la nómina entera
+  // en cada charla — más tokens (más costo) sin necesidad si el usuario ya
+  // dio una pista del nombre.
+  let query = supabase
     .from('proveedores')
     .select('id, razon_social')
     .eq('constructora_id', ctx.constructoraId)
     .order('razon_social')
+    .limit(50)
+  const nombre = texto(input.nombre)
+  if (nombre) query = query.ilike('razon_social', `%${nombre}%`)
+
+  const { data, error } = await query
   if (error) return { error: 'No se pudo obtener la lista de proveedores.' }
-  return { proveedores: (data ?? []).map(p => ({ id: p.id, razon_social: p.razon_social })) }
+  return {
+    proveedores: (data ?? []).map(p => ({ id: p.id, razon_social: p.razon_social })),
+    truncado: !nombre && (data ?? []).length === 50,
+  }
 }
 
 async function ejecutarListarCategoriasGasto(ctx: ContextoChat, supabase: SupabaseClient) {
@@ -1063,7 +1074,7 @@ export async function ejecutarHerramienta(
     case 'crear_categoria_gasto': return ejecutarCrearCategoriaGasto(ctx, supabase, input)
     case 'crear_personal': return ejecutarCrearPersonal(ctx, supabase, input)
     case 'crear_cuadrilla': return ejecutarCrearCuadrilla(ctx, supabase, input)
-    case 'listar_proveedores': return ejecutarListarProveedores(ctx, supabase)
+    case 'listar_proveedores': return ejecutarListarProveedores(ctx, supabase, input)
     case 'listar_categorias_gasto': return ejecutarListarCategoriasGasto(ctx, supabase)
     case 'crear_gasto': return ejecutarCrearGasto(ctx, supabase, input)
     case 'listar_cuentas_proveedor': return ejecutarListarCuentasProveedor(supabase, input)

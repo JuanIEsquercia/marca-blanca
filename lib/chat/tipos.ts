@@ -5,7 +5,7 @@ import type { ModuloKey } from '@/lib/permisos'
 // crear tal cosa": alimenta tanto el input_schema de las tools de
 // escritura como la respuesta de consultar_estructura, para que nunca
 // puedan desincronizarse (ver lib/chat/catalogo-entidades.ts).
-export type EntidadKey = 'proveedor' | 'cliente' | 'cuenta_propia' | 'categoria_gasto' | 'persona' | 'cuadrilla' | 'gasto' | 'orden_compra' | 'certificado_avance'
+export type EntidadKey = 'proveedor' | 'cliente' | 'cuenta_propia' | 'categoria_gasto' | 'persona' | 'cuadrilla' | 'gasto' | 'orden_compra' | 'certificado_avance' | 'pago_gasto'
 
 export interface CampoEntidad {
   nombre: string
@@ -116,6 +116,7 @@ export type NombreHerramienta =
   | 'listar_proveedores' | 'listar_categorias_gasto' | 'crear_gasto'
   | 'crear_orden_compra'
   | 'listar_contratos_obra' | 'consultar_rubros_contrato' | 'crear_certificado_avance'
+  | 'listar_gastos_pendientes' | 'listar_cuentas_disponibles_gasto' | 'marcar_gasto_pagado'
 
 export interface MetadataHerramienta {
   requiereConfirmacion: boolean

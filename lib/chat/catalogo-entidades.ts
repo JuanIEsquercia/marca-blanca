@@ -117,4 +117,15 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'notas', label: 'Notas', requerido: false },
     ],
   },
+  pago_gasto: {
+    key: 'pago_gasto',
+    label: 'Pago de un gasto',
+    modulo: 'gastos',
+    rutaNavegacion: '/admin/gastos',
+    campos: [
+      { nombre: 'gasto_id', label: 'Gasto', requerido: true, descripcion: 'Id real del gasto pendiente, obtenido de listar_gastos_pendientes' },
+      { nombre: 'cuenta_propia_id', label: 'Cuenta', requerido: true, descripcion: 'Id real de la cuenta desde la que se paga, obtenida de listar_cuentas_disponibles_gasto — no cualquier cuenta de la empresa sirve, depende del proyecto del gasto' },
+      { nombre: 'fecha_pago', label: 'Fecha de pago', requerido: false, descripcion: 'Formato YYYY-MM-DD — si se omite, hoy' },
+    ],
+  },
 }

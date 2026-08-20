@@ -7,6 +7,7 @@ import { crearCuentaPropiaRapida } from '@/lib/cuentasPropias'
 import { crearCategoriaCostoRapida } from '@/lib/categoriasCosto'
 import { crearPersonalRapido, crearCuadrillaRapida } from '@/lib/personal'
 import { crearGastoRapido } from '@/lib/gastos'
+import { obtenerCuentasPropias } from '@/lib/tesoreria'
 import type { TipoContratacion } from '@/types/database'
 import { CATALOGO_ENTIDADES } from './catalogo-entidades'
 import { SECCIONES_EMPRESA, SECCIONES_PROYECTO } from './catalogo-secciones'
@@ -533,6 +534,104 @@ async function ejecutarCrearCertificadoAvance(ctx: ContextoChat, supabase: Supab
   }
 }
 
+interface FilaGastoPendiente {
+  id: string
+  descripcion: string
+  monto: number
+  moneda: string
+  fecha_vencimiento: string
+  obra_id: string | null
+  proveedores: { razon_social: string } | null
+  obras: { nombre: string } | null
+}
+
+async function ejecutarListarGastosPendientes(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  let query = supabase
+    .from('gastos')
+    .select('id, descripcion, monto, moneda, fecha_vencimiento, obra_id, proveedores(razon_social), obras(nombre)')
+    .eq('constructora_id', ctx.constructoraId)
+    .eq('estado', 'Pendiente')
+    .order('fecha_vencimiento', { ascending: true })
+    .limit(30)
+
+  const obraId = texto(input.obraId)
+  if (obraId) query = query.eq('obra_id', obraId)
+  const proveedorId = texto(input.proveedorId)
+  if (proveedorId) query = query.eq('proveedor_id', proveedorId)
+
+  const { data, error } = await query
+  if (error) return { error: 'No se pudo obtener los gastos pendientes.' }
+  return {
+    gastos: ((data ?? []) as unknown as FilaGastoPendiente[]).map(g => ({
+      id: g.id,
+      descripcion: g.descripcion,
+      monto: g.monto,
+      moneda: g.moneda,
+      fecha_vencimiento: g.fecha_vencimiento,
+      proveedor: g.proveedores?.razon_social ?? null,
+      proyecto: g.obras?.nombre ?? (g.obra_id ? null : 'Administrativo (sin proyecto)'),
+    })),
+  }
+}
+
+interface GastoParaPago { id: string; obra_id: string | null; moneda: string; estado: string; descripcion: string; monto: number }
+
+async function obtenerGastoParaPago(supabase: SupabaseClient, gastoId: string): Promise<GastoParaPago | null> {
+  const { data } = await supabase.from('gastos').select('id, obra_id, moneda, estado, descripcion, monto').eq('id', gastoId).maybeSingle()
+  return data as GastoParaPago | null
+}
+
+// Mismo criterio que cuentasPermitidasParaObra() en GastosManager.tsx: un
+// gasto de un proyecto en modo "específicas" solo se paga con SUS cuentas,
+// nunca con las de otro proyecto ni con el pool — reusa la función que ya
+// usa el resto del sistema (lib/tesoreria.ts) en vez de reimplementar la
+// regla acá.
+async function cuentasValidasParaGasto(supabase: SupabaseClient, constructoraId: string, gasto: GastoParaPago) {
+  let modo: 'empresa' | 'especificas' = 'empresa'
+  if (gasto.obra_id) {
+    const { data: obra } = await supabase.from('obras').select('modo_cuentas').eq('id', gasto.obra_id).maybeSingle()
+    modo = (obra?.modo_cuentas as 'empresa' | 'especificas' | null) ?? 'empresa'
+  }
+  return obtenerCuentasPropias(supabase, constructoraId, gasto.obra_id, modo, gasto.moneda)
+}
+
+async function ejecutarListarCuentasDisponiblesGasto(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const gastoId = texto(input.gastoId)
+  if (!gastoId) return { error: 'Falta indicar de qué gasto — usá listar_gastos_pendientes primero.' }
+  const gasto = await obtenerGastoParaPago(supabase, gastoId)
+  if (!gasto) return { error: 'No se encontró ese gasto, o este usuario no tiene acceso.' }
+  const cuentas = await cuentasValidasParaGasto(supabase, ctx.constructoraId, gasto)
+  return { cuentas: cuentas.map(c => ({ id: c.id, nombre: c.nombre, moneda: c.moneda })) }
+}
+
+async function ejecutarMarcarGastoPagado(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const gastoId = texto(input.gasto_id)
+  const cuentaId = texto(input.cuenta_propia_id)
+  if (!gastoId) return { error: 'Falta indicar el gasto.' }
+  if (!cuentaId) return { error: 'Falta indicar la cuenta.' }
+
+  const gasto = await obtenerGastoParaPago(supabase, gastoId)
+  if (!gasto) return { error: 'No se encontró ese gasto, o este usuario no tiene acceso.' }
+  if (gasto.estado === 'Pagado') return { error: 'Ese gasto ya está marcado como pagado.' }
+
+  const cuentas = await cuentasValidasParaGasto(supabase, ctx.constructoraId, gasto)
+  if (!cuentas.some(c => c.id === cuentaId)) {
+    return { error: 'Esa cuenta no es válida para este gasto — volvé a llamar a listar_cuentas_disponibles_gasto.' }
+  }
+
+  const { error } = await supabase
+    .from('gastos')
+    .update({
+      estado: 'Pagado',
+      fecha_pago: texto(input.fecha_pago) ?? new Date().toISOString().slice(0, 10),
+      cuenta_propia_id: cuentaId,
+    })
+    .eq('id', gastoId)
+  if (error) return { error: 'No se pudo registrar el pago.' }
+
+  return { pagado: true, id: gasto.id, descripcion: gasto.descripcion, monto: gasto.monto, moneda: gasto.moneda }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -560,5 +659,8 @@ export async function ejecutarHerramienta(
     case 'listar_contratos_obra': return ejecutarListarContratosObra(supabase, input)
     case 'consultar_rubros_contrato': return ejecutarConsultarRubrosContrato(supabase, input)
     case 'crear_certificado_avance': return ejecutarCrearCertificadoAvance(ctx, supabase, input)
+    case 'listar_gastos_pendientes': return ejecutarListarGastosPendientes(ctx, supabase, input)
+    case 'listar_cuentas_disponibles_gasto': return ejecutarListarCuentasDisponiblesGasto(ctx, supabase, input)
+    case 'marcar_gasto_pagado': return ejecutarMarcarGastoPagado(ctx, supabase, input)
   }
 }

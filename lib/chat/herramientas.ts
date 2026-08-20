@@ -201,6 +201,33 @@ export const TOOLS: Anthropic.Tool[] = [
       required: ['contrato_id', 'periodo', 'items'],
     },
   },
+  {
+    name: 'listar_gastos_pendientes',
+    description: 'Devuelve los gastos en estado Pendiente (no pagados todavía) que este usuario puede ver, opcionalmente filtrados por proyecto y/o proveedor. El usuario puede pedir esto como "pagar una factura", "saldar una deuda", "cancelarle a X" — usar antes de marcar_gasto_pagado para encontrar el gasto real, nunca inventar un id.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — opcional' },
+        proveedorId: { type: 'string', description: 'Id real del proveedor, obtenido de listar_proveedores — opcional' },
+      },
+    },
+  },
+  {
+    name: 'listar_cuentas_disponibles_gasto',
+    description: 'Devuelve las cuentas propias válidas para pagar un gasto puntual — no cualquier cuenta de la empresa sirve, depende del proyecto del gasto y de si ese proyecto usa cuentas propias o el pool de la empresa. Uso OBLIGATORIO antes de marcar_gasto_pagado para elegir una cuenta real.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        gastoId: { type: 'string', description: 'Id real del gasto, obtenido de listar_gastos_pendientes' },
+      },
+      required: ['gastoId'],
+    },
+  },
+  {
+    name: 'marcar_gasto_pagado',
+    description: 'Marca un gasto pendiente como pagado, con la cuenta desde la que salió la plata. Llamá antes a listar_gastos_pendientes (para el id del gasto) y listar_cuentas_disponibles_gasto (para una cuenta válida para ESE gasto) — nunca inventes ninguno de los dos ids. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('pago_gasto'),
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -225,4 +252,7 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   listar_contratos_obra: { requiereConfirmacion: false },
   consultar_rubros_contrato: { requiereConfirmacion: false },
   crear_certificado_avance: { requiereConfirmacion: true, entidad: 'certificado_avance' },
+  listar_gastos_pendientes: { requiereConfirmacion: false },
+  listar_cuentas_disponibles_gasto: { requiereConfirmacion: false },
+  marcar_gasto_pagado: { requiereConfirmacion: true, entidad: 'pago_gasto' },
 }

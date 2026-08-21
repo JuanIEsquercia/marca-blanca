@@ -1080,6 +1080,94 @@ async function ejecutarConsultarCashflow(ctx: ContextoChat, supabase: SupabaseCl
   }
 }
 
+interface FilaResumenUnidades { obra_id: string; total: number; vendidas: number; reservadas: number; disponibles: number }
+
+// Reusa la RPC resumen_unidades_por_obra() (ya la usa el dashboard de
+// /admin) en vez de traer todas las unidades y contarlas acá — mismo
+// criterio en todo lib/chat/ejecutores.ts: nunca reimplementar un cálculo
+// que ya existe en el backend real.
+async function ejecutarConsultarUnidades(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const obraId = texto(input.obraId)
+
+  if (obraId) {
+    const { data: obra } = await supabase.from('obras').select('id, nombre, tipo').eq('id', obraId).maybeSingle()
+    if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+    if (obra.tipo !== 'desarrollo') {
+      return { error: `"${obra.nombre}" es un proyecto tipo obra — no tiene unidades a la venta, esto solo aplica a proyectos tipo desarrollo.` }
+    }
+    if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'unidades', obraId)) {
+      return { error: `Este usuario no tiene el módulo Unidades habilitado en el proyecto "${obra.nombre}".` }
+    }
+    const { data, error } = await supabase.rpc('resumen_unidades_por_obra', { p_obra_ids: [obraId] })
+    if (error) return { error: 'No se pudo obtener el resumen de unidades.' }
+    const fila = (data as FilaResumenUnidades[] | null)?.[0]
+    return {
+      proyectos: [{
+        proyecto: obra.nombre,
+        total: fila?.total ?? 0,
+        vendidas: fila?.vendidas ?? 0,
+        reservadas: fila?.reservadas ?? 0,
+        disponibles: fila?.disponibles ?? 0,
+      }],
+    }
+  }
+
+  const { data: obras } = await supabase
+    .from('obras')
+    .select('id, nombre')
+    .eq('constructora_id', ctx.constructoraId)
+    .eq('tipo', 'desarrollo')
+    .order('nombre')
+  if (!obras || obras.length === 0) return { proyectos: [], mensaje: 'No hay proyectos tipo desarrollo.' }
+
+  const { data, error } = await supabase.rpc('resumen_unidades_por_obra', { p_obra_ids: obras.map(o => o.id) })
+  if (error) return { error: 'No se pudo obtener el resumen de unidades.' }
+  const porObra = new Map(((data ?? []) as FilaResumenUnidades[]).map(f => [f.obra_id, f]))
+
+  return {
+    proyectos: obras.map(o => {
+      const fila = porObra.get(o.id)
+      return {
+        proyecto: o.nombre,
+        total: fila?.total ?? 0,
+        vendidas: fila?.vendidas ?? 0,
+        reservadas: fila?.reservadas ?? 0,
+        disponibles: fila?.disponibles ?? 0,
+      }
+    }),
+  }
+}
+
+interface FilaResumenGasto { categoria_id: string | null; categoria_nombre: string; moneda: string; monto_total: number; cantidad: number }
+
+// Misma razón que consultar_unidades: RPC nueva (resumen_gastos_por_categoria,
+// migration_071.sql) en vez de traer todos los gastos y agruparlos acá —
+// evita el límite de PostgREST en tenants con historial largo.
+async function ejecutarResumenGastos(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const obraId = texto(input.obraId) ?? null
+  const desde = texto(input.desde) ?? null
+  const hasta = texto(input.hasta) ?? null
+  const soloPendientes = input.soloPendientes === true
+
+  const { data, error } = await supabase.rpc('resumen_gastos_por_categoria', {
+    p_constructora_id: ctx.constructoraId,
+    p_obra_id: obraId,
+    p_desde: desde,
+    p_hasta: hasta,
+    p_solo_pendientes: soloPendientes,
+  })
+  if (error) return { error: 'No se pudo obtener el resumen de gastos.' }
+
+  return {
+    categorias: ((data ?? []) as FilaResumenGasto[]).map(f => ({
+      categoria: f.categoria_nombre,
+      moneda: f.moneda,
+      monto_total: f.monto_total,
+      cantidad_gastos: f.cantidad,
+    })),
+  }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -1119,5 +1207,7 @@ export async function ejecutarHerramienta(
     case 'marcar_cobro_cobrado': return ejecutarMarcarCobroCobrado(ctx, supabase, input)
     case 'listar_pendientes_cobro': return ejecutarListarPendientesCobro(ctx, supabase, input)
     case 'consultar_cashflow': return ejecutarConsultarCashflow(ctx, supabase, input)
+    case 'consultar_unidades': return ejecutarConsultarUnidades(ctx, supabase, input)
+    case 'resumen_gastos': return ejecutarResumenGastos(ctx, supabase, input)
   }
 }

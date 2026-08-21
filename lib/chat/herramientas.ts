@@ -319,6 +319,29 @@ export const TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+  {
+    name: 'consultar_unidades',
+    description: 'Devuelve unidades vendidas/reservadas/disponibles — SOLO aplica a proyectos tipo "desarrollo" (venta de unidades), un proyecto tipo "obra" no tiene esto. Sin obraId trae TODOS los proyectos de desarrollo de la empresa (uno por fila) — con obraId, el detalle de uno puntual. Usar para "¿me quedan unidades para vender?", "¿cuántas vendí?", "disponibilidad".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto (tipo desarrollo), obtenido de listar_proyectos — opcional, omitir para ver todos los proyectos de desarrollo' },
+      },
+    },
+  },
+  {
+    name: 'resumen_gastos',
+    description: 'Devuelve los gastos agrupados por categoría y moneda, con el total y la cantidad de cada una (ordenado de mayor a menor monto) — para "resumime los gastos", "¿en qué estamos gastando más?", "gastos por categoría". Es un TOTAL HISTÓRICO por defecto (sin límite de tiempo) salvo que se acote con desde/hasta. Nunca sumes los totales de categorías entre sí si tienen moneda distinta.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — opcional, omitir para toda la empresa' },
+        desde: { type: 'string', description: 'Fecha desde (YYYY-MM-DD), por fecha de vencimiento del gasto — opcional' },
+        hasta: { type: 'string', description: 'Fecha hasta (YYYY-MM-DD) — opcional' },
+        soloPendientes: { type: 'boolean', description: 'true para solo gastos Pendientes (no pagados) — opcional, por defecto trae todos' },
+      },
+    },
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -355,6 +378,8 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   marcar_cobro_cobrado: { requiereConfirmacion: true, entidad: 'pago_cobro' },
   listar_pendientes_cobro: { requiereConfirmacion: false },
   consultar_cashflow: { requiereConfirmacion: false },
+  consultar_unidades: { requiereConfirmacion: false },
+  resumen_gastos: { requiereConfirmacion: false },
 }
 
 // El catálogo entero es idéntico en cada request (no depende del usuario,

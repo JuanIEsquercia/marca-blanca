@@ -35,6 +35,9 @@ const LABEL_HERRAMIENTA: Record<string, string> = {
   crear_cobro: 'Crear cobro',
   marcar_cobro_cobrado: 'Marcar cobro como cobrado',
   crear_presupuesto: 'Crear presupuesto',
+  crear_equipo: 'Crear equipo',
+  asignar_equipo: 'Asignar equipo',
+  liberar_equipo: 'Cambiar estado de equipo',
 }
 
 // Un valor de input puede ser un array de objetos (ej. "items" de una

@@ -179,4 +179,40 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'notas', label: 'Notas', requerido: false },
     ],
   },
+  equipo: {
+    key: 'equipo',
+    label: 'Equipo',
+    modulo: 'inventario',
+    rutaNavegacion: '/admin/inventario',
+    campos: [
+      { nombre: 'nombre', label: 'Nombre', requerido: true, descripcion: 'Ej: "Excavadora CAT 320", "Taladro Bosch"' },
+      { nombre: 'tipo', label: 'Tipo', requerido: false, descripcion: 'Texto libre — ej: "Herramienta", "Vehículo", "Maquinaria pesada"' },
+      { nombre: 'marca', label: 'Marca', requerido: false },
+      { nombre: 'modelo', label: 'Modelo', requerido: false },
+      { nombre: 'nro_serie', label: 'N° de serie', requerido: false },
+      { nombre: 'notas', label: 'Notas', requerido: false },
+    ],
+  },
+  asignacion_equipo: {
+    key: 'asignacion_equipo',
+    label: 'Asignar equipo a proyecto',
+    modulo: 'inventario',
+    rutaNavegacion: '/admin/inventario',
+    campos: [
+      { nombre: 'equipo_id', label: 'Equipo', requerido: true, descripcion: 'Id real del equipo, obtenido de listar_equipos' },
+      { nombre: 'obra_id', label: 'Proyecto', requerido: true, descripcion: 'Id real del proyecto, obtenido de listar_proyectos' },
+      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible, ej. "Excavadora CAT 320 → obra Norte" — es lo único que ve el usuario para verificar antes de confirmar, los ids no se muestran.' },
+    ],
+  },
+  liberacion_equipo: {
+    key: 'liberacion_equipo',
+    label: 'Cambiar estado de equipo',
+    modulo: 'inventario',
+    rutaNavegacion: '/admin/inventario',
+    campos: [
+      { nombre: 'equipo_id', label: 'Equipo', requerido: true, descripcion: 'Id real del equipo, obtenido de listar_equipos' },
+      { nombre: 'nuevo_estado', label: 'Nuevo estado', requerido: true, opciones: ['disponible', 'mantenimiento', 'baja'] },
+      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible, ej. "Excavadora CAT 320 → disponible (devuelta de obra Norte)" — es lo único que ve el usuario para verificar antes de confirmar.' },
+    ],
+  },
 }

@@ -375,6 +375,32 @@ export const TOOLS: Anthropic.Tool[] = [
       required: ['cliente_nombre', 'items'],
     },
   },
+  {
+    name: 'crear_equipo',
+    description: 'Da de alta un equipo/maquinaria nuevo, en estado disponible — no lo asigna a ningún proyecto todavía, eso es asignar_equipo, un paso aparte. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('equipo'),
+  },
+  {
+    name: 'listar_equipos',
+    description: 'Devuelve los equipos de la empresa con su estado (disponible/asignado/mantenimiento/baja) y, si está asignado, a qué proyecto. Filtros opcionales por estado y/o proyecto. Usar antes de asignar_equipo/liberar_equipo para encontrar el id real — nunca inventar uno.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        estado: { type: 'string', enum: ['disponible', 'asignado', 'mantenimiento', 'baja'], description: 'Opcional, para filtrar por estado' },
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — opcional, para ver solo los equipos asignados ahí' },
+      },
+    },
+  },
+  {
+    name: 'asignar_equipo',
+    description: 'Asigna un equipo a un proyecto puntual — si ya estaba asignado a otro, cierra esa asignación automáticamente y abre la nueva (nunca queda asignado a dos proyectos a la vez). Llamá antes a listar_equipos y listar_proyectos para resolver los ids reales, nunca los inventes. No se puede asignar un equipo dado de baja. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('asignacion_equipo'),
+  },
+  {
+    name: 'liberar_equipo',
+    description: 'Cambia el estado de un equipo: "disponible" (lo devuelve del proyecto donde estaba, cierra su asignación vigente), "mantenimiento", o "baja". Llamá antes a listar_equipos para resolver el id real. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('liberacion_equipo'),
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -414,6 +440,10 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   consultar_unidades: { requiereConfirmacion: false },
   resumen_gastos: { requiereConfirmacion: false },
   crear_presupuesto: { requiereConfirmacion: true, entidad: 'presupuesto' },
+  crear_equipo: { requiereConfirmacion: true, entidad: 'equipo' },
+  listar_equipos: { requiereConfirmacion: false },
+  asignar_equipo: { requiereConfirmacion: true, entidad: 'asignacion_equipo' },
+  liberar_equipo: { requiereConfirmacion: true, entidad: 'liberacion_equipo' },
 }
 
 // El catálogo entero es idéntico en cada request (no depende del usuario,

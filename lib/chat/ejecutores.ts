@@ -1244,6 +1244,124 @@ async function ejecutarCrearPresupuesto(ctx: ContextoChat, supabase: SupabaseCli
   return { creado: true, id: presupuesto.id, cliente: clienteNombre, moneda, items: items.length }
 }
 
+async function ejecutarCrearEquipo(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'inventario', null)) {
+    return { error: 'Este usuario no tiene el módulo Inventario habilitado.' }
+  }
+  const nombre = texto(input.nombre)
+  if (!nombre) return { error: 'Falta el nombre del equipo.' }
+
+  const { data, error } = await supabase
+    .from('equipos')
+    .insert({
+      constructora_id: ctx.constructoraId,
+      nombre,
+      tipo: texto(input.tipo) ?? null,
+      marca: texto(input.marca) ?? null,
+      modelo: texto(input.modelo) ?? null,
+      nro_serie: texto(input.nro_serie) ?? null,
+      notas: texto(input.notas) ?? null,
+      estado: 'disponible',
+    })
+    .select('id, nombre')
+    .single()
+  if (error || !data) return { error: 'No se pudo crear el equipo.' }
+  return { creado: true, id: data.id, nombre: data.nombre }
+}
+
+interface FilaEquipo {
+  id: string
+  nombre: string
+  tipo: string | null
+  marca: string | null
+  modelo: string | null
+  estado: string
+  equipo_asignaciones: { obra_id: string; fecha_hasta: string | null; obras: { nombre: string } | null }[] | null
+}
+
+async function ejecutarListarEquipos(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  let query = supabase
+    .from('equipos')
+    .select('id, nombre, tipo, marca, modelo, estado, equipo_asignaciones(obra_id, fecha_hasta, obras(nombre))')
+    .eq('constructora_id', ctx.constructoraId)
+    .order('nombre')
+    .limit(50)
+
+  const estado = texto(input.estado)
+  if (estado) query = query.eq('estado', estado)
+
+  const { data, error } = await query
+  if (error) return { error: 'No se pudo obtener la lista de equipos.' }
+
+  let filas = (data ?? []) as unknown as FilaEquipo[]
+  const obraId = texto(input.obraId)
+  if (obraId) {
+    filas = filas.filter(e => (e.equipo_asignaciones ?? []).some(a => a.fecha_hasta === null && a.obra_id === obraId))
+  }
+
+  return {
+    equipos: filas.map(e => ({
+      id: e.id,
+      nombre: e.nombre,
+      tipo: e.tipo,
+      marca: e.marca,
+      modelo: e.modelo,
+      estado: e.estado,
+      proyecto_actual: (e.equipo_asignaciones ?? []).find(a => a.fecha_hasta === null)?.obras?.nombre ?? null,
+    })),
+  }
+}
+
+// Las RPCs asignar_equipo/liberar_equipo (schema.sql) ya hacen el trabajo
+// atómico de verdad (cerrar la asignación vigente + abrir la nueva /
+// actualizar equipos.estado) — acá solo se resuelven los ids contra
+// listar_equipos/listar_proyectos y se llama a la RPC, igual criterio que
+// el resto de lib/chat/ejecutores.ts: nunca reimplementar lógica que ya
+// existe en el backend real.
+async function ejecutarAsignarEquipo(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'inventario', null)) {
+    return { error: 'Este usuario no tiene el módulo Inventario habilitado.' }
+  }
+  const equipoId = texto(input.equipo_id)
+  const obraId = texto(input.obra_id)
+  if (!equipoId) return { error: 'Falta indicar el equipo.' }
+  if (!obraId) return { error: 'Falta indicar el proyecto.' }
+
+  const { data: equipo } = await supabase.from('equipos').select('id, nombre, estado').eq('id', equipoId).maybeSingle()
+  if (!equipo) return { error: 'No se encontró ese equipo, o este usuario no tiene acceso.' }
+  if (equipo.estado === 'baja') return { error: `"${equipo.nombre}" está dado de baja — no se puede asignar.` }
+
+  const { data: obra } = await supabase.from('obras').select('id, nombre').eq('id', obraId).maybeSingle()
+  if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+
+  const { error } = await supabase.rpc('asignar_equipo', { p_equipo_id: equipoId, p_obra_id: obraId })
+  if (error) return { error: `No se pudo asignar el equipo: ${error.message}` }
+
+  return { asignado: true, equipo: equipo.nombre, proyecto: obra.nombre }
+}
+
+const ESTADOS_LIBERACION_EQUIPO = ['disponible', 'mantenimiento', 'baja']
+
+async function ejecutarLiberarEquipo(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'inventario', null)) {
+    return { error: 'Este usuario no tiene el módulo Inventario habilitado.' }
+  }
+  const equipoId = texto(input.equipo_id)
+  const nuevoEstado = texto(input.nuevo_estado)
+  if (!equipoId) return { error: 'Falta indicar el equipo.' }
+  if (!nuevoEstado || !ESTADOS_LIBERACION_EQUIPO.includes(nuevoEstado)) {
+    return { error: 'El nuevo estado tiene que ser disponible, mantenimiento o baja.' }
+  }
+
+  const { data: equipo } = await supabase.from('equipos').select('id, nombre').eq('id', equipoId).maybeSingle()
+  if (!equipo) return { error: 'No se encontró ese equipo, o este usuario no tiene acceso.' }
+
+  const { error } = await supabase.rpc('liberar_equipo', { p_equipo_id: equipoId, p_nuevo_estado: nuevoEstado })
+  if (error) return { error: `No se pudo actualizar el equipo: ${error.message}` }
+
+  return { actualizado: true, equipo: equipo.nombre, nuevo_estado: nuevoEstado }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -1286,5 +1404,9 @@ export async function ejecutarHerramienta(
     case 'consultar_unidades': return ejecutarConsultarUnidades(ctx, supabase, input)
     case 'resumen_gastos': return ejecutarResumenGastos(ctx, supabase, input)
     case 'crear_presupuesto': return ejecutarCrearPresupuesto(ctx, supabase, input)
+    case 'crear_equipo': return ejecutarCrearEquipo(ctx, supabase, input)
+    case 'listar_equipos': return ejecutarListarEquipos(ctx, supabase, input)
+    case 'asignar_equipo': return ejecutarAsignarEquipo(ctx, supabase, input)
+    case 'liberar_equipo': return ejecutarLiberarEquipo(ctx, supabase, input)
   }
 }

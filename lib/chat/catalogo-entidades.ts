@@ -161,4 +161,22 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible con lo que se va a cobrar y con qué cuenta, ej. "José Ramón Vidal — 174.590 USD, con Banco Francés" — armala con los datos que ya te devolvieron listar_cobros_pendientes/listar_cuentas_disponibles_cobro. Es lo único que el usuario lee para verificar antes de confirmar, los ids no se muestran.' },
     ],
   },
+  presupuesto: {
+    key: 'presupuesto',
+    label: 'Presupuesto',
+    modulo: 'presupuestos',
+    rutaNavegacion: '/admin/presupuestos',
+    campos: [
+      { nombre: 'cliente_nombre', label: 'Cliente', requerido: true, descripcion: 'Nombre del cliente para el que se cotiza — no hace falta que ya exista como comprador, se guarda como texto simple' },
+      { nombre: 'cliente_cuit', label: 'CUIT/DNI del cliente', requerido: false },
+      { nombre: 'cliente_email', label: 'Email del cliente', requerido: false },
+      { nombre: 'cliente_telefono', label: 'Teléfono del cliente', requerido: false },
+      { nombre: 'items', label: 'Ítems por rubro', requerido: true, descripcion: 'Lista de rubros cotizados, cada uno con rubro, cantidad y precio unitario — al menos uno. El rubro se resuelve o crea solo por nombre.' },
+      { nombre: 'moneda', label: 'Moneda', requerido: false, opciones: ['ARS', 'USD'], descripcion: 'Si se omite, ARS' },
+      { nombre: 'fecha_inicio', label: 'Fecha de inicio estimada', requerido: false },
+      { nombre: 'fecha_fin_estimada', label: 'Fecha de fin estimada', requerido: false },
+      { nombre: 'descripcion', label: 'Descripción', requerido: false },
+      { nombre: 'notas', label: 'Notas', requerido: false },
+    ],
+  },
 }

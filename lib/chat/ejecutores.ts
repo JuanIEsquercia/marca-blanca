@@ -9,6 +9,7 @@ import { crearPersonalRapido, crearCuadrillaRapida } from '@/lib/personal'
 import { crearGastoRapido } from '@/lib/gastos'
 import { obtenerCuentasPropias, calcularCajaEmpresa, calcularCajaProyecto } from '@/lib/tesoreria'
 import { obtenerIngresos } from '@/lib/ingresos'
+import { obtenerOCrearRubro } from '@/lib/rubros'
 import type { TipoContratacion } from '@/types/database'
 import { CATALOGO_ENTIDADES } from './catalogo-entidades'
 import { SECCIONES_EMPRESA, SECCIONES_PROYECTO } from './catalogo-secciones'
@@ -1168,6 +1169,81 @@ async function ejecutarResumenGastos(ctx: ContextoChat, supabase: SupabaseClient
   }
 }
 
+interface ItemPresupuestoValido { rubro: string; cantidad: number; precioUnitario: number; unidad?: string }
+
+function parsearItemsPresupuesto(valor: unknown): ItemPresupuestoValido[] {
+  if (!Array.isArray(valor)) return []
+  const items: ItemPresupuestoValido[] = []
+  for (const raw of valor) {
+    if (typeof raw !== 'object' || raw === null) continue
+    const r = raw as Record<string, unknown>
+    const rubro = texto(r.rubro)
+    const precioUnitario = numero(r.precio_unitario)
+    if (!rubro || precioUnitario === undefined || precioUnitario < 0) continue
+    items.push({ rubro, cantidad: numero(r.cantidad) ?? 1, precioUnitario, unidad: texto(r.unidad) })
+  }
+  return items
+}
+
+// El presupuesto nace sin obra_id/contrato_obra_id (quedan NULL hasta que
+// alguien lo acepta desde el panel, RPC aceptar_presupuesto — el chat no
+// hace esa parte) y el cliente es texto simple, no un FK a compradores
+// (NuevoPresupuestoForm.tsx tampoco lo resuelve al crear, solo al aceptar)
+// — por eso esta tool no necesita ninguna lookup de cliente. Mismo criterio
+// de dos pasos (header + ítems, compensar con delete si fallan) que
+// ejecutarCrearOrdenCompra, y mismo obtenerOCrearRubro que ya usa el
+// formulario real para no duplicar rubros por variantes de mayúsculas/tildes.
+async function ejecutarCrearPresupuesto(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'presupuestos', null)) {
+    return { error: 'Este usuario no tiene el módulo Presupuestos habilitado.' }
+  }
+  const clienteNombre = texto(input.cliente_nombre)
+  if (!clienteNombre) return { error: 'Falta el nombre del cliente.' }
+
+  const items = parsearItemsPresupuesto(input.items)
+  if (items.length === 0) return { error: 'El presupuesto necesita al menos un ítem válido (rubro y precio unitario).' }
+
+  const moneda = input.moneda === 'USD' ? 'USD' : 'ARS'
+
+  const { data: presupuesto, error: errPresupuesto } = await supabase
+    .from('presupuestos')
+    .insert({
+      constructora_id: ctx.constructoraId,
+      cliente_nombre: clienteNombre,
+      cliente_cuit: texto(input.cliente_cuit) ?? null,
+      cliente_email: texto(input.cliente_email) ?? null,
+      cliente_telefono: texto(input.cliente_telefono) ?? null,
+      moneda,
+      fecha_inicio: texto(input.fecha_inicio) ?? null,
+      fecha_fin_estimada: texto(input.fecha_fin_estimada) ?? null,
+      descripcion: texto(input.descripcion) ?? null,
+      notas: texto(input.notas) ?? null,
+      estado: 'borrador',
+    })
+    .select('id')
+    .single()
+  if (errPresupuesto || !presupuesto) return { error: 'No se pudo crear el presupuesto.' }
+
+  const rubrosCanonicos = await Promise.all(items.map(it => obtenerOCrearRubro(supabase, ctx.constructoraId, it.rubro)))
+  const filas = items.map((it, i) => ({
+    presupuesto_id: presupuesto.id,
+    constructora_id: ctx.constructoraId,
+    orden: i,
+    rubro: rubrosCanonicos[i],
+    unidad: it.unidad ?? null,
+    cantidad: it.cantidad,
+    precio_unitario: it.precioUnitario,
+  }))
+
+  const { error: errItems } = await supabase.from('presupuesto_items').insert(filas)
+  if (errItems) {
+    await supabase.from('presupuestos').delete().eq('id', presupuesto.id)
+    return { error: `No se pudo cargar los ítems del presupuesto: ${errItems.message}` }
+  }
+
+  return { creado: true, id: presupuesto.id, cliente: clienteNombre, moneda, items: items.length }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -1209,5 +1285,6 @@ export async function ejecutarHerramienta(
     case 'consultar_cashflow': return ejecutarConsultarCashflow(ctx, supabase, input)
     case 'consultar_unidades': return ejecutarConsultarUnidades(ctx, supabase, input)
     case 'resumen_gastos': return ejecutarResumenGastos(ctx, supabase, input)
+    case 'crear_presupuesto': return ejecutarCrearPresupuesto(ctx, supabase, input)
   }
 }

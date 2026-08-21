@@ -342,6 +342,39 @@ export const TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+  {
+    name: 'crear_presupuesto',
+    description: 'Da de alta un presupuesto (cotización por rubro) para un cliente — NO crea ningún proyecto ni contrato todavía, eso es un paso aparte y posterior que se hace desde el panel ("aceptar" el presupuesto), el chat no lo hace. El cliente se guarda como texto simple (nombre/CUIT/email/teléfono) — no hace falta que ya exista como comprador ni buscarlo con ninguna otra tool. Los rubros se resuelven o crean solos por nombre, igual que en crear_orden_compra. Nunca inventes cantidades, precios o rubros que el usuario no dijo. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        cliente_nombre: { type: 'string', description: 'Nombre del cliente para el que se cotiza' },
+        cliente_cuit: { type: 'string', description: 'Opcional' },
+        cliente_email: { type: 'string', description: 'Opcional' },
+        cliente_telefono: { type: 'string', description: 'Opcional' },
+        moneda: { type: 'string', enum: ['ARS', 'USD'], description: 'Si se omite, ARS' },
+        items: {
+          type: 'array',
+          description: 'Rubros cotizados — al menos uno',
+          items: {
+            type: 'object',
+            properties: {
+              rubro: { type: 'string', description: 'Nombre del rubro tal como lo mencionó el usuario' },
+              cantidad: { type: 'string', description: 'Cantidad (número) — si se omite, 1' },
+              precio_unitario: { type: 'string', description: 'Precio unitario (número)' },
+              unidad: { type: 'string', description: 'Unidad de medida — opcional' },
+            },
+            required: ['rubro', 'precio_unitario'],
+          },
+        },
+        fecha_inicio: { type: 'string', description: 'Formato YYYY-MM-DD — opcional' },
+        fecha_fin_estimada: { type: 'string', description: 'Formato YYYY-MM-DD — opcional' },
+        descripcion: { type: 'string' },
+        notas: { type: 'string' },
+      },
+      required: ['cliente_nombre', 'items'],
+    },
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -380,6 +413,7 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   consultar_cashflow: { requiereConfirmacion: false },
   consultar_unidades: { requiereConfirmacion: false },
   resumen_gastos: { requiereConfirmacion: false },
+  crear_presupuesto: { requiereConfirmacion: true, entidad: 'presupuesto' },
 }
 
 // El catálogo entero es idéntico en cada request (no depende del usuario,

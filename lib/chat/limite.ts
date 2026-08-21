@@ -14,18 +14,37 @@ function primerDiaDelMesUTC(): Date {
   return d
 }
 
+export interface ConsumoMensual {
+  costoUSD: number
+  tokensTotal: number
+  tokensEntrada: number
+  tokensSalida: number
+  tokensCacheLectura: number
+  tokensCacheEscritura: number
+}
+
+const CONSUMO_VACIO: ConsumoMensual = { costoUSD: 0, tokensTotal: 0, tokensEntrada: 0, tokensSalida: 0, tokensCacheLectura: 0, tokensCacheEscritura: 0 }
+
 // Usado por el panel de superadmin (app/superadmin/) para mostrar, junto al
 // límite de cada constructora, cuánto lleva consumido en lo que va del mes
-// — una sola query para todas en vez de una por fila.
-export async function calcularConsumoMesActualPorConstructora(adminClient: SupabaseClient): Promise<Record<string, number>> {
+// — en USD y en tokens crudos — una sola query para todas en vez de una
+// por fila.
+export async function calcularConsumoMesActualPorConstructora(adminClient: SupabaseClient): Promise<Record<string, ConsumoMensual>> {
   const { data } = await adminClient
     .from('chat_uso')
     .select('constructora_id, tokens_entrada, tokens_salida, tokens_cache_lectura, tokens_cache_escritura')
     .gte('created_at', primerDiaDelMesUTC().toISOString())
 
-  const resultado: Record<string, number> = {}
+  const resultado: Record<string, ConsumoMensual> = {}
   for (const fila of (data ?? []) as (TokensUso & { constructora_id: string })[]) {
-    resultado[fila.constructora_id] = (resultado[fila.constructora_id] ?? 0) + calcularCostoUSD(fila)
+    const acc = resultado[fila.constructora_id] ?? { ...CONSUMO_VACIO }
+    acc.costoUSD += calcularCostoUSD(fila)
+    acc.tokensEntrada += fila.tokens_entrada
+    acc.tokensSalida += fila.tokens_salida
+    acc.tokensCacheLectura += fila.tokens_cache_lectura
+    acc.tokensCacheEscritura += fila.tokens_cache_escritura
+    acc.tokensTotal += fila.tokens_entrada + fila.tokens_salida + fila.tokens_cache_lectura + fila.tokens_cache_escritura
+    resultado[fila.constructora_id] = acc
   }
   return resultado
 }

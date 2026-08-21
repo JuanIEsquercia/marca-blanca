@@ -25,6 +25,11 @@ interface Constructora {
   direccion: string | null
   chatLimiteMensualUsd: number
   chatConsumoMesActualUsd: number
+  chatTokensMesActual: number
+}
+
+function formatTokens(n: number) {
+  return new Intl.NumberFormat('es-AR', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 }
 
 const LABEL_CONDICION_IVA: Record<string, string> = {
@@ -615,6 +620,7 @@ export default function ConstructorasManager({ initialData }: Props) {
                             ${c.chatConsumoMesActualUsd.toFixed(2)}
                           </span>
                           <span className="text-slate-500"> de ${c.chatLimiteMensualUsd.toFixed(2)} este mes</span>
+                          <span className="text-slate-600"> · {formatTokens(c.chatTokensMesActual)} tokens</span>
                           {c.chatConsumoMesActualUsd >= c.chatLimiteMensualUsd && (
                             <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/50 text-red-300">bloqueado</span>
                           )}

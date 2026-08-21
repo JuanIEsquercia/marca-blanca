@@ -86,7 +86,8 @@ export async function GET() {
       telefonoContacto: c.telefono_contacto,
       direccion: c.direccion,
       chatLimiteMensualUsd: c.chat_limite_mensual_usd,
-      chatConsumoMesActualUsd: consumoPorConstructora[c.id] ?? 0,
+      chatConsumoMesActualUsd: consumoPorConstructora[c.id]?.costoUSD ?? 0,
+      chatTokensMesActual: consumoPorConstructora[c.id]?.tokensTotal ?? 0,
     }
   })
 

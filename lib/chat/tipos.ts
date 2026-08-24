@@ -5,7 +5,7 @@ import type { ModuloKey } from '@/lib/permisos'
 // crear tal cosa": alimenta tanto el input_schema de las tools de
 // escritura como la respuesta de consultar_estructura, para que nunca
 // puedan desincronizarse (ver lib/chat/catalogo-entidades.ts).
-export type EntidadKey = 'proveedor' | 'cliente' | 'cuenta_propia' | 'categoria_gasto' | 'persona' | 'cuadrilla' | 'gasto' | 'orden_compra' | 'certificado_avance' | 'pago_gasto' | 'cobro' | 'pago_cobro' | 'presupuesto' | 'equipo' | 'asignacion_equipo' | 'liberacion_equipo' | 'reserva' | 'contrato_venta' | 'tipologia' | 'unidad' | 'asignacion_personal' | 'liberacion_personal' | 'asignacion_cuadrilla' | 'cancelacion_reserva' | 'cuenta_proveedor' | 'recepcion_compra' | 'reparto_stock' | 'acopio' | 'retiro_acopio' | 'plan_pago' | 'liquidacion_cuota' | 'rechazo_cuota'
+export type EntidadKey = 'proveedor' | 'cliente' | 'cuenta_propia' | 'categoria_gasto' | 'persona' | 'cuadrilla' | 'gasto' | 'orden_compra' | 'certificado_avance' | 'pago_gasto' | 'cobro' | 'pago_cobro' | 'presupuesto' | 'equipo' | 'asignacion_equipo' | 'liberacion_equipo' | 'reserva' | 'contrato_venta' | 'tipologia' | 'unidad' | 'asignacion_personal' | 'liberacion_personal' | 'asignacion_cuadrilla' | 'cancelacion_reserva' | 'cuenta_proveedor' | 'recepcion_compra' | 'reparto_stock' | 'acopio' | 'retiro_acopio' | 'plan_pago' | 'liquidacion_cuota' | 'rechazo_cuota' | 'aceptacion_presupuesto' | 'rubro_adicional'
 
 export interface CampoEntidad {
   nombre: string
@@ -135,6 +135,8 @@ export type NombreHerramienta =
   | 'listar_stock' | 'repartir_stock'
   | 'listar_acopios' | 'crear_acopio' | 'registrar_retiro_acopio'
   | 'listar_plan_pago' | 'crear_plan_pago' | 'liquidar_cuota_pago' | 'rechazar_cuota_pago'
+  | 'listar_presupuestos' | 'aceptar_presupuesto'
+  | 'crear_rubro_adicional'
 
 export interface MetadataHerramienta {
   requiereConfirmacion: boolean

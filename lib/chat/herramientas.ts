@@ -623,6 +623,27 @@ export const TOOLS: Anthropic.Tool[] = [
     description: 'Marca una cuota puntual (típicamente un cheque) como rechazada — el usuario puede pedir esto como "me rechazaron el cheque", "rebotó el cheque de X". No genera un reemplazo automático: si el usuario quiere cargar un cheque nuevo en su lugar, eso es un crear_plan_pago aparte (esta cuota queda Rechazada y se reemplaza sola al armar el nuevo plan). Llamá antes a listar_plan_pago para encontrar el id real de la cuota. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('rechazo_cuota'),
   },
+  {
+    name: 'listar_presupuestos',
+    description: 'Devuelve los presupuestos de la empresa (cliente, estado, monto total, si ya está vinculado a un proyecto). Usar antes de aceptar_presupuesto para encontrar el id real — nunca inventarlo. Sin filtros trae los últimos 30.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        estado: { type: 'string', enum: ['borrador', 'enviado', 'aceptado', 'rechazado'], description: 'Opcional, para filtrar por estado' },
+        cliente: { type: 'string', description: 'Parte del nombre del cliente para acotar la búsqueda — opcional' },
+      },
+    },
+  },
+  {
+    name: 'aceptar_presupuesto',
+    description: 'Acepta un presupuesto: lo convierte en un contrato de obra real, con sus rubros ya cargados, vinculado a un proyecto tipo Obra — ya sea uno existente (obra_existente_id) o uno nuevo que se crea en el momento (nueva_obra_nombre). Un presupuesto ya aceptado o rechazado no se puede volver a aceptar. Crear un proyecto nuevo en este paso solo lo puede hacer un administrador — si el usuario no lo es, ofrecele vincularlo a un proyecto ya existente en cambio (resolvelo con listar_proyectos, filtrando tipo "obra"). Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('aceptacion_presupuesto'),
+  },
+  {
+    name: 'crear_rubro_adicional',
+    description: 'Agrega un rubro nuevo a un contrato de obra YA FIRMADO (adicional de obra) — el usuario puede pedir esto como "hay que sumar un adicional", "agregá un rubro nuevo al contrato", "esto no estaba en el presupuesto original". El rubro se resuelve o crea solo por nombre. Llamá antes a listar_contratos_obra para resolver el id real del contrato. Este rubro nuevo se puede certificar y cobrar como cualquier otro, junto con los que ya tenía el contrato. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('rubro_adicional'),
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -693,6 +714,9 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   crear_plan_pago: { requiereConfirmacion: true, entidad: 'plan_pago' },
   liquidar_cuota_pago: { requiereConfirmacion: true, entidad: 'liquidacion_cuota' },
   rechazar_cuota_pago: { requiereConfirmacion: true, entidad: 'rechazo_cuota' },
+  listar_presupuestos: { requiereConfirmacion: false },
+  aceptar_presupuesto: { requiereConfirmacion: true, entidad: 'aceptacion_presupuesto' },
+  crear_rubro_adicional: { requiereConfirmacion: true, entidad: 'rubro_adicional' },
 }
 
 // El catálogo entero es idéntico en cada request (no depende del usuario,

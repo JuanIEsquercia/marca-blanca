@@ -54,6 +54,8 @@ const LABEL_HERRAMIENTA: Record<string, string> = {
   crear_plan_pago: 'Armar plan de pago',
   liquidar_cuota_pago: 'Liquidar cuota',
   rechazar_cuota_pago: 'Rechazar cuota',
+  aceptar_presupuesto: 'Aceptar presupuesto',
+  crear_rubro_adicional: 'Agregar rubro adicional',
 }
 
 // Un valor de input puede ser un array de objetos (ej. "items" de una

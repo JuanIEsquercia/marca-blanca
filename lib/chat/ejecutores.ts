@@ -2527,6 +2527,130 @@ async function ejecutarRechazarCuotaPago(supabase: SupabaseClient, input: Record
   return { rechazada: true }
 }
 
+interface FilaPresupuesto { id: string; cliente_nombre: string; moneda: string; estado: string; obra_id: string | null; presupuesto_items: { subtotal: number }[] | null }
+
+async function ejecutarListarPresupuestos(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  let query = supabase
+    .from('presupuestos')
+    .select('id, cliente_nombre, moneda, estado, obra_id, presupuesto_items(subtotal)')
+    .eq('constructora_id', ctx.constructoraId)
+    .order('created_at', { ascending: false })
+    .limit(30)
+
+  const estado = texto(input.estado)
+  if (estado) query = query.eq('estado', estado)
+  const cliente = texto(input.cliente)
+  if (cliente) query = query.ilike('cliente_nombre', `%${cliente}%`)
+
+  const { data, error } = await query
+  if (error) return { error: 'No se pudo obtener la lista de presupuestos.' }
+  return {
+    presupuestos: ((data ?? []) as unknown as FilaPresupuesto[]).map(p => ({
+      id: p.id,
+      cliente: p.cliente_nombre,
+      estado: p.estado,
+      moneda: p.moneda,
+      monto_total: redondear2((p.presupuesto_items ?? []).reduce((s, it) => s + it.subtotal, 0)),
+      ya_vinculado_a_proyecto: p.obra_id !== null,
+    })),
+  }
+}
+
+// aceptar_presupuesto() (RPC) crea el contrato_obra + sus ítems en una sola
+// transacción — acá solo se resuelven los ids y se replican, con mensajes
+// prolijos, las dos reglas de permiso reales que la RPC va a exigir vía RLS:
+// crear un proyecto nuevo necesita es_admin() (obras_admin_crea), y sea
+// nuevo o existente, insertar en contratos_obra necesita tiene_permiso_proyecto
+// del proyecto, 'certificados' (no 'presupuestos' — ese solo tapa el UPDATE
+// del presupuesto en sí).
+async function ejecutarAceptarPresupuesto(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'presupuestos', null)) {
+    return { error: 'Este usuario no tiene el módulo Presupuestos habilitado.' }
+  }
+  const presupuestoId = texto(input.presupuesto_id)
+  if (!presupuestoId) return { error: 'Falta indicar el presupuesto.' }
+
+  const { data: presupuesto } = await supabase.from('presupuestos').select('id, estado, cliente_nombre').eq('id', presupuestoId).maybeSingle()
+  if (!presupuesto) return { error: 'No se encontró ese presupuesto, o este usuario no tiene acceso.' }
+  if (presupuesto.estado === 'aceptado') return { error: 'Ese presupuesto ya fue aceptado.' }
+  if (presupuesto.estado === 'rechazado') return { error: 'Ese presupuesto está rechazado — no se puede aceptar.' }
+
+  const obraExistenteId = texto(input.obra_existente_id) ?? null
+  const nuevaObraNombre = texto(input.nueva_obra_nombre)
+  if (!obraExistenteId && !nuevaObraNombre) {
+    return { error: 'Falta indicar a qué proyecto vincularlo: obra_existente_id de uno ya creado, o nueva_obra_nombre para crear uno nuevo.' }
+  }
+
+  if (obraExistenteId) {
+    const { data: obra } = await supabase.from('obras').select('id, nombre, tipo').eq('id', obraExistenteId).maybeSingle()
+    if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+    if (obra.tipo !== 'obra') return { error: `"${obra.nombre}" es un proyecto tipo desarrollo — un presupuesto solo se puede vincular a un proyecto tipo Obra.` }
+    if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'certificados', obraExistenteId)) {
+      return { error: `Aceptar el presupuesto genera un contrato de obra, y este usuario no tiene el módulo Contratos habilitado en "${obra.nombre}".` }
+    }
+  } else if (ctx.perfilRol !== 'admin') {
+    return { error: 'Crear un proyecto nuevo al aceptar el presupuesto solo lo puede hacer un administrador. Si el proyecto ya existe, indicalo en vez de pedir uno nuevo.' }
+  }
+
+  const modoCuentas = input.modo_cuentas === 'especificas' ? 'especificas' : 'empresa'
+  const replicarCuentas = modoCuentas === 'especificas' && input.replicar_cuentas !== false
+
+  const { data: obraId, error } = await supabase.rpc('aceptar_presupuesto', {
+    p_presupuesto_id: presupuestoId,
+    p_obra_id: obraExistenteId,
+    p_nueva_obra_nombre: obraExistenteId ? null : nuevaObraNombre,
+    p_nueva_obra_direccion: obraExistenteId ? null : (texto(input.nueva_obra_direccion) ?? null),
+    p_modo_cuentas: modoCuentas,
+    p_replicar_cuentas: replicarCuentas,
+  })
+  if (error || !obraId) return { error: `No se pudo aceptar el presupuesto: ${error?.message ?? 'error desconocido'}` }
+
+  return { aceptado: true, obraId, cliente: presupuesto.cliente_nombre }
+}
+
+// Mismo insert directo que handleAdicionalSubmit en ContratoObraCard.tsx
+// ("+ Agregar rubro adicional"): origen='adicional' para distinguirlo de
+// los que vinieron del presupuesto original, mismo obtenerOCrearRubro que
+// ya usan crear_presupuesto/crear_certificado_avance.
+async function ejecutarCrearRubroAdicional(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const contratoId = texto(input.contrato_id)
+  if (!contratoId) return { error: 'Falta indicar el contrato.' }
+  const { data: contrato } = await supabase.from('contratos_obra').select('id, obra_id').eq('id', contratoId).maybeSingle()
+  if (!contrato) return { error: 'No se encontró ese contrato, o este usuario no tiene acceso.' }
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'certificados', contrato.obra_id)) {
+    return { error: 'Este usuario no tiene el módulo Certificados habilitado en este proyecto.' }
+  }
+
+  const rubro = texto(input.rubro)
+  if (!rubro) return { error: 'Falta el nombre del rubro.' }
+  const precioUnitario = numero(input.precio_unitario)
+  if (precioUnitario === undefined || precioUnitario < 0) return { error: 'Falta un precio unitario válido.' }
+  const cantidad = numero(input.cantidad) ?? 1
+  if (cantidad <= 0) return { error: 'La cantidad tiene que ser mayor a 0.' }
+
+  const { count } = await supabase.from('contrato_obra_items').select('id', { count: 'exact', head: true }).eq('contrato_obra_id', contratoId)
+  const rubroCanonico = await obtenerOCrearRubro(supabase, ctx.constructoraId, rubro)
+
+  const { data, error } = await supabase
+    .from('contrato_obra_items')
+    .insert({
+      contrato_obra_id: contratoId,
+      constructora_id: ctx.constructoraId,
+      orden: count ?? 0,
+      rubro: rubroCanonico,
+      unidad: texto(input.unidad) ?? null,
+      cantidad,
+      precio_unitario: precioUnitario,
+      origen: 'adicional',
+      notas: texto(input.notas) ?? null,
+    })
+    .select('id, rubro, monto_contratado')
+    .single()
+  if (error || !data) return { error: `No se pudo agregar el rubro: ${error?.message ?? 'error desconocido'}` }
+
+  return { creado: true, id: data.id, rubro: data.rubro, monto_contratado: data.monto_contratado }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -2600,5 +2724,8 @@ export async function ejecutarHerramienta(
     case 'crear_plan_pago': return ejecutarCrearPlanPago(ctx, supabase, input)
     case 'liquidar_cuota_pago': return ejecutarLiquidarCuotaPago(ctx, supabase, input)
     case 'rechazar_cuota_pago': return ejecutarRechazarCuotaPago(supabase, input)
+    case 'listar_presupuestos': return ejecutarListarPresupuestos(ctx, supabase, input)
+    case 'aceptar_presupuesto': return ejecutarAceptarPresupuesto(ctx, supabase, input)
+    case 'crear_rubro_adicional': return ejecutarCrearRubroAdicional(ctx, supabase, input)
   }
 }

@@ -445,4 +445,33 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible, ej. "Cuota de $50.000 del 15/03 — rechazada". Es lo único que el usuario lee para verificar antes de confirmar, los ids no se muestran.' },
     ],
   },
+  aceptacion_presupuesto: {
+    key: 'aceptacion_presupuesto',
+    label: 'Aceptar presupuesto',
+    modulo: 'presupuestos',
+    rutaNavegacion: '/admin/presupuestos',
+    campos: [
+      { nombre: 'presupuesto_id', label: 'Presupuesto', requerido: true, descripcion: 'Id real del presupuesto, obtenido de listar_presupuestos — solo se puede aceptar uno en estado borrador o enviado' },
+      { nombre: 'obra_existente_id', label: 'Proyecto existente', requerido: false, descripcion: 'Id real de un proyecto YA CREADO tipo Obra, obtenido de listar_proyectos — usar esto O nueva_obra_nombre, no ambos' },
+      { nombre: 'nueva_obra_nombre', label: 'Nombre del proyecto nuevo', requerido: false, descripcion: 'Si no hay que vincularlo a un proyecto existente — crea un proyecto tipo Obra nuevo. Solo lo puede hacer un administrador.' },
+      { nombre: 'nueva_obra_direccion', label: 'Dirección del proyecto nuevo', requerido: false },
+      { nombre: 'modo_cuentas', label: 'Modo de cuentas', requerido: false, opciones: ['empresa', 'especificas'], descripcion: 'Solo aplica si se crea un proyecto nuevo — si se omite, "empresa" (usa el pool de cuentas de la empresa)' },
+      { nombre: 'replicar_cuentas', label: 'Replicar cuentas de la empresa', requerido: false, descripcion: 'Solo aplica si modo_cuentas es "especificas" — si se omite, true (copia las cuentas activas de la empresa como base del proyecto nuevo)' },
+      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible, ej. "Presupuesto de Juan Pérez — aceptar y vincular a proyecto nuevo \'Casa Pérez\'". Es lo único que el usuario lee para verificar antes de confirmar, los ids no se muestran.' },
+    ],
+  },
+  rubro_adicional: {
+    key: 'rubro_adicional',
+    label: 'Rubro adicional a un contrato',
+    modulo: 'certificados',
+    rutaNavegacion: '/admin/proyectos/{obraId}/certificados',
+    campos: [
+      { nombre: 'contrato_id', label: 'Contrato', requerido: true, descripcion: 'Id real del contrato ya firmado, obtenido de listar_contratos_obra' },
+      { nombre: 'rubro', label: 'Rubro', requerido: true, descripcion: 'Nombre del rubro nuevo — se resuelve o crea solo por nombre, igual que en crear_certificado_avance/crear_presupuesto' },
+      { nombre: 'cantidad', label: 'Cantidad', requerido: false, descripcion: 'Si se omite, 1' },
+      { nombre: 'precio_unitario', label: 'Precio unitario', requerido: true },
+      { nombre: 'unidad', label: 'Unidad', requerido: false },
+      { nombre: 'notas', label: 'Notas', requerido: false },
+    ],
+  },
 }

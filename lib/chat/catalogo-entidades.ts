@@ -409,4 +409,40 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible, ej. "Acopio #3 — retiro de 100kg de Cemento". Es lo único que el usuario lee para verificar antes de confirmar, los ids no se muestran.' },
     ],
   },
+  plan_pago: {
+    key: 'plan_pago',
+    label: 'Plan de pago (cuotas/cheques)',
+    modulo: 'gastos',
+    rutaNavegacion: '/admin/gastos',
+    campos: [
+      { nombre: 'entidad', label: 'Tipo', requerido: true, opciones: ['gasto', 'cobro'], descripcion: 'Si el plan es de un gasto (se paga) o de un cobro (se cobra)' },
+      { nombre: 'id', label: 'Gasto o cobro', requerido: true, descripcion: 'Id real del gasto (listar_gastos_pendientes) o del cobro (listar_cobros_pendientes)' },
+      { nombre: 'cuotas', label: 'Cuotas', requerido: true, descripcion: 'Lista completa de cuotas pendientes — REEMPLAZA todas las cuotas no liquidadas que ya existieran, así que si el usuario quiere sumar o ajustar una cuota de un plan ya armado hay que traer primero las que ya había (listar_plan_pago) e incluirlas de nuevo junto con la nueva. Cada una con monto, fecha_pago, y opcionalmente medio (cheque/transferencia/efectivo/otro), numero_cheque, banco, cuenta_propia_id, notas. La suma de todas las cuotas (más lo ya liquidado) tiene que dar exactamente el monto total del gasto/cobro.' },
+      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible, ej. "Plan de pago de Factura Proveedor ABC — 3 cuotas de $50.000". Es lo único que el usuario lee para verificar antes de confirmar, los ids no se muestran.' },
+    ],
+  },
+  liquidacion_cuota: {
+    key: 'liquidacion_cuota',
+    label: 'Liquidar una cuota de un plan de pago',
+    modulo: 'gastos',
+    rutaNavegacion: '/admin/gastos',
+    campos: [
+      { nombre: 'entidad', label: 'Tipo', requerido: true, opciones: ['gasto', 'cobro'] },
+      { nombre: 'cuota_id', label: 'Cuota', requerido: true, descripcion: 'Id real de la cuota, obtenido de listar_plan_pago' },
+      { nombre: 'cuenta_propia_id', label: 'Cuenta', requerido: true, descripcion: 'Id real de la cuenta desde la que sale (gasto) o a la que entra (cobro) la plata' },
+      { nombre: 'fecha_pago', label: 'Fecha', requerido: false, descripcion: 'Formato YYYY-MM-DD — si se omite, hoy' },
+      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible, ej. "Cuota de $50.000 del 15/03 — pagada con Banco Nación". Es lo único que el usuario lee para verificar antes de confirmar, los ids no se muestran.' },
+    ],
+  },
+  rechazo_cuota: {
+    key: 'rechazo_cuota',
+    label: 'Rechazar una cuota (cheque rechazado)',
+    modulo: 'gastos',
+    rutaNavegacion: '/admin/gastos',
+    campos: [
+      { nombre: 'entidad', label: 'Tipo', requerido: true, opciones: ['gasto', 'cobro'] },
+      { nombre: 'cuota_id', label: 'Cuota', requerido: true, descripcion: 'Id real de la cuota, obtenido de listar_plan_pago' },
+      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible, ej. "Cuota de $50.000 del 15/03 — rechazada". Es lo único que el usuario lee para verificar antes de confirmar, los ids no se muestran.' },
+    ],
+  },
 }

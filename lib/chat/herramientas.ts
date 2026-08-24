@@ -596,6 +596,33 @@ export const TOOLS: Anthropic.Tool[] = [
     description: 'Registra un retiro de mercadería contra un acopio ya cargado, sumando ese stock al proyecto indicado (o al pool de empresa). Si se retira el mismo producto de referencia del acopio, es 1:1 y no hacen falta precio_retiro/precio_referencia. Si se retira un producto DISTINTO que el proveedor también cubre, esos dos precios son obligatorios para convertir cuánto saldo del acopio se descuenta. Llamá antes a listar_acopios para resolver el id real y ver el saldo disponible. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('retiro_acopio'),
   },
+  {
+    name: 'listar_plan_pago',
+    description: 'Devuelve el plan de pago (cuotas/cheques) de un gasto o cobro puntual: cada cuota con su estado (Pendiente/Pagado o Cobrado/Rechazado), y el total ya liquidado vs. lo que todavía falta asignar. Usar antes de crear_plan_pago (para no pisar cuotas que el usuario quiere conservar) y antes de liquidar_cuota_pago/rechazar_cuota_pago para encontrar el id real de la cuota.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        entidad: { type: 'string', enum: ['gasto', 'cobro'] },
+        id: { type: 'string', description: 'Id real del gasto (listar_gastos_pendientes) o del cobro (listar_cobros_pendientes)' },
+      },
+      required: ['entidad', 'id'],
+    },
+  },
+  {
+    name: 'crear_plan_pago',
+    description: 'Arma o reemplaza el plan de pago en cuotas (cheques a fecha, transferencias programadas, etc.) de un gasto o cobro — el usuario puede pedir esto como "quiero pagar en cuotas", "voy a pagar con cheques a 30/60/90", "cobrale en 3 cheques". OJO: esto REEMPLAZA TODAS las cuotas que todavía no estén liquidadas (Pagado/Cobrado) — si ya había un plan con cuotas pendientes y el usuario solo quiere agregar o ajustar una, llamá primero a listar_plan_pago e incluí TODAS las cuotas pendientes (las viejas sin tocar + la nueva), nunca mandes solo la nueva sola. La suma de las cuotas que mandás más lo que ya esté liquidado tiene que dar EXACTO el monto total del gasto/cobro — el sistema lo valida y rechaza si no cierra, avisale al usuario cuánto falta o sobra en ese caso. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('plan_pago'),
+  },
+  {
+    name: 'liquidar_cuota_pago',
+    description: 'Marca una cuota puntual de un plan de pago como efectivamente pagada (gasto) o cobrada (cobro), con la cuenta correspondiente. Llamá antes a listar_plan_pago para encontrar el id real de la cuota — nunca lo inventes. Una vez liquidada, la cuota queda inmutable (no se puede deshacer desde el chat). Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('liquidacion_cuota'),
+  },
+  {
+    name: 'rechazar_cuota_pago',
+    description: 'Marca una cuota puntual (típicamente un cheque) como rechazada — el usuario puede pedir esto como "me rechazaron el cheque", "rebotó el cheque de X". No genera un reemplazo automático: si el usuario quiere cargar un cheque nuevo en su lugar, eso es un crear_plan_pago aparte (esta cuota queda Rechazada y se reemplaza sola al armar el nuevo plan). Llamá antes a listar_plan_pago para encontrar el id real de la cuota. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('rechazo_cuota'),
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -662,6 +689,10 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   listar_acopios: { requiereConfirmacion: false },
   crear_acopio: { requiereConfirmacion: true, entidad: 'acopio' },
   registrar_retiro_acopio: { requiereConfirmacion: true, entidad: 'retiro_acopio' },
+  listar_plan_pago: { requiereConfirmacion: false },
+  crear_plan_pago: { requiereConfirmacion: true, entidad: 'plan_pago' },
+  liquidar_cuota_pago: { requiereConfirmacion: true, entidad: 'liquidacion_cuota' },
+  rechazar_cuota_pago: { requiereConfirmacion: true, entidad: 'rechazo_cuota' },
 }
 
 // El catálogo entero es idéntico en cada request (no depende del usuario,

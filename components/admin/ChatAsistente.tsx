@@ -51,6 +51,9 @@ const LABEL_HERRAMIENTA: Record<string, string> = {
   repartir_stock: 'Repartir stock',
   crear_acopio: 'Crear acopio',
   registrar_retiro_acopio: 'Registrar retiro de acopio',
+  crear_plan_pago: 'Armar plan de pago',
+  liquidar_cuota_pago: 'Liquidar cuota',
+  rechazar_cuota_pago: 'Rechazar cuota',
 }
 
 // Un valor de input puede ser un array de objetos (ej. "items" de una

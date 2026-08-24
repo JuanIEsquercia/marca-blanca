@@ -2334,6 +2334,199 @@ async function ejecutarRegistrarRetiroAcopio(ctx: ContextoChat, supabase: Supaba
   return { registrado: true }
 }
 
+interface EntidadPlanPago {
+  tabla: 'gasto_pagos' | 'cobro_pagos'
+  columnaId: 'gasto_id' | 'cobro_id'
+  estadoLiquidado: 'Pagado' | 'Cobrado'
+  tablaPadre: 'gastos' | 'cobros_proyecto'
+  modulo: 'gastos' | 'cobros'
+  moduloLabel: 'Gastos' | 'Cobros'
+}
+
+// gasto_pagos/cobro_pagos son dos tablas paralelas casi idénticas
+// (migration_064) — un solo set de tools con "entidad" como discriminador
+// (mismo idioma que consultar_estructura/navegar_a) en vez de duplicar
+// 4 tools para gasto y 4 para cobro.
+function resolverEntidadPlanPago(valor: unknown): EntidadPlanPago | null {
+  if (valor === 'gasto') return { tabla: 'gasto_pagos', columnaId: 'gasto_id', estadoLiquidado: 'Pagado', tablaPadre: 'gastos', modulo: 'gastos', moduloLabel: 'Gastos' }
+  if (valor === 'cobro') return { tabla: 'cobro_pagos', columnaId: 'cobro_id', estadoLiquidado: 'Cobrado', tablaPadre: 'cobros_proyecto', modulo: 'cobros', moduloLabel: 'Cobros' }
+  return null
+}
+
+interface FilaCuotaPago { id: string; monto: number; fecha_pago: string; medio: string; numero_cheque: string | null; banco: string | null; estado: string; cuentas_propias: { nombre: string } | null }
+
+async function ejecutarListarPlanPago(supabase: SupabaseClient, input: Record<string, unknown>) {
+  const info = resolverEntidadPlanPago(input.entidad)
+  if (!info) return { error: 'La entidad tiene que ser "gasto" o "cobro".' }
+  const id = texto(input.id)
+  if (!id) return { error: 'Falta indicar el gasto/cobro.' }
+
+  const { data: padre } = await supabase.from(info.tablaPadre).select('id, monto, moneda').eq('id', id).maybeSingle()
+  if (!padre) return { error: 'No se encontró, o este usuario no tiene acceso.' }
+
+  const { data, error } = await supabase
+    .from(info.tabla)
+    .select('id, monto, fecha_pago, medio, numero_cheque, banco, estado, cuentas_propias(nombre)')
+    .eq(info.columnaId, id)
+    .order('fecha_pago')
+  if (error) return { error: 'No se pudo obtener el plan de pago.' }
+
+  const filas = (data ?? []) as unknown as FilaCuotaPago[]
+  const montoBloqueado = redondear2(filas.filter(c => c.estado === info.estadoLiquidado).reduce((s, c) => s + c.monto, 0))
+
+  return {
+    monto_total: padre.monto,
+    moneda: padre.moneda,
+    monto_ya_liquidado: montoBloqueado,
+    monto_pendiente_de_asignar: redondear2(padre.monto - montoBloqueado),
+    cuotas: filas.map(c => ({
+      id: c.id,
+      monto: c.monto,
+      fecha_pago: c.fecha_pago,
+      medio: c.medio,
+      numero_cheque: c.numero_cheque,
+      banco: c.banco,
+      estado: c.estado,
+      cuenta: c.cuentas_propias?.nombre ?? null,
+    })),
+  }
+}
+
+interface CuotaPlanValida { monto: number; fechaPago: string; medio: string; numeroCheque?: string; banco?: string; cuentaPropiaId?: string; notas?: string }
+const MEDIOS_PAGO = ['cheque', 'transferencia', 'efectivo', 'otro']
+
+function parsearCuotasPlanPago(valor: unknown): CuotaPlanValida[] {
+  if (!Array.isArray(valor)) return []
+  const cuotas: CuotaPlanValida[] = []
+  for (const raw of valor) {
+    if (typeof raw !== 'object' || raw === null) continue
+    const r = raw as Record<string, unknown>
+    const monto = numero(r.monto)
+    const fechaPago = texto(r.fecha_pago)
+    if (!monto || monto <= 0 || !fechaPago) continue
+    const medioInput = texto(r.medio)
+    const medio = medioInput && MEDIOS_PAGO.includes(medioInput) ? medioInput : 'cheque'
+    cuotas.push({
+      monto,
+      fechaPago,
+      medio,
+      numeroCheque: texto(r.numero_cheque),
+      banco: texto(r.banco),
+      cuentaPropiaId: texto(r.cuenta_propia_id),
+      notas: texto(r.notas),
+    })
+  }
+  return cuotas
+}
+
+// guardar_plan_pago (migration_065) hace el DELETE+INSERT atómico, pero NO
+// valida que el total cierre contra el monto del gasto/cobro — esa regla
+// solo vivía en PlanDePagoModal.tsx (el gate "cierra" antes de habilitar
+// Guardar), así que hay que replicarla acá o un plan inconsistente
+// pasaría derecho.
+async function ejecutarCrearPlanPago(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const info = resolverEntidadPlanPago(input.entidad)
+  if (!info) return { error: 'La entidad tiene que ser "gasto" o "cobro".' }
+  const id = texto(input.id)
+  if (!id) return { error: 'Falta indicar el gasto/cobro.' }
+
+  const { data: padre } = await supabase.from(info.tablaPadre).select('id, monto, moneda, obra_id').eq('id', id).maybeSingle()
+  if (!padre) return { error: 'No se encontró, o este usuario no tiene acceso.' }
+
+  if (padre.obra_id) {
+    if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, info.modulo, padre.obra_id)) {
+      return { error: `Este usuario no tiene el módulo ${info.moduloLabel} habilitado en este proyecto.` }
+    }
+  } else if (ctx.perfilRol !== 'admin') {
+    return { error: `Este ${input.entidad === 'gasto' ? 'gasto' : 'cobro'} no tiene proyecto asignado — solo un administrador puede armarle un plan de pago.` }
+  }
+
+  const cuotas = parsearCuotasPlanPago(input.cuotas)
+  if (cuotas.length === 0) return { error: 'El plan necesita al menos una cuota válida (monto y fecha).' }
+
+  const { data: existentes } = await supabase.from(info.tabla).select('monto, estado').eq(info.columnaId, id)
+  const montoBloqueado = redondear2(((existentes ?? []) as { monto: number; estado: string }[]).filter(c => c.estado === info.estadoLiquidado).reduce((s, c) => s + c.monto, 0))
+  const totalNuevo = redondear2(cuotas.reduce((s, c) => s + c.monto, 0))
+  const totalCargado = redondear2(montoBloqueado + totalNuevo)
+  const diferencia = redondear2(padre.monto - totalCargado)
+  if (Math.abs(diferencia) > 0.01) {
+    return {
+      error: `Las cuotas tienen que sumar exactamente el total del ${input.entidad === 'gasto' ? 'gasto' : 'cobro'} (${padre.monto} ${padre.moneda}). Con lo ya ${info.estadoLiquidado === 'Pagado' ? 'pagado' : 'cobrado'} (${montoBloqueado}) más lo que cargaste (${totalNuevo}) da ${totalCargado} — ${diferencia > 0 ? `falta ${diferencia}` : `sobra ${Math.abs(diferencia)}`}.`,
+    }
+  }
+
+  const { error } = await supabase.rpc('guardar_plan_pago', {
+    p_entidad: input.entidad,
+    p_id: id,
+    p_cuotas: cuotas.map(c => ({
+      monto: c.monto,
+      fecha_pago: c.fechaPago,
+      medio: c.medio,
+      numero_cheque: c.numeroCheque ?? null,
+      banco: c.banco ?? null,
+      cuenta_propia_id: c.cuentaPropiaId ?? null,
+      notas: c.notas ?? null,
+    })),
+  })
+  if (error) return { error: `No se pudo guardar el plan de pago: ${error.message}` }
+
+  return { guardado: true, cantidad_cuotas: cuotas.length, monto_total_cuotas: totalNuevo }
+}
+
+async function ejecutarLiquidarCuotaPago(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const info = resolverEntidadPlanPago(input.entidad)
+  if (!info) return { error: 'La entidad tiene que ser "gasto" o "cobro".' }
+  const cuotaId = texto(input.cuota_id)
+  if (!cuotaId) return { error: 'Falta indicar la cuota.' }
+  const cuentaId = texto(input.cuenta_propia_id)
+  if (!cuentaId) return { error: 'Falta indicar la cuenta.' }
+
+  const columnas = info.columnaId === 'gasto_id' ? 'id, monto, estado, gasto_id' : 'id, monto, estado, cobro_id'
+  const { data: cuota } = await supabase.from(info.tabla).select(columnas).eq('id', cuotaId).maybeSingle() as {
+    data: { id: string; monto: number; estado: string; gasto_id?: string; cobro_id?: string } | null
+  }
+  if (!cuota) return { error: 'No se encontró esa cuota, o este usuario no tiene acceso.' }
+  if (cuota.estado === info.estadoLiquidado) return { error: `Esa cuota ya está marcada como ${info.estadoLiquidado}.` }
+
+  const idPadre = info.columnaId === 'gasto_id' ? cuota.gasto_id : cuota.cobro_id
+  const { data: padre } = await supabase.from(info.tablaPadre).select('moneda').eq('id', idPadre).maybeSingle()
+  const { data: cuentaPropia } = await supabase.from('cuentas_propias').select('id, moneda').eq('id', cuentaId).maybeSingle()
+  if (!cuentaPropia) return { error: 'No se encontró esa cuenta.' }
+  if (padre && cuentaPropia.moneda !== padre.moneda) {
+    return { error: `Esa cuenta es en ${cuentaPropia.moneda} y el ${input.entidad === 'gasto' ? 'gasto' : 'cobro'} es en ${padre.moneda} — no coinciden.` }
+  }
+
+  const { error } = await supabase
+    .from(info.tabla)
+    .update({
+      estado: info.estadoLiquidado,
+      fecha_pago: texto(input.fecha_pago) ?? new Date().toISOString().slice(0, 10),
+      cuenta_propia_id: cuentaId,
+    })
+    .eq('id', cuotaId)
+  if (error) return { error: `No se pudo registrar: ${error.message}` }
+
+  return { liquidado: true, estado: info.estadoLiquidado, monto: cuota.monto }
+}
+
+async function ejecutarRechazarCuotaPago(supabase: SupabaseClient, input: Record<string, unknown>) {
+  const info = resolverEntidadPlanPago(input.entidad)
+  if (!info) return { error: 'La entidad tiene que ser "gasto" o "cobro".' }
+  const cuotaId = texto(input.cuota_id)
+  if (!cuotaId) return { error: 'Falta indicar la cuota.' }
+
+  const { data: cuota } = await supabase.from(info.tabla).select('id, estado').eq('id', cuotaId).maybeSingle()
+  if (!cuota) return { error: 'No se encontró esa cuota, o este usuario no tiene acceso.' }
+  if (cuota.estado === info.estadoLiquidado) {
+    return { error: `Esa cuota ya está ${info.estadoLiquidado} — no se puede rechazar una cuota ya liquidada.` }
+  }
+
+  const { error } = await supabase.from(info.tabla).update({ estado: 'Rechazado' }).eq('id', cuotaId)
+  if (error) return { error: `No se pudo marcar como rechazada: ${error.message}` }
+
+  return { rechazada: true }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -2403,5 +2596,9 @@ export async function ejecutarHerramienta(
     case 'listar_acopios': return ejecutarListarAcopios(ctx, supabase, input)
     case 'crear_acopio': return ejecutarCrearAcopio(ctx, supabase, input)
     case 'registrar_retiro_acopio': return ejecutarRegistrarRetiroAcopio(ctx, supabase, input)
+    case 'listar_plan_pago': return ejecutarListarPlanPago(supabase, input)
+    case 'crear_plan_pago': return ejecutarCrearPlanPago(ctx, supabase, input)
+    case 'liquidar_cuota_pago': return ejecutarLiquidarCuotaPago(ctx, supabase, input)
+    case 'rechazar_cuota_pago': return ejecutarRechazarCuotaPago(supabase, input)
   }
 }

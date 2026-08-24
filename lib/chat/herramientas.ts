@@ -506,6 +506,96 @@ export const TOOLS: Anthropic.Tool[] = [
     description: 'Da de alta una cuenta (CBU, Alias, Efectivo, Cheque, u Otro) para un proveedor ya existente — un proveedor puede tener varias. Llamá antes a listar_proveedores para resolver el id real. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('cuenta_proveedor'),
   },
+  {
+    name: 'listar_ordenes_compra',
+    description: 'Devuelve las órdenes de compra de la empresa (número, estado, proyecto). Usar antes de confirmar_recepcion_compra para encontrar la orden real — nunca inventar un id. Sin filtros trae las últimas 30.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — opcional' },
+        estado: { type: 'string', description: 'Filtra por estado de la orden (ej. "borrador", "confirmada", "cancelada") — opcional' },
+      },
+    },
+  },
+  {
+    name: 'listar_items_pendientes_orden',
+    description: 'Devuelve los ítems de una orden de compra con cuánto se pidió, cuánto ya se recibió y cuánto falta de cada uno. Uso OBLIGATORIO antes de confirmar_recepcion_compra para saber los ids reales de los ítems — nunca inventar cantidades ni ids.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        ordenId: { type: 'string', description: 'Id real de la orden, obtenido de listar_ordenes_compra' },
+      },
+      required: ['ordenId'],
+    },
+  },
+  {
+    name: 'confirmar_recepcion_compra',
+    description: 'Registra la recepción de mercadería de una orden de compra y la confirma: esto genera automáticamente un gasto (Pendiente, a nombre del proveedor) y suma el stock recibido al proyecto de la orden (o al pool de empresa si la orden no tiene proyecto). Llamá antes a listar_items_pendientes_orden para saber los ids reales de los ítems y cuánto falta de cada uno. Si el proyecto de la orden no tiene el módulo Gastos habilitado para este usuario (o la orden es del pool de empresa y el usuario no es admin), esto va a fallar — porque confirmar una recepción genera un gasto real. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        orden_compra_id: { type: 'string', description: 'Id real de la orden, obtenido de listar_ordenes_compra' },
+        proveedor_id: { type: 'string', description: 'Id real del proveedor que entregó, obtenido de listar_proveedores' },
+        items: {
+          type: 'array',
+          description: 'Qué se recibió de esta orden — al menos uno',
+          items: {
+            type: 'object',
+            properties: {
+              orden_compra_item_id: { type: 'string', description: 'Id real del ítem, obtenido de listar_items_pendientes_orden' },
+              cantidad_recibida: { type: 'string', description: 'Cantidad recibida de este ítem (número)' },
+              precio_unitario: { type: 'string', description: 'Precio unitario pagado por este ítem (número)' },
+            },
+            required: ['orden_compra_item_id', 'cantidad_recibida', 'precio_unitario'],
+          },
+        },
+        fecha: { type: 'string', description: 'Formato YYYY-MM-DD — si se omite, hoy' },
+        numero_comprobante: { type: 'string' },
+        iva: { type: 'string', description: 'Desglose informativo — opcional' },
+        percepciones: { type: 'string', description: 'Desglose informativo — opcional' },
+        notas: { type: 'string' },
+        resumen: { type: 'string', description: 'Frase corta y legible con qué orden y qué se recibió — es lo único que el usuario lee para verificar antes de confirmar, los ids no se muestran.' },
+      },
+      required: ['orden_compra_id', 'proveedor_id', 'items', 'resumen'],
+    },
+  },
+  {
+    name: 'listar_stock',
+    description: 'Devuelve el stock de productos por proyecto (o pool de empresa), con cantidad disponible de cada uno. Usar antes de repartir_stock para encontrar el id real del producto y ver cuánto hay disponible en el origen.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — opcional, para ver solo el stock de ahí' },
+        producto: { type: 'string', description: 'Parte del nombre del producto para acotar la búsqueda — opcional' },
+      },
+    },
+  },
+  {
+    name: 'repartir_stock',
+    description: 'Mueve stock de un producto de un proyecto (o el pool de empresa) a otro proyecto (o el pool). Llamá antes a listar_stock para resolver el id real del producto y ver el stock disponible en el origen — el sistema no bloquea si no alcanza, solo queda un aviso en el ledger. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('reparto_stock'),
+  },
+  {
+    name: 'listar_acopios',
+    description: 'Devuelve los acopios de la empresa con su saldo disponible (lo pagado por adelantado, menos lo ya retirado). Usar antes de registrar_retiro_acopio para encontrar el id real del acopio.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — opcional' },
+        estado: { type: 'string', enum: ['activo', 'cerrado'], description: 'Filtra por estado del acopio — opcional' },
+      },
+    },
+  },
+  {
+    name: 'crear_acopio',
+    description: 'Da de alta un acopio: un pago adelantado a un proveedor por una cantidad de un producto de referencia, que después se va retirando de a poco (Compras → Acopios). El producto se busca o se crea solo por nombre. Genera automáticamente un gasto ya marcado como Pagado (a diferencia de crear_gasto, que siempre queda Pendiente) — es correcto, un acopio por definición ya está pagado por adelantado. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('acopio'),
+  },
+  {
+    name: 'registrar_retiro_acopio',
+    description: 'Registra un retiro de mercadería contra un acopio ya cargado, sumando ese stock al proyecto indicado (o al pool de empresa). Si se retira el mismo producto de referencia del acopio, es 1:1 y no hacen falta precio_retiro/precio_referencia. Si se retira un producto DISTINTO que el proveedor también cubre, esos dos precios son obligatorios para convertir cuánto saldo del acopio se descuenta. Llamá antes a listar_acopios para resolver el id real y ver el saldo disponible. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('retiro_acopio'),
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -564,6 +654,14 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   asignar_cuadrilla: { requiereConfirmacion: true, entidad: 'asignacion_cuadrilla' },
   cancelar_reserva: { requiereConfirmacion: true, entidad: 'cancelacion_reserva' },
   crear_cuenta_proveedor: { requiereConfirmacion: true, entidad: 'cuenta_proveedor' },
+  listar_ordenes_compra: { requiereConfirmacion: false },
+  listar_items_pendientes_orden: { requiereConfirmacion: false },
+  confirmar_recepcion_compra: { requiereConfirmacion: true, entidad: 'recepcion_compra' },
+  listar_stock: { requiereConfirmacion: false },
+  repartir_stock: { requiereConfirmacion: true, entidad: 'reparto_stock' },
+  listar_acopios: { requiereConfirmacion: false },
+  crear_acopio: { requiereConfirmacion: true, entidad: 'acopio' },
+  registrar_retiro_acopio: { requiereConfirmacion: true, entidad: 'retiro_acopio' },
 }
 
 // El catálogo entero es idéntico en cada request (no depende del usuario,

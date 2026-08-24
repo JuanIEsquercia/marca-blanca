@@ -1927,6 +1927,413 @@ async function ejecutarCrearCuentaProveedor(ctx: ContextoChat, supabase: Supabas
   return { creado: true, id: data.id, proveedor: proveedor.razon_social, tipo }
 }
 
+interface FilaOrdenCompra { id: string; numero: number; estado: string; fecha_emision: string; obra_id: string | null; obras: { nombre: string } | null }
+
+async function ejecutarListarOrdenesCompra(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  let query = supabase
+    .from('ordenes_compra')
+    .select('id, numero, estado, fecha_emision, obra_id, obras(nombre)')
+    .eq('constructora_id', ctx.constructoraId)
+    .order('numero', { ascending: false })
+    .limit(30)
+
+  const obraId = texto(input.obraId)
+  if (obraId) query = query.eq('obra_id', obraId)
+  const estado = texto(input.estado)
+  if (estado) query = query.eq('estado', estado)
+
+  const { data, error } = await query
+  if (error) return { error: 'No se pudo obtener la lista de órdenes de compra.' }
+  return {
+    ordenes: ((data ?? []) as unknown as FilaOrdenCompra[]).map(o => ({
+      id: o.id,
+      numero: o.numero,
+      estado: o.estado,
+      fecha_emision: o.fecha_emision,
+      proyecto: o.obras?.nombre ?? (o.obra_id ? null : 'Pool de empresa'),
+    })),
+  }
+}
+
+interface FilaItemOrden { id: string; producto_id: string; cantidad_solicitada: number; unidad_medida: string | null; productos: { nombre: string } | null }
+
+async function ejecutarListarItemsPendientesOrden(supabase: SupabaseClient, input: Record<string, unknown>) {
+  const ordenId = texto(input.ordenId)
+  if (!ordenId) return { error: 'Falta indicar de qué orden — usá listar_ordenes_compra primero.' }
+
+  const { data: items, error } = await supabase
+    .from('orden_compra_items')
+    .select('id, producto_id, cantidad_solicitada, unidad_medida, productos(nombre)')
+    .eq('orden_compra_id', ordenId)
+  if (error) return { error: 'No se pudo obtener los ítems de esta orden.' }
+  if (!items || items.length === 0) return { items: [] }
+
+  const filas = items as unknown as FilaItemOrden[]
+  const { data: recibidos } = await supabase
+    .from('orden_compra_recepcion_items')
+    .select('orden_compra_item_id, cantidad_recibida')
+    .in('orden_compra_item_id', filas.map(i => i.id))
+
+  const recibidoPorItem: Record<string, number> = {}
+  for (const r of (recibidos ?? []) as { orden_compra_item_id: string; cantidad_recibida: number }[]) {
+    recibidoPorItem[r.orden_compra_item_id] = (recibidoPorItem[r.orden_compra_item_id] ?? 0) + r.cantidad_recibida
+  }
+
+  return {
+    items: filas.map(i => ({
+      id: i.id,
+      producto: i.productos?.nombre ?? null,
+      unidad: i.unidad_medida,
+      cantidad_solicitada: i.cantidad_solicitada,
+      cantidad_recibida: redondear2(recibidoPorItem[i.id] ?? 0),
+      cantidad_pendiente: redondear2(i.cantidad_solicitada - (recibidoPorItem[i.id] ?? 0)),
+    })),
+  }
+}
+
+interface ItemRecepcionValido { itemId: string; cantidad: number; precioUnitario: number }
+
+function parsearItemsRecepcion(valor: unknown): ItemRecepcionValido[] {
+  if (!Array.isArray(valor)) return []
+  const items: ItemRecepcionValido[] = []
+  for (const raw of valor) {
+    if (typeof raw !== 'object' || raw === null) continue
+    const r = raw as Record<string, unknown>
+    const itemId = texto(r.orden_compra_item_id)
+    const cantidad = numero(r.cantidad_recibida)
+    const precioUnitario = numero(r.precio_unitario)
+    if (!itemId || !cantidad || cantidad <= 0 || precioUnitario === undefined || precioUnitario < 0) continue
+    items.push({ itemId, cantidad, precioUnitario })
+  }
+  return items
+}
+
+// Dos pasos, igual que ComprasManager.tsx (handleSubmitRecepcion +
+// handleConfirmarRecepcion): primero se inserta la recepción y sus ítems,
+// recién después se llama a la RPC que genera el gasto y el stock de
+// verdad — la RPC es SECURITY INVOKER y exige tiene_permiso('compras') Y
+// (tiene_permiso_proyecto(obra_id,'gastos') o es_admin() si obra_id es
+// NULL), por eso se replica ese mismo chequeo acá antes con un mensaje
+// prolijo, en vez de dejar que reviente como un error crudo de Postgres.
+async function ejecutarConfirmarRecepcionCompra(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const ordenId = texto(input.orden_compra_id)
+  if (!ordenId) return { error: 'Falta indicar la orden de compra.' }
+
+  const { data: orden } = await supabase.from('ordenes_compra').select('id, numero, estado, obra_id').eq('id', ordenId).maybeSingle()
+  if (!orden) return { error: 'No se encontró esa orden, o este usuario no tiene acceso.' }
+  if (orden.estado === 'cancelada') return { error: 'Esa orden está cancelada — no se le puede registrar una recepción.' }
+
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'compras', null)) {
+    return { error: 'Este usuario no tiene el módulo Compras habilitado.' }
+  }
+  if (orden.obra_id) {
+    if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'gastos', orden.obra_id)) {
+      return { error: 'Confirmar esta recepción genera un gasto, y este usuario no tiene el módulo Gastos habilitado en el proyecto de esa orden.' }
+    }
+  } else if (ctx.perfilRol !== 'admin') {
+    return { error: 'Esta orden es del pool de empresa (sin proyecto) — confirmar su recepción genera un gasto administrativo, y eso solo lo puede hacer un administrador.' }
+  }
+
+  const proveedorId = texto(input.proveedor_id)
+  if (!proveedorId) return { error: 'Falta indicar el proveedor que entregó.' }
+  const { data: proveedor } = await supabase.from('proveedores').select('id').eq('id', proveedorId).maybeSingle()
+  if (!proveedor) return { error: 'No se encontró ese proveedor, o este usuario no tiene acceso.' }
+
+  const items = parsearItemsRecepcion(input.items)
+  if (items.length === 0) return { error: 'La recepción necesita al menos un ítem válido (cantidad y precio unitario).' }
+
+  const { data: recepcion, error: errRecepcion } = await supabase
+    .from('orden_compra_recepciones')
+    .insert({
+      orden_compra_id: ordenId,
+      proveedor_id: proveedorId,
+      fecha: texto(input.fecha) ?? new Date().toISOString().slice(0, 10),
+      moneda: input.moneda === 'USD' ? 'USD' : 'ARS',
+      notas: texto(input.notas) ?? null,
+      iva: numero(input.iva) ?? null,
+      percepciones: numero(input.percepciones) ?? null,
+      numero_comprobante: texto(input.numero_comprobante) ?? null,
+    })
+    .select('id')
+    .single()
+  if (errRecepcion || !recepcion) return { error: 'No se pudo registrar la recepción.' }
+
+  const filasItems = items.map(it => ({
+    recepcion_id: recepcion.id,
+    orden_compra_item_id: it.itemId,
+    cantidad_recibida: it.cantidad,
+    precio_unitario: it.precioUnitario,
+  }))
+  const { error: errItems } = await supabase.from('orden_compra_recepcion_items').insert(filasItems)
+  if (errItems) {
+    await supabase.from('orden_compra_recepciones').delete().eq('id', recepcion.id)
+    return { error: `No se pudo cargar los ítems recibidos: ${errItems.message}` }
+  }
+
+  const { data: gastoId, error: errConfirmar } = await supabase.rpc('confirmar_recepcion_compra', { p_recepcion_id: recepcion.id })
+  if (errConfirmar) {
+    return { error: `La recepción quedó guardada pero no se pudo confirmar (no se generó el gasto ni el stock): ${errConfirmar.message}. Revisalo en el panel.` }
+  }
+
+  return { confirmado: true, ordenNumero: orden.numero, gastoId }
+}
+
+interface FilaStock { producto_id: string; obra_id: string | null; cantidad: number }
+
+async function ejecutarListarStock(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const { data, error } = await supabase.rpc('resumen_stock', { p_constructora_id: ctx.constructoraId })
+  if (error) return { error: 'No se pudo obtener el stock.' }
+
+  let filas = (data ?? []) as FilaStock[]
+  const obraId = texto(input.obraId)
+  if (obraId) filas = filas.filter(f => f.obra_id === obraId)
+
+  const productoIds = [...new Set(filas.map(f => f.producto_id))]
+  const obraIds = [...new Set(filas.map(f => f.obra_id).filter((x): x is string => !!x))]
+  const [{ data: productos }, { data: obras }] = await Promise.all([
+    productoIds.length ? supabase.from('productos').select('id, nombre, unidad_medida').in('id', productoIds) : Promise.resolve({ data: [] as { id: string; nombre: string; unidad_medida: string | null }[] }),
+    obraIds.length ? supabase.from('obras').select('id, nombre').in('id', obraIds) : Promise.resolve({ data: [] as { id: string; nombre: string }[] }),
+  ])
+  const productoPorId = new Map((productos ?? []).map(p => [p.id, p]))
+  const obraNombrePorId = new Map((obras ?? []).map(o => [o.id, o.nombre]))
+
+  let resultado = filas.map(f => ({
+    producto_id: f.producto_id,
+    producto: productoPorId.get(f.producto_id)?.nombre ?? null,
+    unidad: productoPorId.get(f.producto_id)?.unidad_medida ?? null,
+    proyecto: f.obra_id ? (obraNombrePorId.get(f.obra_id) ?? null) : 'Pool de empresa',
+    obra_id: f.obra_id,
+    cantidad: f.cantidad,
+  }))
+
+  const productoFiltro = texto(input.producto)
+  if (productoFiltro) resultado = resultado.filter(r => r.producto?.toLowerCase().includes(productoFiltro.toLowerCase()))
+
+  return { stock: resultado.slice(0, 50) }
+}
+
+async function ejecutarRepartirStock(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'compras', null)) {
+    return { error: 'Este usuario no tiene el módulo Compras habilitado.' }
+  }
+  const productoId = texto(input.producto_id)
+  if (!productoId) return { error: 'Falta indicar el producto.' }
+  const cantidad = numero(input.cantidad)
+  if (!cantidad || cantidad <= 0) return { error: 'Falta una cantidad válida (mayor a 0).' }
+
+  const obraOrigen = texto(input.obra_origen) ?? null
+  const obraDestino = texto(input.obra_destino) ?? null
+  if (obraOrigen === obraDestino) return { error: 'El origen y el destino tienen que ser distintos.' }
+
+  for (const obraId of [obraOrigen, obraDestino]) {
+    if (!obraId) continue
+    const { data: obra } = await supabase.from('obras').select('id').eq('id', obraId).maybeSingle()
+    if (!obra) return { error: 'No se encontró uno de los proyectos indicados, o este usuario no tiene acceso.' }
+  }
+
+  const { error } = await supabase.rpc('repartir_stock', {
+    p_producto_id: productoId,
+    p_obra_origen: obraOrigen,
+    p_obra_destino: obraDestino,
+    p_cantidad: cantidad,
+  })
+  if (error) return { error: `No se pudo repartir el stock: ${error.message}` }
+
+  return { repartido: true }
+}
+
+interface FilaAcopio {
+  id: string
+  numero: number
+  obra_id: string | null
+  saldo_inicial: number
+  moneda: string
+  estado: string
+  proveedores: { razon_social: string } | null
+  productos: { nombre: string } | null
+  obras: { nombre: string } | null
+}
+
+async function ejecutarListarAcopios(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  let query = supabase
+    .from('acopios')
+    .select('id, numero, obra_id, saldo_inicial, moneda, estado, proveedores(razon_social), productos(nombre), obras(nombre)')
+    .eq('constructora_id', ctx.constructoraId)
+    .order('numero', { ascending: false })
+    .limit(30)
+
+  const obraId = texto(input.obraId)
+  if (obraId) query = query.eq('obra_id', obraId)
+  const estado = texto(input.estado)
+  if (estado) query = query.eq('estado', estado)
+
+  const { data, error } = await query
+  if (error) return { error: 'No se pudo obtener la lista de acopios.' }
+  const filas = (data ?? []) as unknown as FilaAcopio[]
+  if (filas.length === 0) return { acopios: [] }
+
+  const { data: saldos, error: errSaldos } = await supabase.rpc('resumen_acopios', { p_constructora_id: ctx.constructoraId })
+  const saldoPorAcopio = new Map(((saldos ?? []) as { acopio_id: string; saldo_actual: number }[]).map(s => [s.acopio_id, s.saldo_actual]))
+  if (errSaldos) return { error: 'No se pudo obtener el saldo de los acopios.' }
+
+  return {
+    acopios: filas.map(a => ({
+      id: a.id,
+      numero: a.numero,
+      proveedor: a.proveedores?.razon_social ?? null,
+      producto_referencia: a.productos?.nombre ?? null,
+      proyecto: a.obras?.nombre ?? (a.obra_id ? null : 'Pool de empresa'),
+      moneda: a.moneda,
+      estado: a.estado,
+      saldo_disponible: redondear2(saldoPorAcopio.get(a.id) ?? a.saldo_inicial),
+    })),
+  }
+}
+
+// Dos pasos con delete compensatorio, igual criterio que
+// ejecutarCrearOrdenCompra/ejecutarCrearPresupuesto: el gasto nace ya
+// Pagado (a diferencia de crearGastoRapido) porque un acopio es plata que
+// YA se le adelantó al proveedor — no es un gasto pendiente de pagar.
+async function ejecutarCrearAcopio(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const obraId = texto(input.obra_id) ?? null
+  if (obraId) {
+    const { data: obra } = await supabase.from('obras').select('id, nombre').eq('id', obraId).maybeSingle()
+    if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+    if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'gastos', obraId)) {
+      return { error: `Un acopio genera un gasto, y este usuario no tiene el módulo Gastos habilitado en el proyecto "${obra.nombre}".` }
+    }
+  } else if (ctx.perfilRol !== 'admin') {
+    return { error: 'Un acopio sin proyecto asignado es administrativo (genera un gasto de empresa) — eso solo lo puede cargar un administrador. Indicá a qué proyecto imputarlo.' }
+  }
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'compras', null)) {
+    return { error: 'Este usuario no tiene el módulo Compras habilitado.' }
+  }
+
+  const proveedorId = texto(input.proveedor_id)
+  if (!proveedorId) return { error: 'Falta indicar el proveedor.' }
+  const { data: proveedor } = await supabase.from('proveedores').select('id, razon_social').eq('id', proveedorId).maybeSingle()
+  if (!proveedor) return { error: 'No se encontró ese proveedor, o este usuario no tiene acceso.' }
+
+  const productoNombre = texto(input.producto_referencia)
+  if (!productoNombre) return { error: 'Falta el producto de referencia.' }
+  const saldoInicial = numero(input.saldo_inicial)
+  if (!saldoInicial || saldoInicial <= 0) return { error: 'La cantidad acopiada tiene que ser mayor a 0.' }
+  const montoPagado = numero(input.monto_pagado)
+  if (!montoPagado || montoPagado <= 0) return { error: 'El monto pagado tiene que ser mayor a 0.' }
+
+  const { data: productoRef, error: errProducto } = await supabase
+    .rpc('obtener_o_crear_producto', {
+      p_constructora_id: ctx.constructoraId,
+      p_nombre: productoNombre,
+      p_unidad_medida: texto(input.unidad_medida) ?? 'unidad',
+    })
+    .single() as { data: { id: string } | null; error: { message: string } | null }
+  if (errProducto || !productoRef) return { error: `No se pudo resolver el producto "${productoNombre}".` }
+
+  const moneda = input.moneda === 'USD' ? 'USD' : 'ARS'
+  const fecha = texto(input.fecha) ?? new Date().toISOString().slice(0, 10)
+
+  const { data: gasto, error: errGasto } = await supabase
+    .from('gastos')
+    .insert({
+      constructora_id: ctx.constructoraId,
+      obra_id: obraId,
+      proveedor_id: proveedorId,
+      descripcion: `Acopio con ${proveedor.razon_social}`,
+      monto: montoPagado,
+      moneda,
+      fecha_vencimiento: fecha,
+      fecha_pago: fecha,
+      estado: 'Pagado',
+      notas: texto(input.notas) ?? null,
+    })
+    .select('id')
+    .single()
+  if (errGasto || !gasto) return { error: 'No se pudo crear el gasto de este acopio.' }
+
+  const precioReferenciaInicial = numero(input.precio_referencia_inicial) ?? redondear2(montoPagado / saldoInicial)
+
+  const { data: acopio, error: errAcopio } = await supabase
+    .from('acopios')
+    .insert({
+      constructora_id: ctx.constructoraId,
+      obra_id: obraId,
+      proveedor_id: proveedorId,
+      producto_referencia_id: productoRef.id,
+      saldo_inicial: saldoInicial,
+      monto_pagado: montoPagado,
+      precio_referencia_inicial: precioReferenciaInicial,
+      moneda,
+      fecha,
+      gasto_id: gasto.id,
+      notas: texto(input.notas) ?? null,
+    })
+    .select('id, numero')
+    .single()
+  if (errAcopio || !acopio) {
+    await supabase.from('gastos').delete().eq('id', gasto.id)
+    return { error: `No se pudo crear el acopio: ${errAcopio?.message ?? 'error desconocido'}` }
+  }
+
+  return { creado: true, id: acopio.id, numero: acopio.numero }
+}
+
+async function ejecutarRegistrarRetiroAcopio(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'compras', null)) {
+    return { error: 'Este usuario no tiene el módulo Compras habilitado.' }
+  }
+
+  const acopioId = texto(input.acopio_id)
+  if (!acopioId) return { error: 'Falta indicar el acopio.' }
+  const { data: acopio } = await supabase.from('acopios').select('id, producto_referencia_id, estado').eq('id', acopioId).maybeSingle()
+  if (!acopio) return { error: 'No se encontró ese acopio, o este usuario no tiene acceso.' }
+  if (acopio.estado === 'cerrado') return { error: 'Ese acopio está cerrado — no se le puede registrar un retiro.' }
+
+  const productoNombre = texto(input.producto_nombre)
+  if (!productoNombre) return { error: 'Falta indicar qué producto se retira.' }
+  const cantidad = numero(input.cantidad)
+  if (!cantidad || cantidad <= 0) return { error: 'Falta una cantidad válida (mayor a 0).' }
+
+  const { data: productoRetirado, error: errProducto } = await supabase
+    .rpc('obtener_o_crear_producto', {
+      p_constructora_id: ctx.constructoraId,
+      p_nombre: productoNombre,
+      p_unidad_medida: 'unidad',
+    })
+    .single() as { data: { id: string } | null; error: { message: string } | null }
+  if (errProducto || !productoRetirado) return { error: `No se pudo resolver el producto "${productoNombre}".` }
+
+  const esReferencia = productoRetirado.id === acopio.producto_referencia_id
+  let precioRetiro: number | undefined
+  let precioReferencia: number | undefined
+  if (!esReferencia) {
+    precioRetiro = numero(input.precio_retiro)
+    precioReferencia = numero(input.precio_referencia)
+    if (!precioRetiro || precioRetiro <= 0 || !precioReferencia || precioReferencia <= 0) {
+      return { error: 'Para retirar un producto distinto al de referencia del acopio hacen falta precio_retiro y precio_referencia, ambos mayores a 0.' }
+    }
+  }
+
+  const obraId = texto(input.obra_id) ?? null
+  if (obraId) {
+    const { data: obra } = await supabase.from('obras').select('id').eq('id', obraId).maybeSingle()
+    if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+  }
+
+  const { error } = await supabase.rpc('registrar_retiro_acopio', {
+    p_acopio_id: acopioId,
+    p_producto_id: productoRetirado.id,
+    p_cantidad: cantidad,
+    p_precio_retiro: precioRetiro ?? null,
+    p_precio_referencia: precioReferencia ?? null,
+    p_obra_id: obraId,
+    p_notas: texto(input.notas) ?? null,
+  })
+  if (error) return { error: `No se pudo registrar el retiro: ${error.message}` }
+
+  return { registrado: true }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -1988,5 +2395,13 @@ export async function ejecutarHerramienta(
     case 'asignar_cuadrilla': return ejecutarAsignarCuadrilla(ctx, supabase, input)
     case 'cancelar_reserva': return ejecutarCancelarReserva(ctx, supabase, input)
     case 'crear_cuenta_proveedor': return ejecutarCrearCuentaProveedor(ctx, supabase, input)
+    case 'listar_ordenes_compra': return ejecutarListarOrdenesCompra(ctx, supabase, input)
+    case 'listar_items_pendientes_orden': return ejecutarListarItemsPendientesOrden(supabase, input)
+    case 'confirmar_recepcion_compra': return ejecutarConfirmarRecepcionCompra(ctx, supabase, input)
+    case 'listar_stock': return ejecutarListarStock(ctx, supabase, input)
+    case 'repartir_stock': return ejecutarRepartirStock(ctx, supabase, input)
+    case 'listar_acopios': return ejecutarListarAcopios(ctx, supabase, input)
+    case 'crear_acopio': return ejecutarCrearAcopio(ctx, supabase, input)
+    case 'registrar_retiro_acopio': return ejecutarRegistrarRetiroAcopio(ctx, supabase, input)
   }
 }

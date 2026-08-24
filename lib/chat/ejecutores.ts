@@ -1485,6 +1485,12 @@ async function ejecutarCrearReserva(ctx: ContextoChat, supabase: SupabaseClient,
     if (errCuenta) return { error: errCuenta }
   }
 
+  const montoSenaInput = input.monto_sena
+  const montoSena = montoSenaInput === undefined ? undefined : numero(montoSenaInput)
+  if (montoSenaInput !== undefined && (montoSena === undefined || montoSena <= 0)) {
+    return { error: 'La seña, si se indica, tiene que ser un monto mayor a 0.' }
+  }
+
   const fechaVencimiento = texto(input.fecha_vencimiento) ?? (() => {
     const d = new Date()
     d.setDate(d.getDate() + 30)
@@ -1497,7 +1503,7 @@ async function ejecutarCrearReserva(ctx: ContextoChat, supabase: SupabaseClient,
       unidad_id: unidadId,
       comprador_id: compradorId,
       fecha_vencimiento: fechaVencimiento,
-      monto_sena: numero(input.monto_sena) ?? null,
+      monto_sena: montoSena ?? null,
       cuenta_propia_id: cuentaPropiaId ?? null,
       notas: texto(input.notas) ?? null,
     })
@@ -1559,10 +1565,24 @@ async function ejecutarCrearContratoVenta(ctx: ContextoChat, supabase: SupabaseC
     if (errCuenta) return { error: errCuenta }
   }
 
-  const precioFinal = numero(input.precio_final) ?? unidad.precio_lista
+  const precioFinal = input.precio_final === undefined ? unidad.precio_lista : numero(input.precio_final)
+  if (precioFinal === undefined || precioFinal <= 0) {
+    return { error: 'El precio final tiene que ser un monto mayor a 0.' }
+  }
+
   const entregaMinima = redondear2(unidad.precio_lista * (unidad.entrega_minima_pct ?? 30) / 100)
-  const entregaEfectiva = numero(input.entrega_efectiva) ?? (reserva?.monto_sena ? Math.max(entregaMinima, reserva.monto_sena) : entregaMinima)
-  const cantidadCuotas = numero(input.cantidad_cuotas) ?? unidad.max_cuotas ?? 1
+  const entregaEfectiva = input.entrega_efectiva === undefined
+    ? (reserva?.monto_sena ? Math.max(entregaMinima, reserva.monto_sena) : entregaMinima)
+    : numero(input.entrega_efectiva)
+  if (entregaEfectiva === undefined || entregaEfectiva < 0) {
+    return { error: 'La entrega inicial tiene que ser un monto mayor o igual a 0.' }
+  }
+
+  const cantidadCuotas = input.cantidad_cuotas === undefined ? (unidad.max_cuotas ?? 1) : numero(input.cantidad_cuotas)
+  if (cantidadCuotas === undefined || !Number.isInteger(cantidadCuotas) || cantidadCuotas < 1) {
+    return { error: 'La cantidad de cuotas tiene que ser un número entero mayor o igual a 1.' }
+  }
+
   const fechaFirma = texto(input.fecha_firma) ?? new Date().toISOString().slice(0, 10)
 
   const { data: contrato, error } = await supabase

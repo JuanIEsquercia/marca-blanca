@@ -1362,6 +1362,247 @@ async function ejecutarLiberarEquipo(ctx: ContextoChat, supabase: SupabaseClient
   return { actualizado: true, equipo: equipo.nombre, nuevo_estado: nuevoEstado }
 }
 
+async function ejecutarListarClientes(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  let query = supabase
+    .from('compradores')
+    .select('id, nombre_completo')
+    .eq('constructora_id', ctx.constructoraId)
+    .order('nombre_completo')
+    .limit(50)
+  const nombre = texto(input.nombre)
+  if (nombre) query = query.ilike('nombre_completo', `%${nombre}%`)
+
+  const { data, error } = await query
+  if (error) return { error: 'No se pudo obtener la lista de clientes.' }
+  return { clientes: (data ?? []).map(c => ({ id: c.id, nombre_completo: c.nombre_completo })) }
+}
+
+interface FilaUnidad {
+  id: string
+  piso: number
+  numero: string | null
+  letra: string | null
+  m2: number | null
+  precio_lista: number
+  estado_comercial: string
+  tipologias: { nombre: string } | null
+}
+
+async function ejecutarListarUnidadesDisponibles(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const obraId = texto(input.obraId)
+  if (!obraId) return { error: 'Falta indicar el proyecto.' }
+  const estado = texto(input.estado) ?? 'Disponible'
+
+  const { data, error } = await supabase
+    .from('unidades')
+    .select('id, piso, numero, letra, m2, precio_lista, estado_comercial, tipologias(nombre)')
+    .eq('obra_id', obraId)
+    .eq('estado_comercial', estado)
+    .order('piso')
+    .order('numero')
+    .limit(50)
+  if (error) return { error: 'No se pudo obtener la lista de unidades.' }
+
+  return {
+    unidades: ((data ?? []) as unknown as FilaUnidad[]).map(u => ({
+      id: u.id,
+      unidad: `Piso ${u.piso}${u.numero ? ` - ${u.numero}` : ''}${u.letra ? u.letra : ''}`,
+      tipologia: u.tipologias?.nombre ?? null,
+      m2: u.m2,
+      precio_lista: u.precio_lista,
+      estado: u.estado_comercial,
+    })),
+  }
+}
+
+async function ejecutarListarCuentasDesarrollo(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const obraId = texto(input.obraId)
+  if (!obraId) return { error: 'Falta indicar el proyecto.' }
+  const { data: obra } = await supabase.from('obras').select('id, modo_cuentas').eq('id', obraId).maybeSingle()
+  if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+
+  const modo = (obra.modo_cuentas as 'empresa' | 'especificas' | null) ?? 'empresa'
+  const cuentas = await obtenerCuentasPropias(supabase, ctx.constructoraId, obraId, modo, 'USD')
+  return { cuentas: cuentas.map(c => ({ id: c.id, nombre: c.nombre })) }
+}
+
+// La venta de unidades es siempre en USD por convención de negocio (ver
+// lib/tesoreria.ts) — cualquier cuenta que se indique tiene que ser de esa
+// moneda, se valida acá en vez de confiar en que el modelo solo haya usado
+// ids de listar_cuentas_desarrollo.
+async function validarCuentaUSD(supabase: SupabaseClient, cuentaPropiaId: string): Promise<string | null> {
+  const { data: cuenta } = await supabase.from('cuentas_propias').select('id, moneda').eq('id', cuentaPropiaId).maybeSingle()
+  if (!cuenta) return 'No se encontró esa cuenta.'
+  if (cuenta.moneda !== 'USD') return 'La venta de unidades es siempre en USD — esa cuenta no es de esa moneda.'
+  return null
+}
+
+interface DatosClienteResueltos { comprador_id: string | null; error: string | null }
+
+// Mismo camino que ReservaForm/SaleForm: si no viene un comprador_id ya
+// existente, se crea uno nuevo con crearCompradorRapido (lib/compradores.ts)
+// — la misma función que ya usa crear_cliente, para no duplicar esa lógica.
+async function resolverComprador(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>): Promise<DatosClienteResueltos> {
+  const compradorId = texto(input.comprador_id)
+  if (compradorId) return { comprador_id: compradorId, error: null }
+
+  const clienteNombre = texto(input.cliente_nombre)
+  if (!clienteNombre) return { comprador_id: null, error: 'Falta indicar el cliente: comprador_id de uno existente, o cliente_nombre para crear uno nuevo.' }
+
+  const nuevo = await crearCompradorRapido(supabase, ctx.constructoraId, {
+    nombre_completo: clienteNombre,
+    dni_cuit: texto(input.cliente_dni_cuit),
+    email: texto(input.cliente_email),
+    telefono: texto(input.cliente_telefono),
+  })
+  if (!nuevo) return { comprador_id: null, error: 'No se pudo crear el cliente.' }
+  return { comprador_id: nuevo.id, error: null }
+}
+
+// A diferencia de ReservaForm.tsx (que no chequea el error del update de
+// unidades.estado_comercial), acá sí se reporta si falla — no hay forma de
+// deshacer la reserva ya creada, pero al menos el usuario se entera de que
+// la unidad puede haber quedado con un estado desactualizado.
+async function ejecutarCrearReserva(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const unidadId = texto(input.unidad_id)
+  if (!unidadId) return { error: 'Falta indicar la unidad.' }
+
+  const { data: unidad } = await supabase.from('unidades').select('id, obra_id, estado_comercial').eq('id', unidadId).maybeSingle()
+  if (!unidad) return { error: 'No se encontró esa unidad, o este usuario no tiene acceso.' }
+  if (unidad.estado_comercial !== 'Disponible') {
+    return { error: `Esa unidad no está Disponible (está ${unidad.estado_comercial}) — no se puede reservar.` }
+  }
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'reservas', unidad.obra_id)) {
+    return { error: 'Este usuario no tiene el módulo Reservas habilitado en este proyecto.' }
+  }
+
+  const { comprador_id: compradorId, error: errCliente } = await resolverComprador(ctx, supabase, input)
+  if (errCliente) return { error: errCliente }
+
+  const cuentaPropiaId = texto(input.cuenta_propia_id)
+  if (cuentaPropiaId) {
+    const errCuenta = await validarCuentaUSD(supabase, cuentaPropiaId)
+    if (errCuenta) return { error: errCuenta }
+  }
+
+  const fechaVencimiento = texto(input.fecha_vencimiento) ?? (() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 30)
+    return d.toISOString().slice(0, 10)
+  })()
+
+  const { data: reserva, error } = await supabase
+    .from('reservas')
+    .insert({
+      unidad_id: unidadId,
+      comprador_id: compradorId,
+      fecha_vencimiento: fechaVencimiento,
+      monto_sena: numero(input.monto_sena) ?? null,
+      cuenta_propia_id: cuentaPropiaId ?? null,
+      notas: texto(input.notas) ?? null,
+    })
+    .select('id')
+    .single()
+  if (error) {
+    if (error.code === '23505') return { error: 'Esa unidad ya tiene una reserva vigente — alguien se adelantó.' }
+    return { error: `No se pudo crear la reserva: ${error.message}` }
+  }
+
+  const { error: errUnidad } = await supabase.from('unidades').update({ estado_comercial: 'Reservado' }).eq('id', unidadId)
+
+  return {
+    creado: true,
+    id: reserva.id,
+    aviso: errUnidad ? 'La reserva se creó, pero no se pudo actualizar el estado de la unidad — revisalo en el panel.' : undefined,
+  }
+}
+
+async function ejecutarCrearContratoVenta(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const unidadId = texto(input.unidad_id)
+  if (!unidadId) return { error: 'Falta indicar la unidad.' }
+
+  const { data: unidad } = await supabase
+    .from('unidades')
+    .select('id, obra_id, precio_lista, entrega_minima_pct, max_cuotas, estado_comercial')
+    .eq('id', unidadId)
+    .maybeSingle()
+  if (!unidad) return { error: 'No se encontró esa unidad, o este usuario no tiene acceso.' }
+  if (unidad.estado_comercial === 'Vendido') return { error: 'Esa unidad ya está vendida.' }
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'contratos', unidad.obra_id)) {
+    return { error: 'Este usuario no tiene el módulo Ventas habilitado en este proyecto.' }
+  }
+
+  const reservaId = texto(input.reserva_id)
+  let reserva: { id: string; comprador_id: string; monto_sena: number | null; cuenta_propia_id: string | null } | null = null
+  if (reservaId) {
+    const { data: filaReserva } = await supabase
+      .from('reservas')
+      .select('id, unidad_id, comprador_id, monto_sena, cuenta_propia_id, estado')
+      .eq('id', reservaId)
+      .maybeSingle()
+    if (!filaReserva) return { error: 'No se encontró esa reserva.' }
+    if (filaReserva.unidad_id !== unidadId) return { error: 'Esa reserva es de otra unidad.' }
+    if (filaReserva.estado !== 'Vigente') return { error: 'Esa reserva ya no está vigente (fue convertida o cayó).' }
+    reserva = filaReserva
+  }
+
+  let compradorId = texto(input.comprador_id) ?? reserva?.comprador_id ?? null
+  if (!compradorId) {
+    const { comprador_id, error: errCliente } = await resolverComprador(ctx, supabase, input)
+    if (errCliente) return { error: errCliente }
+    compradorId = comprador_id
+  }
+
+  const cuentaPropiaId = texto(input.cuenta_propia_id) ?? reserva?.cuenta_propia_id ?? null
+  if (cuentaPropiaId) {
+    const errCuenta = await validarCuentaUSD(supabase, cuentaPropiaId)
+    if (errCuenta) return { error: errCuenta }
+  }
+
+  const precioFinal = numero(input.precio_final) ?? unidad.precio_lista
+  const entregaMinima = redondear2(unidad.precio_lista * (unidad.entrega_minima_pct ?? 30) / 100)
+  const entregaEfectiva = numero(input.entrega_efectiva) ?? (reserva?.monto_sena ? Math.max(entregaMinima, reserva.monto_sena) : entregaMinima)
+  const cantidadCuotas = numero(input.cantidad_cuotas) ?? unidad.max_cuotas ?? 1
+  const fechaFirma = texto(input.fecha_firma) ?? new Date().toISOString().slice(0, 10)
+
+  const { data: contrato, error } = await supabase
+    .from('contratos_venta')
+    .insert({
+      unidad_id: unidadId,
+      comprador_id: compradorId,
+      precio_final: precioFinal,
+      entrega_efectiva: entregaEfectiva,
+      cantidad_cuotas: cantidadCuotas,
+      fecha_firma: fechaFirma,
+      cuenta_propia_id: cuentaPropiaId,
+      notas: texto(input.notas) ?? null,
+    })
+    .select('id')
+    .single()
+  if (error || !contrato) {
+    if (error?.code === '23505') return { error: 'Esa unidad ya tiene un contrato de venta.' }
+    return { error: `No se pudo crear el contrato: ${error?.message ?? 'error desconocido'}` }
+  }
+
+  const avisos: string[] = []
+  const { error: errUnidad } = await supabase.from('unidades').update({ estado_comercial: 'Vendido' }).eq('id', unidadId)
+  if (errUnidad) avisos.push('No se pudo actualizar el estado de la unidad a Vendido — revisalo en el panel.')
+
+  if (reserva) {
+    const { error: errReserva } = await supabase.from('reservas').update({ estado: 'Convertida' }).eq('id', reserva.id)
+    if (errReserva) avisos.push('No se pudo marcar la reserva de origen como Convertida — revisalo en el panel.')
+  }
+
+  return {
+    creado: true,
+    id: contrato.id,
+    precio_final: precioFinal,
+    entrega_efectiva: entregaEfectiva,
+    cantidad_cuotas: cantidadCuotas,
+    avisos: avisos.length ? avisos : undefined,
+  }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -1408,5 +1649,10 @@ export async function ejecutarHerramienta(
     case 'listar_equipos': return ejecutarListarEquipos(ctx, supabase, input)
     case 'asignar_equipo': return ejecutarAsignarEquipo(ctx, supabase, input)
     case 'liberar_equipo': return ejecutarLiberarEquipo(ctx, supabase, input)
+    case 'listar_clientes': return ejecutarListarClientes(ctx, supabase, input)
+    case 'listar_unidades_disponibles': return ejecutarListarUnidadesDisponibles(ctx, supabase, input)
+    case 'listar_cuentas_desarrollo': return ejecutarListarCuentasDesarrollo(ctx, supabase, input)
+    case 'crear_reserva': return ejecutarCrearReserva(ctx, supabase, input)
+    case 'crear_contrato_venta': return ejecutarCrearContratoVenta(ctx, supabase, input)
   }
 }

@@ -401,6 +401,49 @@ export const TOOLS: Anthropic.Tool[] = [
     description: 'Cambia el estado de un equipo: "disponible" (lo devuelve del proyecto donde estaba, cierra su asignación vigente), "mantenimiento", o "baja". Llamá antes a listar_equipos para resolver el id real. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('liberacion_equipo'),
   },
+  {
+    name: 'listar_clientes',
+    description: 'Devuelve los clientes (compradores) de la empresa — id y nombre completo. Usar antes de crear_reserva/crear_contrato_venta cuando el usuario mencione un cliente por nombre, para ver si ya existe en vez de crear uno duplicado. Si el usuario ya dio una parte del nombre, mandala en "nombre" para acotar la búsqueda. Sin "nombre" trae los primeros 50.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nombre: { type: 'string', description: 'Parte del nombre para acotar la búsqueda — opcional' },
+      },
+    },
+  },
+  {
+    name: 'listar_unidades_disponibles',
+    description: 'Devuelve las unidades de un proyecto tipo desarrollo, con piso/número/tipología/precio/estado — para encontrar el id real de una unidad puntual antes de crear_reserva/crear_contrato_venta. Sin "estado" trae solo las Disponibles (lo más común); pasá estado="Vendido" o "Reservado" si el usuario pide ver esas.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto (tipo desarrollo), obtenido de listar_proyectos' },
+        estado: { type: 'string', enum: ['Disponible', 'Reservado', 'Vendido'], description: 'Opcional — si se omite, solo Disponibles' },
+      },
+      required: ['obraId'],
+    },
+  },
+  {
+    name: 'listar_cuentas_desarrollo',
+    description: 'Devuelve las cuentas propias válidas (siempre en USD — la venta de unidades es en dólares) para una seña o entrega de un proyecto puntual. Usar antes de crear_reserva/crear_contrato_venta cuando el usuario quiera indicar a qué cuenta entra la plata.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos' },
+      },
+      required: ['obraId'],
+    },
+  },
+  {
+    name: 'crear_reserva',
+    description: 'Registra una seña/reserva sobre una unidad Disponible — la deja en estado Reservado. El cliente puede ser uno ya existente (comprador_id, resolvé con listar_clientes primero) o uno nuevo (cliente_nombre y opcionalmente cliente_dni_cuit/email/telefono, se crea solo). No confundir con crear_contrato_venta: esto NO es una venta todavía, es solo la seña — la venta es un paso aparte, después. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('reserva'),
+  },
+  {
+    name: 'crear_contrato_venta',
+    description: 'Registra la venta de una unidad, con su plan de cuotas generado solo (no hace falta cargarlas a mano). Si la venta viene de una reserva ya cargada, pasá reserva_id y el cliente/seña se toman de ahí — no hace falta repetirlos. Si no hay reserva previa, el cliente se resuelve igual que en crear_reserva (comprador_id existente, o cliente_nombre para crear uno nuevo). Nunca inventes precio_final/entrega_efectiva/cantidad_cuotas si el usuario no los dio — dejalos vacíos para que se usen los valores por defecto de la unidad. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('contrato_venta'),
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -444,6 +487,11 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   listar_equipos: { requiereConfirmacion: false },
   asignar_equipo: { requiereConfirmacion: true, entidad: 'asignacion_equipo' },
   liberar_equipo: { requiereConfirmacion: true, entidad: 'liberacion_equipo' },
+  listar_clientes: { requiereConfirmacion: false },
+  listar_unidades_disponibles: { requiereConfirmacion: false },
+  listar_cuentas_desarrollo: { requiereConfirmacion: false },
+  crear_reserva: { requiereConfirmacion: true, entidad: 'reserva' },
+  crear_contrato_venta: { requiereConfirmacion: true, entidad: 'contrato_venta' },
 }
 
 // El catálogo entero es idéntico en cada request (no depende del usuario,

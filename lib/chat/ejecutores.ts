@@ -177,19 +177,26 @@ async function ejecutarCrearCliente(ctx: ContextoChat, supabase: SupabaseClient,
 }
 
 async function ejecutarCrearCuentaPropia(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
-  // A diferencia de proveedor/cliente (módulos de empresa), una cuenta sin
-  // proyecto asignado (obra_id null) solo la puede crear un admin — la RLS
-  // de cuentas_propias lo exige así (ver migration_068 y CuentaPropiaSelect.tsx),
-  // puedeAcceder('cuentas', null) no alcanza a distinguir esto porque
-  // 'cuentas' es un módulo por-proyecto, no de empresa.
-  if (ctx.perfilRol !== 'admin') {
-    return { error: 'Solo un administrador puede crear una cuenta de empresa (sin proyecto asignado). Para una cuenta de un proyecto puntual, hacelo desde Cuentas dentro de ese proyecto.' }
+  const obraId = texto(input.obra_id) ?? null
+
+  if (obraId) {
+    const { data: obra } = await supabase.from('obras').select('id, nombre').eq('id', obraId).maybeSingle()
+    if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+    if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'cuentas', obraId)) {
+      return { error: `Este usuario no tiene el módulo Cuentas habilitado en el proyecto "${obra.nombre}".` }
+    }
+  } else if (ctx.perfilRol !== 'admin') {
+    // A diferencia de proveedor/cliente (módulos de empresa), una cuenta sin
+    // proyecto asignado (obra_id null) solo la puede crear un admin — la RLS
+    // de cuentas_propias lo exige así (ver migration_068 y CuentaPropiaSelect.tsx).
+    return { error: 'Solo un administrador puede crear una cuenta de empresa (sin proyecto asignado). Para una cuenta de un proyecto puntual, indicá cuál.' }
   }
+
   const nombre = texto(input.nombre)
   if (!nombre) return { error: 'Falta el nombre de la cuenta.' }
   const tipo = input.tipo === 'caja' ? 'caja' : 'banco'
   const moneda = input.moneda === 'USD' ? 'USD' : 'ARS'
-  const nueva = await crearCuentaPropiaRapida(supabase, ctx.constructoraId, nombre, tipo, moneda)
+  const nueva = await crearCuentaPropiaRapida(supabase, ctx.constructoraId, nombre, tipo, moneda, obraId)
   if (!nueva) return { error: 'No se pudo crear la cuenta.' }
   return { creado: true, id: nueva.id, nombre: nueva.nombre, tipo: nueva.tipo, moneda: nueva.moneda }
 }
@@ -1731,6 +1738,195 @@ async function ejecutarCrearUnidad(ctx: ContextoChat, supabase: SupabaseClient, 
   return { creado: true, id: data.id, unidad: `Piso ${data.piso}${data.numero ? ` - ${data.numero}` : ''}` }
 }
 
+interface FilaPersonal {
+  id: string
+  nombre: string
+  tipo_contratacion: string
+  categoria: string | null
+  estado: string
+  personal_asignaciones: { obra_id: string; fecha_hasta: string | null; obras: { nombre: string } | null }[] | null
+}
+
+async function ejecutarListarPersonal(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  let query = supabase
+    .from('personal')
+    .select('id, nombre, tipo_contratacion, categoria, estado, personal_asignaciones(obra_id, fecha_hasta, obras(nombre))')
+    .eq('constructora_id', ctx.constructoraId)
+    .order('nombre')
+    .limit(50)
+
+  const estado = texto(input.estado)
+  if (estado) query = query.eq('estado', estado)
+
+  const { data, error } = await query
+  if (error) return { error: 'No se pudo obtener la lista de personal.' }
+
+  let filas = (data ?? []) as unknown as FilaPersonal[]
+  const obraId = texto(input.obraId)
+  if (obraId) {
+    filas = filas.filter(p => (p.personal_asignaciones ?? []).some(a => a.fecha_hasta === null && a.obra_id === obraId))
+  }
+
+  return {
+    personal: filas.map(p => ({
+      id: p.id,
+      nombre: p.nombre,
+      tipo_contratacion: p.tipo_contratacion,
+      categoria: p.categoria,
+      estado: p.estado,
+      proyecto_actual: (p.personal_asignaciones ?? []).find(a => a.fecha_hasta === null)?.obras?.nombre ?? null,
+    })),
+  }
+}
+
+// Igual criterio que asignar_equipo/liberar_equipo: las RPCs ya hacen el
+// trabajo atómico real (cerrar asignación vigente + abrir nueva /
+// actualizar personal.estado) — acá solo se resuelven los ids y se llama
+// a la RPC, nunca se reimplementa esa lógica.
+async function ejecutarAsignarPersonal(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'personal', null)) {
+    return { error: 'Este usuario no tiene el módulo Personal habilitado.' }
+  }
+  const personalId = texto(input.personal_id)
+  const obraId = texto(input.obra_id)
+  if (!personalId) return { error: 'Falta indicar la persona.' }
+  if (!obraId) return { error: 'Falta indicar el proyecto.' }
+
+  const { data: persona } = await supabase.from('personal').select('id, nombre, estado').eq('id', personalId).maybeSingle()
+  if (!persona) return { error: 'No se encontró esa persona, o este usuario no tiene acceso.' }
+  if (persona.estado === 'baja') return { error: `"${persona.nombre}" está dado de baja — no se puede asignar.` }
+
+  const { data: obra } = await supabase.from('obras').select('id, nombre').eq('id', obraId).maybeSingle()
+  if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+
+  const { error } = await supabase.rpc('asignar_personal', { p_personal_id: personalId, p_obra_id: obraId })
+  if (error) return { error: `No se pudo asignar: ${error.message}` }
+
+  return { asignado: true, persona: persona.nombre, proyecto: obra.nombre }
+}
+
+const ESTADOS_LIBERACION_PERSONAL = ['disponible', 'licencia', 'baja']
+
+async function ejecutarLiberarPersonal(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'personal', null)) {
+    return { error: 'Este usuario no tiene el módulo Personal habilitado.' }
+  }
+  const personalId = texto(input.personal_id)
+  const nuevoEstado = texto(input.nuevo_estado)
+  if (!personalId) return { error: 'Falta indicar la persona.' }
+  if (!nuevoEstado || !ESTADOS_LIBERACION_PERSONAL.includes(nuevoEstado)) {
+    return { error: 'El nuevo estado tiene que ser disponible, licencia o baja.' }
+  }
+
+  const { data: persona } = await supabase.from('personal').select('id, nombre').eq('id', personalId).maybeSingle()
+  if (!persona) return { error: 'No se encontró esa persona, o este usuario no tiene acceso.' }
+
+  const { error } = await supabase.rpc('liberar_personal', { p_personal_id: personalId, p_nuevo_estado: nuevoEstado })
+  if (error) return { error: `No se pudo actualizar: ${error.message}` }
+
+  return { actualizado: true, persona: persona.nombre, nuevo_estado: nuevoEstado }
+}
+
+async function ejecutarListarCuadrillas(ctx: ContextoChat, supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from('cuadrillas')
+    .select('id, nombre, personal(id)')
+    .eq('constructora_id', ctx.constructoraId)
+    .order('nombre')
+  if (error) return { error: 'No se pudo obtener la lista de cuadrillas.' }
+  return {
+    cuadrillas: ((data ?? []) as unknown as { id: string; nombre: string; personal: { id: string }[] | null }[]).map(c => ({
+      id: c.id,
+      nombre: c.nombre,
+      cantidad_personas: (c.personal ?? []).length,
+    })),
+  }
+}
+
+// asignar_cuadrilla mueve a TODOS los integrantes de una — la RPC devuelve
+// cuántos se reasignaron de verdad (los que ya estaban en ese proyecto no
+// cuentan), útil para que el resumen no exagere lo que cambió.
+async function ejecutarAsignarCuadrilla(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'personal', null)) {
+    return { error: 'Este usuario no tiene el módulo Personal habilitado.' }
+  }
+  const cuadrillaId = texto(input.cuadrilla_id)
+  const obraId = texto(input.obra_id)
+  if (!cuadrillaId) return { error: 'Falta indicar la cuadrilla.' }
+  if (!obraId) return { error: 'Falta indicar el proyecto.' }
+
+  const { data: cuadrilla } = await supabase.from('cuadrillas').select('id, nombre').eq('id', cuadrillaId).maybeSingle()
+  if (!cuadrilla) return { error: 'No se encontró esa cuadrilla, o este usuario no tiene acceso.' }
+
+  const { data: obra } = await supabase.from('obras').select('id, nombre').eq('id', obraId).maybeSingle()
+  if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+
+  const { data: cantidad, error } = await supabase.rpc('asignar_cuadrilla', { p_cuadrilla_id: cuadrillaId, p_obra_id: obraId })
+  if (error) return { error: `No se pudo asignar la cuadrilla: ${error.message}` }
+
+  return { asignado: true, cuadrilla: cuadrilla.nombre, proyecto: obra.nombre, personas_reasignadas: cantidad }
+}
+
+// Mismo criterio que InventoryGrid.tsx (única forma real de cancelar una
+// reserva en el panel): marcar la reserva Vigente como Caída y devolver la
+// unidad a Disponible — no hay RPC para esto, son dos updates directos.
+async function ejecutarCancelarReserva(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const unidadId = texto(input.unidad_id)
+  if (!unidadId) return { error: 'Falta indicar la unidad.' }
+
+  const { data: unidad } = await supabase.from('unidades').select('id, obra_id, estado_comercial').eq('id', unidadId).maybeSingle()
+  if (!unidad) return { error: 'No se encontró esa unidad, o este usuario no tiene acceso.' }
+  if (unidad.estado_comercial !== 'Reservado') {
+    return { error: `Esa unidad no está Reservada (está ${unidad.estado_comercial}) — no hay ninguna reserva para cancelar.` }
+  }
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'reservas', unidad.obra_id)) {
+    return { error: 'Este usuario no tiene el módulo Reservas habilitado en este proyecto.' }
+  }
+
+  const { data: reserva } = await supabase.from('reservas').select('id').eq('unidad_id', unidadId).eq('estado', 'Vigente').maybeSingle()
+  if (!reserva) return { error: 'No se encontró una reserva vigente para esa unidad.' }
+
+  const { error: errReserva } = await supabase.from('reservas').update({ estado: 'Caída' }).eq('id', reserva.id)
+  if (errReserva) return { error: 'No se pudo cancelar la reserva.' }
+
+  const { error: errUnidad } = await supabase.from('unidades').update({ estado_comercial: 'Disponible' }).eq('id', unidadId)
+
+  return {
+    cancelada: true,
+    aviso: errUnidad ? 'La reserva se canceló, pero no se pudo devolver la unidad a Disponible — revisalo en el panel.' : undefined,
+  }
+}
+
+async function ejecutarCrearCuentaProveedor(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'proveedores', null)) {
+    return { error: 'Este usuario no tiene el módulo Proveedores habilitado.' }
+  }
+  const proveedorId = texto(input.proveedor_id)
+  if (!proveedorId) return { error: 'Falta indicar el proveedor.' }
+  const { data: proveedor } = await supabase.from('proveedores').select('id, razon_social').eq('id', proveedorId).maybeSingle()
+  if (!proveedor) return { error: 'No se encontró ese proveedor, o este usuario no tiene acceso.' }
+
+  const tipo = texto(input.tipo) ?? 'CBU'
+  if (!['CBU', 'Alias', 'Efectivo', 'Cheque', 'Otro'].includes(tipo)) {
+    return { error: 'El tipo tiene que ser CBU, Alias, Efectivo, Cheque u Otro.' }
+  }
+
+  const { data, error } = await supabase
+    .from('cuentas_proveedor')
+    .insert({
+      proveedor_id: proveedorId,
+      tipo,
+      denominacion: texto(input.denominacion) ?? null,
+      numero: texto(input.numero) ?? null,
+      moneda: input.moneda === 'USD' ? 'USD' : 'ARS',
+    })
+    .select('id')
+    .single()
+  if (error || !data) return { error: 'No se pudo crear la cuenta del proveedor.' }
+
+  return { creado: true, id: data.id, proveedor: proveedor.razon_social, tipo }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -1785,5 +1981,12 @@ export async function ejecutarHerramienta(
     case 'listar_tipologias': return ejecutarListarTipologias(supabase, input)
     case 'crear_tipologia': return ejecutarCrearTipologia(ctx, supabase, input)
     case 'crear_unidad': return ejecutarCrearUnidad(ctx, supabase, input)
+    case 'listar_personal': return ejecutarListarPersonal(ctx, supabase, input)
+    case 'asignar_personal': return ejecutarAsignarPersonal(ctx, supabase, input)
+    case 'liberar_personal': return ejecutarLiberarPersonal(ctx, supabase, input)
+    case 'listar_cuadrillas': return ejecutarListarCuadrillas(ctx, supabase)
+    case 'asignar_cuadrilla': return ejecutarAsignarCuadrilla(ctx, supabase, input)
+    case 'cancelar_reserva': return ejecutarCancelarReserva(ctx, supabase, input)
+    case 'crear_cuenta_proveedor': return ejecutarCrearCuentaProveedor(ctx, supabase, input)
   }
 }

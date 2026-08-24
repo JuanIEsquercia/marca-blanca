@@ -94,7 +94,7 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'crear_cuenta_propia',
-    description: 'Da de alta una cuenta propia (banco o caja) de la empresa, sin asignar a ningún proyecto puntual. Solo un administrador puede hacer esto — si el usuario no lo es, avisá que no puede desde acá y ofrecé navegar a Cuentas dentro del proyecto que corresponda. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    description: 'Da de alta una cuenta propia (banco o caja). Sin obra_id es una cuenta de la empresa entera (sin proyecto) — eso solo lo puede hacer un administrador, avisale si el usuario no lo es. Con obra_id (resolvé con listar_proyectos, nunca lo inventes) es una cuenta específica de ese proyecto, y la puede crear cualquiera con el módulo Cuentas habilitado ahí. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('cuenta_propia'),
   },
   {
@@ -465,6 +465,47 @@ export const TOOLS: Anthropic.Tool[] = [
     description: 'Da de alta una unidad nueva a la venta (nace en estado Disponible) en un proyecto tipo desarrollo — necesita una tipología ya creada (listar_tipologias, o crear_tipologia primero si no existe ninguna que corresponda). El usuario puede pedir esto como "cargá el piso 5", "agregá la unidad 302", "no me quedan más unidades para vender, cargá una nueva". precio_lista es obligatorio, nunca lo inventes si el usuario no lo dio. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('unidad'),
   },
+  {
+    name: 'listar_personal',
+    description: 'Devuelve el personal de la empresa con su estado (disponible/asignado/licencia/baja) y, si está asignado, a qué proyecto. Filtros opcionales por estado y/o proyecto. Usar antes de asignar_personal/liberar_personal para encontrar el id real — nunca inventar uno.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        estado: { type: 'string', enum: ['disponible', 'asignado', 'licencia', 'baja'], description: 'Opcional, para filtrar por estado' },
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — opcional, para ver solo el personal asignado ahí' },
+      },
+    },
+  },
+  {
+    name: 'asignar_personal',
+    description: 'Asigna una persona a un proyecto puntual — si ya estaba asignada a otro, cierra esa asignación automáticamente y abre la nueva. Llamá antes a listar_personal y listar_proyectos para resolver los ids reales. No se puede asignar a alguien dado de baja. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('asignacion_personal'),
+  },
+  {
+    name: 'liberar_personal',
+    description: 'Cambia el estado de una persona: "disponible" (la devuelve del proyecto donde estaba, cierra su asignación vigente), "licencia", o "baja". Llamá antes a listar_personal para resolver el id real. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('liberacion_personal'),
+  },
+  {
+    name: 'listar_cuadrillas',
+    description: 'Devuelve las cuadrillas de la empresa con la cantidad de personas que tienen. Usar antes de asignar_cuadrilla para resolver el id real.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'asignar_cuadrilla',
+    description: 'Asigna TODA una cuadrilla (todos sus integrantes de una vez, salvo los dados de baja) a un proyecto puntual — cada persona que ya estuviera en otro proyecto se reasigna sola. Llamá antes a listar_cuadrillas y listar_proyectos para resolver los ids reales. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('asignacion_cuadrilla'),
+  },
+  {
+    name: 'cancelar_reserva',
+    description: 'Cancela la reserva vigente de una unidad (queda "Caída") y la unidad vuelve a estado Disponible. Llamá antes a listar_unidades_disponibles con estado="Reservado" para encontrar la unidad real. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('cancelacion_reserva'),
+  },
+  {
+    name: 'crear_cuenta_proveedor',
+    description: 'Da de alta una cuenta (CBU, Alias, Efectivo, Cheque, u Otro) para un proveedor ya existente — un proveedor puede tener varias. Llamá antes a listar_proveedores para resolver el id real. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('cuenta_proveedor'),
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -516,6 +557,13 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   listar_tipologias: { requiereConfirmacion: false },
   crear_tipologia: { requiereConfirmacion: true, entidad: 'tipologia' },
   crear_unidad: { requiereConfirmacion: true, entidad: 'unidad' },
+  listar_personal: { requiereConfirmacion: false },
+  asignar_personal: { requiereConfirmacion: true, entidad: 'asignacion_personal' },
+  liberar_personal: { requiereConfirmacion: true, entidad: 'liberacion_personal' },
+  listar_cuadrillas: { requiereConfirmacion: false },
+  asignar_cuadrilla: { requiereConfirmacion: true, entidad: 'asignacion_cuadrilla' },
+  cancelar_reserva: { requiereConfirmacion: true, entidad: 'cancelacion_reserva' },
+  crear_cuenta_proveedor: { requiereConfirmacion: true, entidad: 'cuenta_proveedor' },
 }
 
 // El catálogo entero es idéntico en cada request (no depende del usuario,

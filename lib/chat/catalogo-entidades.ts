@@ -40,6 +40,7 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'nombre', label: 'Nombre', requerido: true, descripcion: 'Ej: "Banco Galicia", "Caja obra Norte"' },
       { nombre: 'tipo', label: 'Tipo', requerido: true, opciones: ['banco', 'caja'] },
       { nombre: 'moneda', label: 'Moneda', requerido: true, opciones: ['ARS', 'USD'] },
+      { nombre: 'obra_id', label: 'Proyecto', requerido: false, descripcion: 'Id real del proyecto, obtenido de listar_proyectos — opcional. Si se omite, es una cuenta de la empresa (sin proyecto), y eso solo lo puede crear un administrador. Si se indica, la puede crear cualquiera con el módulo Cuentas habilitado en ese proyecto.' },
     ],
   },
   categoria_gasto: {
@@ -285,6 +286,62 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'precio_lista', label: 'Precio de lista (USD)', requerido: true },
       { nombre: 'entrega_minima_pct', label: '% de entrega mínima', requerido: false, descripcion: 'Si se omite, 30' },
       { nombre: 'max_cuotas', label: 'Cuotas máximas', requerido: false, descripcion: 'Si se omite, 36' },
+    ],
+  },
+  asignacion_personal: {
+    key: 'asignacion_personal',
+    label: 'Asignar persona a proyecto',
+    modulo: 'personal',
+    rutaNavegacion: '/admin/personal',
+    campos: [
+      { nombre: 'personal_id', label: 'Persona', requerido: true, descripcion: 'Id real de la persona, obtenido de listar_personal' },
+      { nombre: 'obra_id', label: 'Proyecto', requerido: true, descripcion: 'Id real del proyecto, obtenido de listar_proyectos' },
+      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible, ej. "Juan Pérez → obra Norte" — es lo único que ve el usuario para verificar antes de confirmar, los ids no se muestran.' },
+    ],
+  },
+  liberacion_personal: {
+    key: 'liberacion_personal',
+    label: 'Cambiar estado de persona',
+    modulo: 'personal',
+    rutaNavegacion: '/admin/personal',
+    campos: [
+      { nombre: 'personal_id', label: 'Persona', requerido: true, descripcion: 'Id real de la persona, obtenido de listar_personal' },
+      { nombre: 'nuevo_estado', label: 'Nuevo estado', requerido: true, opciones: ['disponible', 'licencia', 'baja'] },
+      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible, ej. "Juan Pérez → disponible (devuelto de obra Norte)" — es lo único que ve el usuario para verificar antes de confirmar.' },
+    ],
+  },
+  asignacion_cuadrilla: {
+    key: 'asignacion_cuadrilla',
+    label: 'Asignar cuadrilla a proyecto',
+    modulo: 'personal',
+    rutaNavegacion: '/admin/personal',
+    campos: [
+      { nombre: 'cuadrilla_id', label: 'Cuadrilla', requerido: true, descripcion: 'Id real de la cuadrilla, obtenido de listar_cuadrillas' },
+      { nombre: 'obra_id', label: 'Proyecto', requerido: true, descripcion: 'Id real del proyecto, obtenido de listar_proyectos' },
+      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible, ej. "Cuadrilla Techos → obra Norte (5 personas)" — es lo único que ve el usuario para verificar antes de confirmar.' },
+    ],
+  },
+  cancelacion_reserva: {
+    key: 'cancelacion_reserva',
+    label: 'Cancelar reserva',
+    modulo: 'reservas',
+    rutaNavegacion: '/admin/proyectos/{obraId}/reservas',
+    campos: [
+      { nombre: 'unidad_id', label: 'Unidad', requerido: true, descripcion: 'Id real de la unidad reservada, obtenida de listar_unidades_disponibles con estado="Reservado"' },
+      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible, ej. "Piso 3 depto B — cancelar reserva de Juan Pérez" — es lo único que ve el usuario para verificar antes de confirmar.' },
+    ],
+  },
+  cuenta_proveedor: {
+    key: 'cuenta_proveedor',
+    label: 'Cuenta de proveedor',
+    modulo: 'proveedores',
+    rutaNavegacion: '/admin/proveedores',
+    campos: [
+      { nombre: 'proveedor_id', label: 'Proveedor', requerido: true, descripcion: 'Id real del proveedor, obtenido de listar_proveedores' },
+      { nombre: 'tipo', label: 'Tipo', requerido: false, opciones: ['CBU', 'Alias', 'Efectivo', 'Cheque', 'Otro'], descripcion: 'Si se omite, CBU' },
+      { nombre: 'denominacion', label: 'Denominación', requerido: false, descripcion: 'Ej: nombre del titular o del banco' },
+      { nombre: 'numero', label: 'Número/CBU/Alias', requerido: false },
+      { nombre: 'moneda', label: 'Moneda', requerido: false, opciones: ['ARS', 'USD'], descripcion: 'Si se omite, ARS' },
     ],
   },
 }

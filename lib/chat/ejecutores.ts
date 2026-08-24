@@ -1623,6 +1623,114 @@ async function ejecutarCrearContratoVenta(ctx: ContextoChat, supabase: SupabaseC
   }
 }
 
+interface FilaTipologia { id: string; nombre: string; m2_propios: number; m2_comunes: number; m2_totales: number; descripcion: string | null }
+
+async function ejecutarListarTipologias(supabase: SupabaseClient, input: Record<string, unknown>) {
+  const obraId = texto(input.obraId)
+  if (!obraId) return { error: 'Falta indicar el proyecto.' }
+  const { data, error } = await supabase
+    .from('tipologias')
+    .select('id, nombre, m2_propios, m2_comunes, m2_totales, descripcion')
+    .eq('obra_id', obraId)
+    .order('nombre')
+  if (error) return { error: 'No se pudo obtener las tipologías.' }
+  return { tipologias: (data ?? []) as FilaTipologia[] }
+}
+
+async function ejecutarCrearTipologia(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const obraId = texto(input.obra_id)
+  if (!obraId) return { error: 'Falta indicar el proyecto.' }
+  const { data: obra } = await supabase.from('obras').select('id, nombre, tipo').eq('id', obraId).maybeSingle()
+  if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+  if (obra.tipo !== 'desarrollo') {
+    return { error: `"${obra.nombre}" es un proyecto tipo obra — las tipologías solo aplican a proyectos tipo desarrollo.` }
+  }
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'tipologias', obraId)) {
+    return { error: `Este usuario no tiene el módulo Tipologías habilitado en el proyecto "${obra.nombre}".` }
+  }
+
+  const nombre = texto(input.nombre)
+  if (!nombre) return { error: 'Falta el nombre de la tipología.' }
+  const m2Propios = numero(input.m2_propios)
+  if (!m2Propios || m2Propios <= 0) return { error: 'Los m² propios tienen que ser un número mayor a 0.' }
+  const m2Comunes = numero(input.m2_comunes) ?? 0
+  if (m2Comunes < 0) return { error: 'Los m² comunes no pueden ser negativos.' }
+
+  const { data, error } = await supabase
+    .from('tipologias')
+    .insert({
+      constructora_id: ctx.constructoraId,
+      obra_id: obraId,
+      nombre,
+      m2_propios: m2Propios,
+      m2_comunes: m2Comunes,
+      descripcion: texto(input.descripcion) ?? null,
+    })
+    .select('id, nombre')
+    .single()
+  if (error || !data) return { error: 'No se pudo crear la tipología.' }
+  return { creado: true, id: data.id, nombre: data.nombre }
+}
+
+// La UI real (UnidadForm.tsx) nunca completa `letra` — todas las unidades
+// existentes se distinguen solo por piso+numero — pero la columna existe y
+// el índice único la contempla, así que se deja disponible como opcional
+// para el caso real de un edificio que sí la necesite, sin forzarla.
+async function ejecutarCrearUnidad(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const obraId = texto(input.obra_id)
+  if (!obraId) return { error: 'Falta indicar el proyecto.' }
+  const { data: obra } = await supabase.from('obras').select('id, nombre, tipo').eq('id', obraId).maybeSingle()
+  if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+  if (obra.tipo !== 'desarrollo') {
+    return { error: `"${obra.nombre}" es un proyecto tipo obra — no tiene unidades a la venta.` }
+  }
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'unidades', obraId)) {
+    return { error: `Este usuario no tiene el módulo Unidades habilitado en el proyecto "${obra.nombre}".` }
+  }
+
+  const tipologiaId = texto(input.tipologia_id)
+  if (!tipologiaId) return { error: 'Falta indicar la tipología.' }
+  const { data: tipologia } = await supabase.from('tipologias').select('id, obra_id').eq('id', tipologiaId).maybeSingle()
+  if (!tipologia) return { error: 'No se encontró esa tipología.' }
+  if (tipologia.obra_id !== obraId) return { error: 'Esa tipología no pertenece a este proyecto.' }
+
+  const piso = numero(input.piso)
+  if (piso === undefined || !Number.isInteger(piso)) return { error: 'Falta un piso válido (número entero).' }
+  const numeroUnidad = texto(input.numero)
+  if (!numeroUnidad) return { error: 'Falta el número/identificador de la unidad.' }
+  const precioLista = numero(input.precio_lista)
+  if (!precioLista || precioLista <= 0) return { error: 'Falta un precio de lista válido (mayor a 0).' }
+
+  const entregaMinimaPct = numero(input.entrega_minima_pct) ?? 30
+  if (entregaMinimaPct < 0 || entregaMinimaPct > 100) return { error: 'El % de entrega mínima tiene que estar entre 0 y 100.' }
+  const maxCuotas = numero(input.max_cuotas) ?? 36
+  if (!Number.isInteger(maxCuotas) || maxCuotas < 1) return { error: 'Las cuotas máximas tienen que ser un número entero mayor o igual a 1.' }
+
+  const { data, error } = await supabase
+    .from('unidades')
+    .insert({
+      constructora_id: ctx.constructoraId,
+      obra_id: obraId,
+      tipologia_id: tipologiaId,
+      piso,
+      numero: numeroUnidad,
+      letra: texto(input.letra) ?? null,
+      orientacion: texto(input.orientacion) ?? null,
+      m2: numero(input.m2) ?? null,
+      precio_lista: precioLista,
+      entrega_minima_pct: entregaMinimaPct,
+      max_cuotas: maxCuotas,
+    })
+    .select('id, piso, numero')
+    .single()
+  if (error) {
+    if (error.code === '23505') return { error: 'Ya existe una unidad con ese piso y número en este proyecto.' }
+    return { error: `No se pudo crear la unidad: ${error.message}` }
+  }
+
+  return { creado: true, id: data.id, unidad: `Piso ${data.piso}${data.numero ? ` - ${data.numero}` : ''}` }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -1674,5 +1782,8 @@ export async function ejecutarHerramienta(
     case 'listar_cuentas_desarrollo': return ejecutarListarCuentasDesarrollo(ctx, supabase, input)
     case 'crear_reserva': return ejecutarCrearReserva(ctx, supabase, input)
     case 'crear_contrato_venta': return ejecutarCrearContratoVenta(ctx, supabase, input)
+    case 'listar_tipologias': return ejecutarListarTipologias(supabase, input)
+    case 'crear_tipologia': return ejecutarCrearTipologia(ctx, supabase, input)
+    case 'crear_unidad': return ejecutarCrearUnidad(ctx, supabase, input)
   }
 }

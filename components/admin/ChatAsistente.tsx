@@ -40,6 +40,8 @@ const LABEL_HERRAMIENTA: Record<string, string> = {
   liberar_equipo: 'Cambiar estado de equipo',
   crear_reserva: 'Crear reserva',
   crear_contrato_venta: 'Crear venta',
+  crear_tipologia: 'Crear tipología',
+  crear_unidad: 'Crear unidad',
 }
 
 // Un valor de input puede ser un array de objetos (ej. "items" de una

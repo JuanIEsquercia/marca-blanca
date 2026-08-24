@@ -444,6 +444,27 @@ export const TOOLS: Anthropic.Tool[] = [
     description: 'Registra la venta de una unidad, con su plan de cuotas generado solo (no hace falta cargarlas a mano). Si la venta viene de una reserva ya cargada, pasá reserva_id y el cliente/seña se toman de ahí — no hace falta repetirlos. Si no hay reserva previa, el cliente se resuelve igual que en crear_reserva (comprador_id existente, o cliente_nombre para crear uno nuevo). Nunca inventes precio_final/entrega_efectiva/cantidad_cuotas si el usuario no los dio — dejalos vacíos para que se usen los valores por defecto de la unidad. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('contrato_venta'),
   },
+  {
+    name: 'listar_tipologias',
+    description: 'Devuelve las tipologías (plantas/metrajes) de un proyecto tipo desarrollo. Usar antes de crear_unidad para resolver el id real de la tipología que corresponde, o antes de crear_tipologia para ver si ya existe una parecida y no duplicarla.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos' },
+      },
+      required: ['obraId'],
+    },
+  },
+  {
+    name: 'crear_tipologia',
+    description: 'Da de alta una tipología (planta/metraje) nueva en un proyecto tipo desarrollo. Es el paso previo obligatorio para crear_unidad si todavía no existe ninguna tipología que corresponda — llamá antes a listar_tipologias para no duplicar una que ya existe. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('tipologia'),
+  },
+  {
+    name: 'crear_unidad',
+    description: 'Da de alta una unidad nueva a la venta (nace en estado Disponible) en un proyecto tipo desarrollo — necesita una tipología ya creada (listar_tipologias, o crear_tipologia primero si no existe ninguna que corresponda). El usuario puede pedir esto como "cargá el piso 5", "agregá la unidad 302", "no me quedan más unidades para vender, cargá una nueva". precio_lista es obligatorio, nunca lo inventes si el usuario no lo dio. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    input_schema: schemaDesdeEntidad('unidad'),
+  },
 ]
 
 // Único lugar que decide, por nombre de tool, si ejecuta sola o si el
@@ -492,6 +513,9 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   listar_cuentas_desarrollo: { requiereConfirmacion: false },
   crear_reserva: { requiereConfirmacion: true, entidad: 'reserva' },
   crear_contrato_venta: { requiereConfirmacion: true, entidad: 'contrato_venta' },
+  listar_tipologias: { requiereConfirmacion: false },
+  crear_tipologia: { requiereConfirmacion: true, entidad: 'tipologia' },
+  crear_unidad: { requiereConfirmacion: true, entidad: 'unidad' },
 }
 
 // El catálogo entero es idéntico en cada request (no depende del usuario,

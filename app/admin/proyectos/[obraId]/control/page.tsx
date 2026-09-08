@@ -48,12 +48,14 @@ export default async function ControlObraPage({ params }: { params: Promise<{ ob
   if (!ctx) redirect('/admin')
   if (ctx.obraTipo !== 'obra') redirect(`/admin/proyectos/${obraId}/dashboard`)
 
-  // Esta pantalla cruza el contrato (Certificados) con el costo (Gastos).
-  // Se exigen los dos módulos: con uno solo, la RLS devolvería la mitad de
-  // los datos en silencio y el número mostrado sería falso, no incompleto.
-  const tieneCertificados = puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'certificados', obraId)
-  const tieneGastos = puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'gastos', obraId)
-  if (!tieneCertificados || !tieneGastos) redirect('/admin?motivo=sin-acceso')
+  // Módulo propio (migration_074), no la suma de 'certificados' + 'gastos':
+  // así se puede dar acceso al análisis sin dar permiso de escritura sobre
+  // contratos ni gastos. La RPC chequea este mismo módulo por dentro, con
+  // SECURITY DEFINER, así que devuelve el análisis completo o falla — nunca
+  // la mitad de los datos en silencio.
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'control', obraId)) {
+    redirect('/admin?motivo=sin-acceso')
+  }
 
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('resumen_rubros_obra', { p_obra_id: obraId })

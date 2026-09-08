@@ -16,10 +16,6 @@ interface NavItem {
   href: string
   label: string
   permiso: ModuloKey | null
-  // Segundo módulo requerido, cuando la pantalla cruza datos de dos
-  // (Control de obra necesita el contrato Y los gastos). Se exigen ambos:
-  // con uno solo la RLS devolvería la mitad de los números en silencio.
-  permisoExtra?: ModuloKey
   roles: string[]
   icon: React.ReactNode
 }
@@ -255,14 +251,6 @@ function buildObraNav(obraId: string, modoCuentas: 'empresa' | 'especificas'): N
           icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
         },
         {
-          href: `${base}/control`,
-          label: 'Control de obra',
-          permiso: 'certificados' as ModuloKey,
-          permisoExtra: 'gastos' as ModuloKey,
-          roles: ['admin', 'operador'],
-          icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
-        },
-        {
           href: `${base}/asignado`,
           label: 'Personal, equipos y stock',
           permiso: null,
@@ -274,6 +262,16 @@ function buildObraNav(obraId: string, modoCuentas: 'empresa' | 'especificas'): N
     {
       label: 'Finanzas',
       items: [
+        // Primero el análisis, después el detalle transaccional: Control
+        // de obra es el resumen económico de la obra, y su acción típica
+        // ("hay costo sin imputar") lleva a Gastos, que está acá al lado.
+        {
+          href: `${base}/control`,
+          label: 'Control de obra',
+          permiso: 'control' as ModuloKey,
+          roles: ['admin', 'operador'],
+          icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+        },
         ...(modoCuentas === 'especificas' ? [{
           href: `${base}/cuentas`,
           label: 'Cuentas',
@@ -369,8 +367,7 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
     if (!item.roles.includes(userRole)) return false
     if (userRole === 'admin') return true
     if (item.permiso === null) return true
-    if (!puedeAcceder(userRole, permisosEmpresa, proyectos, item.permiso, obraId)) return false
-    return !item.permisoExtra || puedeAcceder(userRole, permisosEmpresa, proyectos, item.permisoExtra, obraId)
+    return puedeAcceder(userRole, permisosEmpresa, proyectos, item.permiso, obraId)
   }
 
   async function handleLogout() {

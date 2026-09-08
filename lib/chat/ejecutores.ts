@@ -2699,14 +2699,11 @@ async function ejecutarConsultarControlObra(ctx: ContextoChat, supabase: Supabas
     return { error: `"${obra.nombre}" es un proyecto tipo desarrollo — el control por rubro solo aplica a proyectos tipo obra (los desarrollos se miden por unidades vendidas, usá consultar_unidades).` }
   }
 
-  // Se exigen los dos módulos: con uno solo la RLS devolvería la mitad de
-  // los datos en silencio y el número sería falso, no incompleto. Mismo
-  // criterio que la página.
-  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'certificados', obraId)) {
-    return { error: `Este usuario no tiene el módulo Contratos habilitado en "${obra.nombre}" — sin eso no se puede ver contra qué comparar.` }
-  }
-  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'gastos', obraId)) {
-    return { error: `Este usuario no tiene el módulo Gastos habilitado en "${obra.nombre}" — sin eso no se puede ver el costo real.` }
+  // Módulo propio (migration_074) — la RPC lo vuelve a chequear por dentro
+  // (SECURITY DEFINER); esto es para devolver un mensaje prolijo en vez de
+  // un error crudo de Postgres.
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'control', obraId)) {
+    return { error: `Este usuario no tiene el módulo Control de obra habilitado en "${obra.nombre}".` }
   }
 
   const { data, error } = await supabase.rpc('resumen_rubros_obra', { p_obra_id: obraId })

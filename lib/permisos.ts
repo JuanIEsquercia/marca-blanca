@@ -23,6 +23,14 @@ export const MODULOS = [
     descripcion: 'Certificación de avance de obra, rubro por rubro.' },
   { key: 'cobros',      label: 'Cobros de obra', seccion: 'Comercial', soloTipo: 'obra',
     descripcion: 'Cobros al cliente asociados a los certificados de esta obra.' },
+  // Módulo propio y no la suma de 'certificados' + 'gastos' a propósito
+  // (migration_074): es una vista de análisis, así que permite mostrarle a
+  // alguien cómo viene la obra SIN darle permiso para editar contratos ni
+  // cargar gastos. La RPC que la alimenta es SECURITY DEFINER y chequea
+  // este mismo módulo adentro, así que el número que devuelve siempre está
+  // completo o falla — nunca a medias.
+  { key: 'control',     label: 'Control de obra', seccion: 'Finanzas', soloTipo: 'obra',
+    descripcion: 'Ver lo presupuestado contra lo ejecutado rubro por rubro, con el margen de la obra. Es solo lectura: no permite cargar ni editar nada.' },
   { key: 'gastos',      label: 'Gastos',      seccion: 'Operaciones',
     descripcion: 'Gastos y pagos a proveedores imputados a este proyecto.',
     avisoAgregado: 'También habilita ver el listado de Gastos de TODA la empresa (no solo este proyecto) en el menú principal.' },

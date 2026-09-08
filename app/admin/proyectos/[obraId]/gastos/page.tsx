@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getProyectoContext } from '@/lib/tenant'
 import { puedeAcceder } from '@/lib/permisos'
+import { obtenerRubrosParaObra } from '@/lib/rubros'
 import GastosManager from '@/components/admin/GastosManager'
 import type { Metadata } from 'next'
 
@@ -15,11 +16,11 @@ export default async function GastosProyectoPage({ params }: { params: Promise<{
 
   const supabase = await createClient()
 
-  const [{ data: gastos }, { data: proveedores }, { data: categorias }, { data: cuentasPropias }, { data: contratosSubcontratista }] =
+  const [{ data: gastos }, { data: proveedores }, { data: categorias }, { data: cuentasPropias }, { data: contratosSubcontratista }, rubros] =
     await Promise.all([
       supabase
         .from('gastos')
-        .select('*, proveedores(*), cuentas_proveedor(*), categorias_costo(*), cuentas_propias(*), gasto_pagos(*, cuentas_propias(id, nombre, moneda))')
+        .select('*, proveedores(*), cuentas_proveedor(*), categorias_costo(*), rubros(id, nombre), cuentas_propias(*), gasto_pagos(*, cuentas_propias(id, nombre, moneda))')
         .eq('constructora_id', ctx.constructoraId)
         .eq('obra_id', obraId)
         .order('fecha_vencimiento', { ascending: true }),
@@ -51,6 +52,7 @@ export default async function GastosProyectoPage({ params }: { params: Promise<{
         .select('id, proveedor_id, descripcion, certificados_avance(id, numero, periodo)')
         .eq('obra_id', obraId)
         .eq('tipo', 'subcontratista'),
+      obtenerRubrosParaObra(supabase, ctx.constructoraId, obraId),
     ])
 
   return (
@@ -64,6 +66,7 @@ export default async function GastosProyectoPage({ params }: { params: Promise<{
         proveedores={proveedores ?? []}
         categorias={categorias ?? []}
         cuentasPropias={cuentasPropias ?? []}
+        rubros={rubros}
         constructoraId={ctx.constructoraId}
         obraId={obraId}
         readOnly={ctx.obraEstado === 'finalizada'}

@@ -9,6 +9,9 @@ export interface DatosGastoRapido {
   proveedorId?: string
   cuentaProveedorId?: string
   categoriaId?: string
+  // Rubro de obra al que se imputa el costo (migration_073) — distinto de
+  // categoriaId. Solo tiene sentido junto con obraId.
+  rubroId?: string
   certificadoId?: string
   numeroComprobante?: string
   montoNeto?: number
@@ -36,6 +39,7 @@ export async function crearGastoRapido(supabase: SupabaseClient, constructoraId:
       proveedor_id: datos.proveedorId ?? null,
       cuenta_proveedor_id: datos.cuentaProveedorId ?? null,
       categoria_id: datos.categoriaId ?? null,
+      rubro_id: datos.rubroId ?? null,
       certificado_id: datos.certificadoId ?? null,
       descripcion,
       monto: datos.monto,

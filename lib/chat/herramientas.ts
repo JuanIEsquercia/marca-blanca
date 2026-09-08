@@ -162,6 +162,7 @@ export const TOOLS: Anthropic.Tool[] = [
       type: 'object',
       properties: {
         obra_id: { type: 'string', description: 'Id real del proyecto, obtenido de listar_proyectos — opcional' },
+        rubro: { type: 'string', description: 'Nombre del rubro de obra al que se imputa esta compra (ej. "Hormigón") — se resuelve o crea solo por nombre. El gasto que se genera al confirmar la recepción lo hereda. Opcional, y solo aplica si la orden tiene proyecto.' },
         items: {
           type: 'array',
           description: 'Productos pedidos en esta orden — al menos uno',
@@ -640,6 +641,17 @@ export const TOOLS: Anthropic.Tool[] = [
     input_schema: schemaDesdeEntidad('aceptacion_presupuesto'),
   },
   {
+    name: 'consultar_control_obra',
+    description: 'Devuelve el control de obra de un proyecto tipo obra: rubro por rubro, cuánto se contrató con el cliente, cuánto se certificó, cuánto se lleva gastado imputado a ese rubro y el margen. Es la respuesta a "¿cómo viene la obra?", "¿estamos dentro del presupuesto?", "¿en qué rubro me estoy pasando?", "¿cuánto margen queda?". Trae también "totales" ya calculados y "sin_imputar" (costo que todavía no tiene rubro asignado y por lo tanto no está repartido entre los rubros) — si ese número no es cero, aclarale al usuario que el análisis está incompleto hasta imputarlos. Nunca sumes montos de esta respuesta a mano: usá los totales que vienen calculados.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        obraId: { type: 'string', description: 'Id real del proyecto (tipo obra), obtenido de listar_proyectos' },
+      },
+      required: ['obraId'],
+    },
+  },
+  {
     name: 'crear_rubro_adicional',
     description: 'Agrega un rubro nuevo a un contrato de obra YA FIRMADO (adicional de obra) — el usuario puede pedir esto como "hay que sumar un adicional", "agregá un rubro nuevo al contrato", "esto no estaba en el presupuesto original". El rubro se resuelve o crea solo por nombre. Llamá antes a listar_contratos_obra para resolver el id real del contrato. Este rubro nuevo se puede certificar y cobrar como cualquier otro, junto con los que ya tenía el contrato. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('rubro_adicional'),
@@ -717,6 +729,7 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
   listar_presupuestos: { requiereConfirmacion: false },
   aceptar_presupuesto: { requiereConfirmacion: true, entidad: 'aceptacion_presupuesto' },
   crear_rubro_adicional: { requiereConfirmacion: true, entidad: 'rubro_adicional' },
+  consultar_control_obra: { requiereConfirmacion: false },
 }
 
 // El catálogo entero es idéntico en cada request (no depende del usuario,

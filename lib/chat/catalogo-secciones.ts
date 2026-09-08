@@ -40,6 +40,7 @@ export const SECCIONES_PROYECTO: DefinicionSeccionProyecto[] = [
   { key: 'contratos', label: 'Ventas', segmento: 'contratos', modulo: 'contratos', tipos: ['desarrollo'] },
   { key: 'certificados', label: 'Contratos', segmento: 'certificados', modulo: 'certificados', tipos: ['obra'] },
   { key: 'cobros', label: 'Cobros', segmento: 'cobros', modulo: 'cobros', tipos: ['obra'] },
+  { key: 'control', label: 'Control de obra', segmento: 'control', modulo: 'certificados', tipos: ['obra'] },
   { key: 'cuentas', label: 'Cuentas', segmento: 'cuentas', modulo: 'cuentas', tipos: ['desarrollo', 'obra'], soloModoCuentas: 'especificas' },
   { key: 'gastos', label: 'Gastos', segmento: 'gastos', modulo: 'gastos', tipos: ['desarrollo', 'obra'] },
   { key: 'caja', label: 'Caja', segmento: 'caja', modulo: 'tesoreria', tipos: ['desarrollo', 'obra'] },

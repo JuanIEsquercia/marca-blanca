@@ -9,7 +9,7 @@ import { crearPersonalRapido, crearCuadrillaRapida } from '@/lib/personal'
 import { crearGastoRapido } from '@/lib/gastos'
 import { obtenerCuentasPropias, calcularCajaEmpresa, calcularCajaProyecto } from '@/lib/tesoreria'
 import { obtenerIngresos } from '@/lib/ingresos'
-import { obtenerOCrearRubro } from '@/lib/rubros'
+import { obtenerOCrearRubro, crearRubroRapido } from '@/lib/rubros'
 import type { TipoContratacion } from '@/types/database'
 import { CATALOGO_ENTIDADES } from './catalogo-entidades'
 import { SECCIONES_EMPRESA, SECCIONES_PROYECTO } from './catalogo-secciones'
@@ -36,6 +36,22 @@ function numero(valor: unknown): number | undefined {
 const TIPOS_CONTRATACION: TipoContratacion[] = ['relacion_dependencia', 'contratado', 'subcontratista']
 function tipoContratacion(valor: unknown): TipoContratacion | undefined {
   return typeof valor === 'string' && (TIPOS_CONTRATACION as string[]).includes(valor) ? (valor as TipoContratacion) : undefined
+}
+
+// Imputación de un costo a un rubro de obra (migration_073): el modelo
+// manda el NOMBRE ("Hormigón") y acá se resuelve o crea contra el catálogo
+// de la constructora, igual que los productos en crear_orden_compra — el
+// chat no necesita conocer ids de rubro. Solo aplica con proyecto: sin
+// obra no hay contrato contra el cual comparar, así que se ignora.
+async function resolverRubroId(
+  supabase: SupabaseClient,
+  constructoraId: string,
+  nombre: string | undefined,
+  obraId: string | null
+): Promise<string | undefined> {
+  if (!nombre || !obraId) return undefined
+  const rubro = await crearRubroRapido(supabase, constructoraId, nombre)
+  return rubro?.id
 }
 
 function ejecutarConsultarEstructura(input: Record<string, unknown>) {
@@ -334,6 +350,7 @@ async function ejecutarCrearGasto(ctx: ContextoChat, supabase: SupabaseClient, i
     proveedorId,
     cuentaProveedorId,
     categoriaId: texto(input.categoria_id),
+    rubroId: await resolverRubroId(supabase, ctx.constructoraId, texto(input.rubro), obraId),
     certificadoId,
     numeroComprobante: texto(input.numero_comprobante),
     montoNeto: numero(input.monto_neto),
@@ -467,6 +484,7 @@ async function ejecutarCrearOrdenCompra(ctx: ContextoChat, supabase: SupabaseCli
     .insert({
       constructora_id: ctx.constructoraId,
       obra_id: obraId,
+      rubro_id: (await resolverRubroId(supabase, ctx.constructoraId, texto(input.rubro), obraId)) ?? null,
       fecha_emision: texto(input.fecha_emision) ?? new Date().toISOString().slice(0, 10),
       notas: texto(input.notas) ?? null,
     })
@@ -2232,6 +2250,7 @@ async function ejecutarCrearAcopio(ctx: ContextoChat, supabase: SupabaseClient, 
 
   const moneda = input.moneda === 'USD' ? 'USD' : 'ARS'
   const fecha = texto(input.fecha) ?? new Date().toISOString().slice(0, 10)
+  const rubroId = (await resolverRubroId(supabase, ctx.constructoraId, texto(input.rubro), obraId)) ?? null
 
   const { data: gasto, error: errGasto } = await supabase
     .from('gastos')
@@ -2245,6 +2264,7 @@ async function ejecutarCrearAcopio(ctx: ContextoChat, supabase: SupabaseClient, 
       fecha_vencimiento: fecha,
       fecha_pago: fecha,
       estado: 'Pagado',
+      rubro_id: rubroId,
       notas: texto(input.notas) ?? null,
     })
     .select('id')
@@ -2260,6 +2280,7 @@ async function ejecutarCrearAcopio(ctx: ContextoChat, supabase: SupabaseClient, 
       obra_id: obraId,
       proveedor_id: proveedorId,
       producto_referencia_id: productoRef.id,
+      rubro_id: rubroId,
       saldo_inicial: saldoInicial,
       monto_pagado: montoPagado,
       precio_referencia_inicial: precioReferenciaInicial,
@@ -2651,6 +2672,85 @@ async function ejecutarCrearRubroAdicional(ctx: ContextoChat, supabase: Supabase
   return { creado: true, id: data.id, rubro: data.rubro, monto_contratado: data.monto_contratado }
 }
 
+interface FilaControlRubro {
+  rubro: string | null
+  moneda_contrato: string | null
+  monto_contratado: number
+  monto_certificado: number
+  pct_certificado: number
+  costo_ars: number
+  costo_usd: number
+  costo_pendiente_ars: number
+  costo_pendiente_usd: number
+  cantidad_gastos: number
+}
+
+// Misma RPC que alimenta la pantalla /admin/proyectos/[obraId]/control
+// (migration_073) — el chat nunca puede dar un número distinto al que el
+// usuario ve ahí. Igual criterio que consultar_cashflow con
+// calcularCajaEmpresa.
+async function ejecutarConsultarControlObra(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
+  const obraId = texto(input.obraId)
+  if (!obraId) return { error: 'Falta indicar el proyecto — usá listar_proyectos primero.' }
+
+  const { data: obra } = await supabase.from('obras').select('id, nombre, tipo').eq('id', obraId).maybeSingle()
+  if (!obra) return { error: 'No se encontró ese proyecto, o este usuario no tiene acceso.' }
+  if (obra.tipo !== 'obra') {
+    return { error: `"${obra.nombre}" es un proyecto tipo desarrollo — el control por rubro solo aplica a proyectos tipo obra (los desarrollos se miden por unidades vendidas, usá consultar_unidades).` }
+  }
+
+  // Se exigen los dos módulos: con uno solo la RLS devolvería la mitad de
+  // los datos en silencio y el número sería falso, no incompleto. Mismo
+  // criterio que la página.
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'certificados', obraId)) {
+    return { error: `Este usuario no tiene el módulo Contratos habilitado en "${obra.nombre}" — sin eso no se puede ver contra qué comparar.` }
+  }
+  if (!puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'gastos', obraId)) {
+    return { error: `Este usuario no tiene el módulo Gastos habilitado en "${obra.nombre}" — sin eso no se puede ver el costo real.` }
+  }
+
+  const { data, error } = await supabase.rpc('resumen_rubros_obra', { p_obra_id: obraId })
+  if (error) return { error: 'No se pudo calcular el control de obra.' }
+
+  const filas = (data ?? []) as FilaControlRubro[]
+  const conRubro = filas.filter(f => f.rubro !== null)
+  const sinImputar = filas.find(f => f.rubro === null)
+  const moneda = conRubro.find(f => f.moneda_contrato)?.moneda_contrato ?? 'ARS'
+  const costoEn = (f: FilaControlRubro) => (moneda === 'USD' ? f.costo_usd : f.costo_ars)
+
+  const contratado = redondear2(conRubro.reduce((s, f) => s + f.monto_contratado, 0))
+  const certificado = redondear2(conRubro.reduce((s, f) => s + f.monto_certificado, 0))
+  const costo = redondear2(filas.reduce((s, f) => s + costoEn(f), 0))
+
+  return {
+    proyecto: obra.nombre,
+    moneda,
+    rubros: conRubro.map(f => ({
+      rubro: f.rubro,
+      monto_contratado: f.monto_contratado,
+      monto_certificado: f.monto_certificado,
+      pct_certificado: f.pct_certificado,
+      costo_real: redondear2(costoEn(f)),
+      margen: redondear2(f.monto_contratado - costoEn(f)),
+      cantidad_gastos: f.cantidad_gastos,
+      // Un gasto imputado a un rubro que el contrato no tiene: suele ser un
+      // adicional que todavía no se cargó (ver crear_rubro_adicional).
+      sin_contrato: f.monto_contratado === 0,
+    })),
+    // Totales ya calculados — nunca sumar los montos de la lista a mano.
+    totales: {
+      contratado,
+      certificado,
+      pct_certificado: contratado > 0 ? redondear2((certificado / contratado) * 100) : 0,
+      costo_real: costo,
+      margen: redondear2(contratado - costo),
+    },
+    sin_imputar: sinImputar
+      ? { costo: redondear2(costoEn(sinImputar)), cantidad_gastos: sinImputar.cantidad_gastos }
+      : { costo: 0, cantidad_gastos: 0 },
+  }
+}
+
 // Dispatcher único que usa el loop agéntico (lib/chat/agente.ts) — nunca
 // ejecuta SQL libre, solo estas funciones acotadas y tipadas por tool.
 export async function ejecutarHerramienta(
@@ -2727,5 +2827,6 @@ export async function ejecutarHerramienta(
     case 'listar_presupuestos': return ejecutarListarPresupuestos(ctx, supabase, input)
     case 'aceptar_presupuesto': return ejecutarAceptarPresupuesto(ctx, supabase, input)
     case 'crear_rubro_adicional': return ejecutarCrearRubroAdicional(ctx, supabase, input)
+    case 'consultar_control_obra': return ejecutarConsultarControlObra(ctx, supabase, input)
   }
 }

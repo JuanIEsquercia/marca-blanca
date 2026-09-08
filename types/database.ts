@@ -226,6 +226,11 @@ export interface Gasto {
   proveedor_id: string | null
   cuenta_proveedor_id: string | null
   categoria_id: string | null
+  // Rubro de obra al que se imputa el costo (migration_073) — es lo que
+  // permite compararlo contra el contrato en Control de obra. Distinto de
+  // categoria_id, que dice qué CLASE de gasto es (materiales, mano de
+  // obra) sin decir a qué parte de la obra corresponde.
+  rubro_id: string | null
   cuenta_propia_id: string | null
   certificado_id: string | null
   descripcion: string
@@ -244,6 +249,7 @@ export interface Gasto {
   proveedores?: Proveedor
   cuentas_proveedor?: CuentaProveedor
   categorias_costo?: CategoriaCosto
+  rubros?: { id: string; nombre: string } | null
   cuentas_propias?: CuentaPropia
   gasto_pagos?: GastoPago[]
 }

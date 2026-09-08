@@ -90,6 +90,7 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'proveedor_id', label: 'Proveedor', requerido: false, descripcion: 'Id real del proveedor, obtenido de listar_proveedores' },
       { nombre: 'cuenta_proveedor_id', label: 'Cuenta del proveedor', requerido: false, descripcion: 'Id real de la cuenta (CBU/Alias/Efectivo/Cheque/Otro) del proveedor donde se le paga, obtenida de listar_cuentas_proveedor — solo tiene sentido si ya hay un proveedor elegido' },
       { nombre: 'categoria_id', label: 'Categoría', requerido: false, descripcion: 'Id real de la categoría de gasto, obtenido de listar_categorias_gasto' },
+      { nombre: 'rubro', label: 'Rubro de obra', requerido: false, descripcion: 'Nombre del rubro de obra al que se imputa el costo (ej. "Hormigón", "Instalación eléctrica") — se resuelve o crea solo por nombre, no hace falta un id. Es lo que hace que el gasto entre en el control de obra (presupuestado vs. ejecutado). NO es lo mismo que la categoría: la categoría dice qué CLASE de gasto es, el rubro dice a qué PARTE DE LA OBRA corresponde. Solo tiene sentido si el gasto va imputado a un proyecto.' },
       { nombre: 'certificado_id', label: 'Certificado (pago a subcontratista)', requerido: false, descripcion: 'Id real de un certificado de avance de un contrato con SUBCONTRATISTA que este gasto está pagando, obtenido de listar_certificados_pago_proveedor — solo aplica cuando el proveedor es un subcontratista con contrato y certificados propios' },
       { nombre: 'numero_comprobante', label: 'Número de comprobante', requerido: false, descripcion: 'Número de factura/recibo, si el usuario lo tiene' },
       { nombre: 'monto_neto', label: 'Monto neto (sin IVA)', requerido: false, descripcion: 'Desglose informativo — no afecta ningún cálculo real de caja/tesorería, solo queda de referencia' },
@@ -106,6 +107,7 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
     rutaNavegacion: '/admin/compras?tab=ordenes',
     campos: [
       { nombre: 'obra_id', label: 'Proyecto', requerido: false, descripcion: 'Id real del proyecto, obtenido de listar_proyectos. Si se omite, la orden queda en el pool de la empresa para repartir después entre obras.' },
+      { nombre: 'rubro', label: 'Rubro de obra', requerido: false, descripcion: 'Nombre del rubro al que se imputa esta compra (ej. "Hormigón") — se resuelve o crea solo por nombre. Al confirmar la recepción, el gasto que se genera hereda este rubro y entra en el control de obra. Solo tiene sentido si la orden tiene proyecto.' },
       { nombre: 'items', label: 'Ítems', requerido: true, descripcion: 'Lista de productos pedidos, cada uno con nombre y cantidad (y unidad de medida si corresponde) — al menos uno. Si el producto no existe todavía en el sistema, se crea solo.' },
       { nombre: 'fecha_emision', label: 'Fecha de emisión', requerido: false, descripcion: 'Formato YYYY-MM-DD — si se omite, hoy' },
       { nombre: 'notas', label: 'Notas', requerido: false },
@@ -383,6 +385,7 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'obra_id', label: 'Proyecto', requerido: false, descripcion: 'Id real del proyecto, obtenido de listar_proyectos — si se omite, es un acopio administrativo de la empresa (sin proyecto), y eso solo lo puede crear un administrador' },
       { nombre: 'proveedor_id', label: 'Proveedor', requerido: true, descripcion: 'Id real del proveedor con el que se acopia, obtenido de listar_proveedores' },
       { nombre: 'producto_referencia', label: 'Producto de referencia', requerido: true, descripcion: 'Nombre del producto que se acopia (ej. "Cemento") — se busca o se crea solo por nombre, no hace falta averiguar su id' },
+      { nombre: 'rubro', label: 'Rubro de obra', requerido: false, descripcion: 'Nombre del rubro al que se imputa el gasto de este acopio (ej. "Hormigón") — se resuelve o crea solo por nombre. Conviene indicarlo: el gasto del acopio nace ya Pagado y después un operador no puede editarlo para imputarlo. Solo tiene sentido si el acopio tiene proyecto.' },
       { nombre: 'unidad_medida', label: 'Unidad de medida', requerido: false, descripcion: 'Ej. "kg", "bolsa", "unidad" — si se omite y el producto ya existe, se usa la que ya tenga' },
       { nombre: 'saldo_inicial', label: 'Cantidad acopiada', requerido: true, descripcion: 'Cantidad del producto de referencia que representa este acopio (número)' },
       { nombre: 'monto_pagado', label: 'Monto pagado', requerido: true, descripcion: 'Monto que se le pagó al proveedor por adelantado por este acopio — genera un gasto ya marcado como Pagado, no pendiente' },

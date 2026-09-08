@@ -5,8 +5,10 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { subirComprobante } from '@/lib/comprobantes'
+import type { RubroOpcion } from '@/lib/rubros'
 import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
 import LinkComprobante from './LinkComprobante'
+import RubroSelect from './RubroSelect'
 import type { Gasto, Proveedor, CuentaProveedor, CategoriaCosto, CuentaPropia, ModoCuentas } from '@/types/database'
 import ConfirmModal from './ConfirmModal'
 import PlanDePagoModal from './PlanDePagoModal'
@@ -38,6 +40,11 @@ interface Props {
   // pre-filtrada a un solo proyecto (ver su página), así que no lo pasa —
   // el default {} hace que cuentasPermitidasParaObra() no restrinja nada.
   obrasModoCuentas?: Record<string, ModoCuentas>
+  // Rubros para imputar el costo (migration_073) — solo los pasa la vista
+  // POR PROYECTO. En la vista de empresa los gastos nacen sin obra
+  // (administrativos), y sin obra no hay contrato contra el cual comparar,
+  // así que el selector no aparece en vez de pedir un dato que no se usa.
+  rubros?: RubroOpcion[]
   constructoraId: string
   obraId?: string
   readOnly?: boolean
@@ -64,6 +71,7 @@ const EMPTY_FORM = {
   proveedor_id: '',
   cuenta_proveedor_id: '',
   categoria_id: '',
+  rubro_id: '',
   certificado_id: '',
   descripcion: '',
   monto: '',
@@ -85,7 +93,7 @@ function pctDesdeNetoEIva(neto: number | null | undefined, iva: number | null | 
   return redondear2((iva / neto) * 100)
 }
 
-export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias, obrasModoCuentas = {}, constructoraId, obraId, readOnly, historialAcotado, contratosSubcontratista = [], puedeCrearProveedor, puedeCrearCuenta }: Props) {
+export default function GastosManager({ gastos, proveedores, categorias, cuentasPropias, obrasModoCuentas = {}, rubros, constructoraId, obraId, readOnly, historialAcotado, contratosSubcontratista = [], puedeCrearProveedor, puedeCrearCuenta }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [, startTransition] = useTransition()
@@ -110,6 +118,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   // (ProveedorSelect, mismos campos que el alta completa) sin perder lo ya
   // completado — mismo criterio que "+ Agregar producto nuevo" en Compras.
   const [proveedoresNuevos, setProveedoresNuevos] = useState<Proveedor[]>([])
+  const [rubrosNuevos, setRubrosNuevos] = useState<RubroOpcion[]>([])
   const [cuentasNuevas, setCuentasNuevas] = useState<CuentaPropia[]>([])
 
   // Pago modal
@@ -190,6 +199,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       proveedor_id: g.proveedor_id ?? '',
       cuenta_proveedor_id: g.cuenta_proveedor_id ?? '',
       categoria_id: g.categoria_id ?? '',
+      rubro_id: g.rubro_id ?? '',
       certificado_id: g.certificado_id ?? '',
       descripcion: g.descripcion,
       monto: String(g.monto),
@@ -217,6 +227,10 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       proveedor_id: form.proveedor_id || null,
       cuenta_proveedor_id: form.cuenta_proveedor_id || null,
       categoria_id: form.categoria_id || null,
+      // Solo se manda cuando la vista ofrece el selector (por proyecto) —
+      // en la vista de empresa el campo no existe y no hay que pisarlo con
+      // null al editar un gasto que sí tiene rubro imputado.
+      ...(rubros ? { rubro_id: form.rubro_id || null } : {}),
       certificado_id: form.certificado_id || null,
       descripcion: form.descripcion.trim(),
       monto: redondear2(parseFloat(form.monto)),
@@ -358,6 +372,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       proveedor_id: g.proveedor_id ?? '',
       cuenta_proveedor_id: g.cuenta_proveedor_id ?? '',
       categoria_id: g.categoria_id ?? '',
+      rubro_id: g.rubro_id ?? '',
       certificado_id: '',
       descripcion: g.descripcion,
       monto: String(g.monto),
@@ -593,6 +608,12 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                     {g.proveedores?.razon_social ?? <span className="text-slate-400">—</span>}
                   </td>
                   <td className="px-4 py-3">
+                    {rubros && (
+                      <p className={cn('text-xs mb-0.5', g.rubros?.nombre ? 'text-slate-700 font-medium' : 'text-amber-600')}
+                        title={g.rubros?.nombre ? 'Rubro de obra imputado' : 'Sin imputar — no entra en Control de obra'}>
+                        {g.rubros?.nombre ?? 'Sin rubro'}
+                      </p>
+                    )}
                     {g.categorias_costo ? (
                       <span className="inline-flex items-center gap-1.5 text-xs">
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.categorias_costo.color }} />
@@ -858,6 +879,24 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   </select>
                 </div>
               </div>
+
+              {/* Imputación al rubro de obra — solo en la vista por
+                  proyecto, es lo que alimenta Control de obra. */}
+              {rubros && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Rubro de obra</label>
+                  <RubroSelect
+                    rubros={[...rubros, ...rubrosNuevos]}
+                    value={form.rubro_id}
+                    onChange={id => setForm(f => ({ ...f, rubro_id: id }))}
+                    onCreated={r => setRubrosNuevos(prev => [...prev, { ...r, enContrato: false }])}
+                    constructoraId={constructoraId}
+                    emptyLabel="Sin imputar a un rubro" />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Con esto el gasto entra en Control de obra y se compara contra lo presupuestado. La categoría de arriba es otra cosa: dice qué clase de gasto es, no a qué parte de la obra.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Proveedor</label>

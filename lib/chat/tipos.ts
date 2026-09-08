@@ -65,7 +65,7 @@ export interface DefinicionSeccionEmpresa {
 // de proyecto, o a uno solo.
 export type SeccionProyectoKey =
   | 'dashboard' | 'tipologias' | 'amenities' | 'unidades' | 'asignado'
-  | 'reservas' | 'contratos' | 'certificados' | 'cobros' | 'cuentas' | 'gastos' | 'caja'
+  | 'reservas' | 'contratos' | 'certificados' | 'cobros' | 'control' | 'cuentas' | 'gastos' | 'caja'
 
 export interface DefinicionSeccionProyecto {
   key: SeccionProyectoKey
@@ -137,6 +137,7 @@ export type NombreHerramienta =
   | 'listar_plan_pago' | 'crear_plan_pago' | 'liquidar_cuota_pago' | 'rechazar_cuota_pago'
   | 'listar_presupuestos' | 'aceptar_presupuesto'
   | 'crear_rubro_adicional'
+  | 'consultar_control_obra'
 
 export interface MetadataHerramienta {
   requiereConfirmacion: boolean

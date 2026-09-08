@@ -11,7 +11,10 @@ const MODULO_KEYS = MODULOS.map(m => m.key)
 // El segmento de URL no siempre coincide con la key del módulo (la Caja de
 // un proyecto vive en /caja pero su permiso es 'tesoreria') — sin este mapeo
 // el guard de abajo nunca matchea ese segmento y la ruta queda sin proteger.
-const SEGMENTO_A_MODULO: Record<string, ModuloKey> = { caja: 'tesoreria' }
+// 'control' (Control de obra) exige además 'gastos' — eso lo chequea la
+// propia página, que es la única que puede redirigir con el motivo
+// correcto; acá alcanza con cubrir el módulo principal.
+const SEGMENTO_A_MODULO: Record<string, ModuloKey> = { caja: 'tesoreria', control: 'certificados' }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Autenticación y headers en paralelo — getAuthUser() está cacheado por

@@ -4,10 +4,12 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatCurrency, formatDate, redondear2 } from '@/lib/utils'
+import type { Rubro } from '@/lib/rubros'
 import type { Producto, EstadoOrdenCompra, EstadoAcopio } from '@/types/database'
 import ConfirmModal from './ConfirmModal'
 import IvaCalculator from './IvaCalculator'
 import ProveedorSelect from './ProveedorSelect'
+import RubroSelect from './RubroSelect'
 import CategoriasCostoManager from './CategoriasCostoManager'
 
 type ItemRow = {
@@ -108,6 +110,11 @@ interface Props {
   stockResumen: StockResumenRow[]
   acopios: AcopioRow[]
   acopiosResumen: AcopioResumenRow[]
+  // Catálogo plano de rubros de la constructora (migration_073): una orden
+  // o un acopio imputado a un rubro se lo pasa al gasto que genera, para
+  // que entre solo en Control de obra sin re-imputarlo después (el gasto de
+  // un acopio nace 'Pagado' y un operador ya no puede editarlo).
+  rubros: Rubro[]
   constructoraId: string
   constructoraNombre: string
   // 'proveedores' es un módulo de empresa aparte de 'compras' — ver
@@ -145,10 +152,10 @@ function estadoCumplimiento(items: ItemRow[]): { label: string; color: string } 
 }
 
 const EMPTY_ITEM_FORM = { producto_id: '', cantidad_solicitada: '', notas: '', creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad' }
-const EMPTY_ORDEN_FORM = { obra_id: '', fecha_emision: new Date().toISOString().split('T')[0], notas: '' }
+const EMPTY_ORDEN_FORM = { obra_id: '', rubro_id: '', fecha_emision: new Date().toISOString().split('T')[0], notas: '' }
 const EMPTY_PRODUCTO_FORM = { nombre: '', unidad_medida: 'unidad', categoria_id: '' }
 const EMPTY_ACOPIO_FORM = {
-  proveedor_id: '', obra_id: '', producto_referencia_id: '', saldo_inicial: '', monto_pagado: '',
+  proveedor_id: '', obra_id: '', rubro_id: '', producto_referencia_id: '', saldo_inicial: '', monto_pagado: '',
   precio_referencia_inicial: '', moneda: 'ARS',
   fecha: new Date().toISOString().split('T')[0], notas: '',
   creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad',
@@ -158,7 +165,7 @@ const EMPTY_RETIRO_FORM = {
   creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad',
 }
 
-export default function ComprasManager({ ordenes, productos, proveedores, obras, categorias, stockResumen, acopios, acopiosResumen, constructoraId, constructoraNombre, puedeCrearProveedor, tabInicial }: Props) {
+export default function ComprasManager({ ordenes, productos, proveedores, obras, categorias, stockResumen, acopios, acopiosResumen, rubros, constructoraId, constructoraNombre, puedeCrearProveedor, tabInicial }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
@@ -172,6 +179,10 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
   // Nueva orden
   const [showForm, setShowForm] = useState(false)
   const [ordenForm, setOrdenForm] = useState(EMPTY_ORDEN_FORM)
+  // Igual que productosNuevos/proveedoresNuevos: el catálogo viene del
+  // servidor, y lo creado al vuelo se suma acá sin recargar la página.
+  const [rubrosNuevos, setRubrosNuevos] = useState<Rubro[]>([])
+  const rubrosDisponibles = [...rubros, ...rubrosNuevos].map(r => ({ ...r, enContrato: false }))
   const [itemsForm, setItemsForm] = useState([{ ...EMPTY_ITEM_FORM }])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -347,6 +358,9 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
       .insert({
         constructora_id: constructoraId,
         obra_id: ordenForm.obra_id || null,
+        // Sin proyecto no hay contra qué comparar, así que tampoco se
+        // guarda el rubro (el selector ni aparece en ese caso).
+        rubro_id: ordenForm.obra_id ? (ordenForm.rubro_id || null) : null,
         fecha_emision: ordenForm.fecha_emision,
         notas: ordenForm.notas.trim() || null,
       })
@@ -766,6 +780,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
       fecha_vencimiento: acopioForm.fecha,
       fecha_pago: acopioForm.fecha,
       estado: 'Pagado',
+      rubro_id: acopioForm.obra_id ? (acopioForm.rubro_id || null) : null,
       notas: acopioForm.notas.trim() || null,
     }).select('id').single()
 
@@ -780,6 +795,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
       obra_id: acopioForm.obra_id || null,
       proveedor_id: acopioForm.proveedor_id,
       producto_referencia_id: acopioForm.producto_referencia_id,
+      rubro_id: acopioForm.obra_id ? (acopioForm.rubro_id || null) : null,
       saldo_inicial: saldoInicial,
       monto_pagado: montoPagado,
       precio_referencia_inicial: acopioForm.precio_referencia_inicial ? parseFloat(acopioForm.precio_referencia_inicial) : null,
@@ -1237,6 +1253,22 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
+
+                {ordenForm.obra_id && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Rubro de obra</label>
+                    <RubroSelect
+                      rubros={rubrosDisponibles}
+                      value={ordenForm.rubro_id}
+                      onChange={id => setOrdenForm(f => ({ ...f, rubro_id: id }))}
+                      onCreated={r => setRubrosNuevos(prev => [...prev, r])}
+                      constructoraId={constructoraId}
+                      emptyLabel="Sin imputar a un rubro" />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Al confirmar la recepción, el gasto que se genera queda imputado a este rubro y entra en Control de obra.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
@@ -1713,6 +1745,22 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                     </select>
                   </div>
                 </div>
+
+                {acopioForm.obra_id && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Rubro de obra</label>
+                    <RubroSelect
+                      rubros={rubrosDisponibles}
+                      value={acopioForm.rubro_id}
+                      onChange={id => setAcopioForm(f => ({ ...f, rubro_id: id }))}
+                      onCreated={r => setRubrosNuevos(prev => [...prev, r])}
+                      constructoraId={constructoraId}
+                      emptyLabel="Sin imputar a un rubro" />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      El acopio genera un gasto ya pagado — imputarlo acá evita tener que corregirlo después, porque un gasto pagado no se puede editar.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Producto de referencia *</label>

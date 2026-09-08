@@ -3,8 +3,9 @@
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { uploadToCloudinary } from '@/lib/cloudinary'
+import { subirComprobante } from '@/lib/comprobantes'
 import { cn, estaVencido, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
+import LinkComprobante from './LinkComprobante'
 import IvaCalculator from './IvaCalculator'
 import PlanDePagoModal from './PlanDePagoModal'
 import CuotasList from './CuotasList'
@@ -73,10 +74,9 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
   async function handleUploadComp(file: File) {
     setUploadingComp(true)
     try {
-      const result = await uploadToCloudinary(file, 'renders')
-      setComprobanteUrl(result.secure_url)
-    } catch {
-      setError('Error al subir el comprobante')
+      setComprobanteUrl(await subirComprobante(createClient(), constructoraId, file))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al subir el comprobante')
     } finally {
       setUploadingComp(false)
     }
@@ -468,10 +468,8 @@ export default function CobrosObraManager({ cobros, cuentasPropias, certificados
                 <label className="block text-xs font-medium text-slate-600 mb-1">Foto comprobante</label>
                 {comprobanteUrl ? (
                   <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <a href={comprobanteUrl} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-indigo-600 hover:underline truncate flex-1">
-                      Ver comprobante adjunto
-                    </a>
+                    <LinkComprobante referencia={comprobanteUrl}
+                      className="text-xs text-indigo-600 hover:underline truncate flex-1 text-left" />
                     <button type="button" onClick={() => setComprobanteUrl('')}
                       className="text-xs text-red-400 hover:text-red-600">Quitar</button>
                   </div>

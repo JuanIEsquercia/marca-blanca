@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { TOOLS_CACHEABLE, METADATA_HERRAMIENTAS } from './herramientas'
 import { ejecutarHerramienta } from './ejecutores'
 import type { ContextoChat, ChatStreamEvent, NombreHerramienta } from './tipos'
@@ -10,12 +11,18 @@ import type { ContextoChat, ChatStreamEvent, NombreHerramienta } from './tipos'
 const MAX_ITERACIONES = 8
 const MODELO = 'claude-sonnet-5'
 
-// Best-effort: si el insert de auditoría falla (RLS, red, lo que sea), no
-// tiene que tirar abajo la respuesta del chat — se resigna la métrica de
-// esa llamada puntual antes que interrumpir al usuario.
-async function registrarUso(supabase: SupabaseClient, ctx: ContextoChat, usage: Anthropic.Usage) {
+// Best-effort: si el insert de auditoría falla (red, lo que sea), no tiene
+// que tirar abajo la respuesta del chat — se resigna la métrica de esa
+// llamada puntual antes que interrumpir al usuario.
+//
+// Service role a propósito (migration_072): antes iba con la sesión del
+// usuario vía una policy de INSERT en chat_uso, lo que dejaba a cualquier
+// operador insertar consumo falso por PostgREST y bloquear el chat de todo
+// su tenant por el tope mensual. El dato lo escribe solo el servidor, con
+// el constructora_id/perfil_id ya resueltos de la sesión — nunca del body.
+async function registrarUso(ctx: ContextoChat, usage: Anthropic.Usage) {
   try {
-    await supabase.from('chat_uso').insert({
+    await createAdminClient().from('chat_uso').insert({
       constructora_id: ctx.constructoraId,
       perfil_id: ctx.perfilId,
       modelo: MODELO,
@@ -140,7 +147,7 @@ export async function* ejecutarTurnoChat(
       }
 
       finalMessage = await stream.finalMessage()
-      await registrarUso(supabase, ctx, finalMessage.usage)
+      await registrarUso(ctx, finalMessage.usage)
     } catch (err) {
       yield { type: 'error', mensaje: err instanceof Error ? err.message : 'Error al hablar con el modelo' }
       return

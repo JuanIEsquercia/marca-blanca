@@ -4,8 +4,9 @@ import { useState, useTransition, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { uploadToCloudinary } from '@/lib/cloudinary'
+import { subirComprobante } from '@/lib/comprobantes'
 import { cn, formatCurrency, formatDate, redondear2, sumarMontos } from '@/lib/utils'
+import LinkComprobante from './LinkComprobante'
 import type { Gasto, Proveedor, CuentaProveedor, CategoriaCosto, CuentaPropia, ModoCuentas } from '@/types/database'
 import ConfirmModal from './ConfirmModal'
 import PlanDePagoModal from './PlanDePagoModal'
@@ -255,10 +256,9 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
   async function handleUploadComp(file: File) {
     setUploadingComp(true)
     try {
-      const result = await uploadToCloudinary(file, 'renders')
-      setComprobanteUrl(result.secure_url)
-    } catch {
-      setError('Error al subir el comprobante')
+      setComprobanteUrl(await subirComprobante(createClient(), constructoraId, file))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al subir el comprobante')
     } finally {
       setUploadingComp(false)
     }
@@ -270,13 +270,12 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
     setEditingId(null)
     setError(null)
 
-    let secureUrl = ''
+    let referencia = ''
     try {
-      const result = await uploadToCloudinary(file, 'renders')
-      secureUrl = result.secure_url
-      setComprobanteUrl(secureUrl)
-    } catch {
-      setError('Error al subir el comprobante')
+      referencia = await subirComprobante(createClient(), constructoraId, file)
+      setComprobanteUrl(referencia)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al subir el comprobante')
       setEscaneando(false)
       return
     }
@@ -285,7 +284,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       const res = await fetch('/api/admin/gastos/extraer-factura', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: secureUrl }),
+        body: JSON.stringify({ comprobante: referencia }),
       })
       const json = await res.json()
       if (!res.ok || !json.ok) throw new Error(json.error ?? 'Error al leer la factura')
@@ -923,10 +922,8 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                 <label className="block text-xs font-medium text-slate-600 mb-1">Foto comprobante</label>
                 {comprobanteUrl ? (
                   <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <a href={comprobanteUrl} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-indigo-600 hover:underline truncate flex-1">
-                      Ver comprobante adjunto
-                    </a>
+                    <LinkComprobante referencia={comprobanteUrl}
+                      className="text-xs text-indigo-600 hover:underline truncate flex-1 text-left" />
                     <button type="button" onClick={() => setComprobanteUrl('')}
                       className="text-xs text-red-400 hover:text-red-600">Quitar</button>
                   </div>

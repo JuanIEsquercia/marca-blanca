@@ -190,7 +190,17 @@ export default function ChatAsistente({ userName }: Props) {
         body: JSON.stringify(body),
       })
       if (!res.ok || !res.body) {
-        setMensajes(prev => [...prev, { tipo: 'texto', autor: 'asistente', texto: 'Hubo un error de conexión — probá de nuevo.' }])
+        // El endpoint devuelve JSON { error } en 4xx (mensaje demasiado
+        // largo, historial inválido, etc.) — mostrar ese texto es más útil
+        // que un "error de conexión" genérico.
+        let detalle = 'Hubo un error de conexión — probá de nuevo.'
+        try {
+          const json = await res.json()
+          if (typeof json?.error === 'string') detalle = json.error
+        } catch {
+          // sin body JSON, queda el genérico
+        }
+        setMensajes(prev => [...prev, { tipo: 'texto', autor: 'asistente', texto: detalle }])
         return
       }
 

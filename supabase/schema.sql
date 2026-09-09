@@ -4316,3 +4316,69 @@ $$;
 -- La función se autoriza sola por dentro; anon no tiene sesión, así que no
 -- tiene nada que hacer acá.
 REVOKE EXECUTE ON FUNCTION resumen_rubros_obra(UUID) FROM anon;
+
+-- ============================================================
+-- MIGRATION 075: caché semántica de preguntas frecuentes del chat
+-- (tabla GLOBAL entre tenants) — ver migration_075.sql
+-- ============================================================
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS chat_faq_cache (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- Texto tal como lo escribió el primer usuario que la preguntó. Se guarda
+  -- para poder auditar a mano contra qué está matcheando el umbral.
+  pregunta      TEXT NOT NULL,
+  respuesta     TEXT NOT NULL,
+  embedding     vector NOT NULL,
+  -- Modelo que generó el embedding. Se filtra por acá al buscar: vectores
+  -- de modelos distintos tienen dimensiones distintas y compararlos es un
+  -- error de Postgres, no un resultado malo.
+  modelo        TEXT NOT NULL,
+  -- Qué tools produjeron la respuesta — para auditar que solo entren las
+  -- de la lista blanca aunque el código de la app cambie.
+  herramientas  TEXT[] NOT NULL DEFAULT '{}',
+  hits          INTEGER NOT NULL DEFAULT 0,
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  ultimo_uso    TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_faq_cache_modelo ON chat_faq_cache(modelo);
+
+ALTER TABLE chat_faq_cache ENABLE ROW LEVEL SECURITY;
+-- Sin políticas a propósito: RLS activa y cero policies = denegado para
+-- authenticated y anon. Solo el service role del servidor entra.
+
+-- Búsqueda por similitud coseno. El embedding llega como TEXT y se castea
+-- acá para no depender de cómo PostgREST serializa un array de floats.
+-- `<=>` es distancia coseno en pgvector, así que la similitud es 1 - d.
+CREATE OR REPLACE FUNCTION buscar_faq_cache(
+  p_embedding TEXT,
+  p_modelo    TEXT,
+  p_umbral    FLOAT
+)
+RETURNS TABLE(id UUID, pregunta TEXT, respuesta TEXT, similitud FLOAT)
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  SELECT c.id, c.pregunta, c.respuesta, (1 - (c.embedding <=> p_embedding::vector))::FLOAT AS similitud
+  FROM chat_faq_cache c
+  WHERE c.modelo = p_modelo
+    AND (1 - (c.embedding <=> p_embedding::vector)) >= p_umbral
+  ORDER BY c.embedding <=> p_embedding::vector
+  LIMIT 1;
+$$;
+
+-- Solo la usa el servidor con service role; nadie con sesión de navegador
+-- tiene por qué poder consultarla.
+REVOKE EXECUTE ON FUNCTION buscar_faq_cache(TEXT, TEXT, FLOAT) FROM PUBLIC, authenticated, anon;
+
+CREATE OR REPLACE FUNCTION registrar_hit_faq_cache(p_id UUID)
+RETURNS VOID
+LANGUAGE sql
+SET search_path = public
+AS $$
+  UPDATE chat_faq_cache SET hits = hits + 1, ultimo_uso = NOW() WHERE id = p_id;
+$$;
+
+REVOKE EXECUTE ON FUNCTION registrar_hit_faq_cache(UUID) FROM PUBLIC, authenticated, anon;

@@ -13,7 +13,13 @@ const SECURITY_HEADERS = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(), payment=()' },
-  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+  // HSTS solo en producción: sobre http://localhost el navegador lo ignora
+  // por spec, pero si alguna vez se sirve el dev por https (proxy, túnel,
+  // certificado local) queda fijado dos años para el host entero y sus
+  // subdominios, y sacarlo después obliga a limpiarlo a mano en el browser.
+  ...(process.env.NODE_ENV === 'production'
+    ? [{ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' }]
+    : []),
 ];
 
 const nextConfig: NextConfig = {

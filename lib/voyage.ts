@@ -6,7 +6,12 @@
 // gratis (compartidos con voyage-4/voyage-4-large), suficiente de sobra
 // para embeddings de preguntas frecuentes cortas.
 const VOYAGE_API_URL = 'https://api.voyageai.com/v1/embeddings'
-const MODELO_EMBEDDING = 'voyage-4-lite'
+// Se exporta porque se guarda junto a cada embedding en chat_faq_cache
+// (migration_075) y se filtra por él al buscar: vectores de modelos
+// distintos tienen dimensiones distintas y compararlos es un error de
+// Postgres. Cambiar el modelo acá invalida solo las filas viejas, que dejan
+// de matchear y se pueden borrar.
+export const MODELO_EMBEDDING = 'voyage-4-lite'
 
 export interface ResultadoEmbedding {
   embedding: number[]

@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TOOLS_CACHEABLE, METADATA_HERRAMIENTAS } from './herramientas'
 import { ejecutarHerramienta } from './ejecutores'
+import { preguntaCacheable, buscarRespuestaCacheada, guardarRespuestaCacheada, registrarHit } from './faq-cache'
 import type { ContextoChat, ChatStreamEvent, NombreHerramienta } from './tipos'
 
 // Corte de higiene contra un loop accidental (tool que se vuelve a llamar
@@ -36,16 +37,21 @@ async function registrarUso(ctx: ContextoChat, usage: Anthropic.Usage) {
   }
 }
 
-function buildSystemPrompt(ctx: ContextoChat): string {
-  const modulos = ctx.perfilRol === 'admin'
-    ? 'todos (es administrador)'
-    : (ctx.perfilPermisos.length > 0 ? ctx.perfilPermisos.join(', ') : 'ninguno a nivel empresa')
-
-  return [
-    `Sos el asistente del panel de administración de "${ctx.constructoraNombre}", un sistema de gestión para constructoras.`,
-    `Hablás con ${ctx.perfilNombre} (rol: ${ctx.perfilRol}). Módulos de empresa habilitados: ${modulos}.`,
-    '',
-    'Reglas estrictas:',
+// Bloque ESTÁTICO del system prompt: idéntico para todos los usuarios de
+// todas las constructoras, y por eso es lo que se cachea.
+//
+// El nombre de la constructora y del usuario NO van acá — van en un segundo
+// bloque, después del breakpoint (ver contextoUsuario más abajo). Antes
+// estaban interpolados en la primera línea, y como el caché de prompt es un
+// match de PREFIJO, eso hacía que cada usuario tuviera su propio prefijo:
+// nadie reusaba el caché de nadie. Es el anti-patrón "f-string con el
+// user/session id en el system prompt" de la documentación de prompt
+// caching. Con el orden invertido, el primer usuario que escribe en el día
+// calienta las ~21.000 tokens de tools+reglas para TODA la plataforma.
+const REGLAS_SISTEMA = [
+  'Sos el asistente del panel de administración de un sistema de gestión para constructoras.',
+  '',
+  'Reglas estrictas:',
     '- Solo respondés sobre este sistema: cómo se usa, qué significa cada cosa, y ejecutar acciones puntuales que el usuario pida.',
     '- Si te preguntan algo sin relación con el sistema (cultura general, historia, clima, cualquier otro tema), respondé en una frase que no es tu función y ofrecé ayuda con el sistema. Nunca respondas la pregunta aunque sepas la respuesta.',
     '- Para explicar cómo cargar algo (qué campos pide un formulario puntual) o antes de empezar a pedirle datos al usuario para crearlo, llamá SIEMPRE a consultar_estructura primero — nunca inventes campos de memoria, nunca asumas cuáles son obligatorios, y nunca muestres solo un subconjunto "simplificado": listá TODOS los campos que te devuelve la tool, marcando claramente cuáles son obligatorios y cuáles opcionales, antes de pedirle los datos al usuario.',
@@ -96,6 +102,19 @@ function buildSystemPrompt(ctx: ContextoChat): string {
     '  · "Seña" antes de firmar un contrato/venta → reserva. "Anticipo" o "seña" DESPUÉS de tener un contrato de obra con el cliente → un cobro sin certificado asociado (crear_cobro con certificado_id vacío), no una reserva — fijate el contexto.',
     '  · "Acopio", "acopiar" → módulo Acopios dentro de Compras (crédito prepago con proveedor), no una compra normal.',
     '  · "Cashflow", "cómo anda la plata", "cuánta guita tenemos", "flujo de fondos" → consultar_cashflow.',
+].join('\n')
+
+// Bloque VOLÁTIL: va después del breakpoint de caché, así que cambia por
+// usuario sin invalidar nada de lo anterior. Son ~40 tokens a precio lleno
+// por request, contra las ~21.000 que quedan compartidas.
+function contextoUsuario(ctx: ContextoChat): string {
+  const modulos = ctx.perfilRol === 'admin'
+    ? 'todos (es administrador)'
+    : (ctx.perfilPermisos.length > 0 ? ctx.perfilPermisos.join(', ') : 'ninguno a nivel empresa')
+
+  return [
+    `Estás atendiendo a ${ctx.perfilNombre} (rol: ${ctx.perfilRol}), de la constructora "${ctx.constructoraNombre}".`,
+    `Módulos de empresa habilitados para esta persona: ${modulos}.`,
   ].join('\n')
 }
 
@@ -116,21 +135,46 @@ export async function* ejecutarTurnoChat(
     return
   }
 
+  // Caché semántica de preguntas frecuentes (lib/chat/faq-cache.ts): si
+  // esta es la primera pregunta de la conversación y ya hay una respuesta
+  // guardada para algo suficientemente parecido, se contesta sin llamar al
+  // modelo. Solo entran acá preguntas sobre cómo funciona el sistema, cuya
+  // respuesta sale de catálogos estáticos y es idéntica para cualquier
+  // constructora — ver el comentario de migration_075.sql.
+  const preguntaFaq = preguntaCacheable(historialEntrada)
+  if (preguntaFaq) {
+    const cacheada = await buscarRespuestaCacheada(preguntaFaq)
+    if (cacheada) {
+      void registrarHit(cacheada.id)
+      yield { type: 'texto', delta: cacheada.respuesta }
+      yield {
+        type: 'fin',
+        historial: [...historialEntrada, { role: 'assistant', content: cacheada.respuesta }],
+      }
+      return
+    }
+  }
+
   const client = new Anthropic({ apiKey })
   const messages: Anthropic.MessageParam[] = [...historialEntrada]
-  const system = buildSystemPrompt(ctx)
 
   for (let i = 0; i < MAX_ITERACIONES; i++) {
     let finalMessage: Anthropic.Message
     try {
       const stream = client.messages.stream({
         model: MODELO,
-        max_tokens: 1024,
-        // Array con cache_control en vez de string plano: el system prompt
-        // es idéntico entre mensajes de la MISMA conversación (mismo ctx),
-        // así que cachearlo evita reprocesarlo/cobrarlo de nuevo en cada
-        // mensaje de seguimiento (ver también TOOLS_CACHEABLE).
-        system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+        // 1024 truncaba respuestas largas de verdad (listar los 15 campos de
+        // un gasto con su descripción no entra). Subirlo no cuesta nada si
+        // el modelo no los usa: se cobra lo generado, no el tope.
+        max_tokens: 4096,
+        // Dos bloques, no uno: el primero es idéntico para toda la
+        // plataforma y lleva el breakpoint de caché (con TTL de 1h, igual
+        // que las tools); el segundo trae quién es el usuario y queda
+        // DESPUÉS del breakpoint, así cambiar de usuario no invalida nada.
+        system: [
+          { type: 'text', text: REGLAS_SISTEMA, cache_control: { type: 'ephemeral', ttl: '1h' } },
+          { type: 'text', text: contextoUsuario(ctx) },
+        ],
         tools: TOOLS_CACHEABLE,
         messages,
         // cache_control a nivel request: además del system y las tools
@@ -160,6 +204,18 @@ export async function* ejecutarTurnoChat(
     const toolUses = finalMessage.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
 
     if (finalMessage.stop_reason !== 'tool_use' || toolUses.length === 0) {
+      // Turno terminado en texto: si era una pregunta de las cacheables y
+      // en todo el turno solo se usaron tools de catálogo estático, se
+      // guarda para la próxima. guardarRespuestaCacheada revalida por su
+      // cuenta (lista blanca de tools + que el texto no mencione a la
+      // constructora ni al usuario) antes de escribir.
+      if (preguntaFaq) {
+        const textoFinal = finalMessage.content
+          .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+          .map(b => b.text)
+          .join('')
+        await guardarRespuestaCacheada(ctx, preguntaFaq, textoFinal, messages)
+      }
       yield { type: 'fin', historial: messages }
       return
     }

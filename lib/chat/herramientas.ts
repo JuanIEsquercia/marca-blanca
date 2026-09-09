@@ -738,6 +738,16 @@ export const METADATA_HERRAMIENTAS: Record<NombreHerramienta, MetadataHerramient
 // mensaje de seguimiento en la misma conversación no vuelve a cobrar ni a
 // procesar ~30 definiciones de tool de nuevo. Se computa una vez a nivel de
 // módulo, no en cada request.
+// TTL de 1 hora, no el default de 5 minutos: el uso real es a ráfagas (se
+// midió sobre chat_uso — 49 llamadas en 5 días, con 27% de ellas sin leer
+// nada de caché), y con 5 minutos cada conversación nueva reescribía las
+// ~21.000 tokens del prefijo. La escritura a 1h cuesta 2x en vez de 1.25x,
+// pero se amortiza entre TODAS las constructoras porque el prefijo es
+// compartido (ver REGLAS_SISTEMA en agente.ts).
+//
+// El TTL más largo tiene que ir ANTES que los más cortos en el orden de
+// render (tools → system → messages), y así queda: tools 1h, system 1h, y
+// la cola de la conversación con el default de 5 minutos.
 export const TOOLS_CACHEABLE: Anthropic.Tool[] = TOOLS.map((tool, i) =>
-  i === TOOLS.length - 1 ? { ...tool, cache_control: { type: 'ephemeral' } } : tool
+  i === TOOLS.length - 1 ? { ...tool, cache_control: { type: 'ephemeral', ttl: '1h' } } : tool
 )

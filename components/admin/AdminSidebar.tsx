@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils'
 import type { RolUsuario } from '@/types/database'
 import { puedeAcceder, type ModuloKey, type ProyectoAsignado } from '@/lib/permisos'
 import { getCurrentProyecto, subscribeProyecto, type ProyectoData } from '@/lib/proyecto-store'
-import BuscadorGlobal from './BuscadorGlobal'
 
 // Cache de módulo: evita el API call cuando se regresa a un proyecto ya visitado
 const proyectoApiCache = new Map<string, ProyectoData>()
@@ -307,6 +306,68 @@ interface Props {
   constructoraNombre: string
 }
 
+import { useTheme } from '@/components/ThemeProvider'
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme()
+  return (
+    <div className="bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/60 text-xs mb-3 shadow-inner">
+      <div className="grid grid-cols-3 gap-1">
+        <button
+          type="button"
+          onClick={() => setTheme('light')}
+          className={cn(
+            'flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all duration-200 text-xs font-medium',
+            theme === 'light'
+              ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm font-semibold border border-slate-200/60 dark:border-slate-600/50'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/40'
+          )}
+          title="Modo Claro"
+        >
+          <svg className="w-3.5 h-3.5 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          <span>Claro</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTheme('dark')}
+          className={cn(
+            'flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all duration-200 text-xs font-medium',
+            theme === 'dark'
+              ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm font-semibold border border-slate-200/60 dark:border-slate-600/50'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/40'
+          )}
+          title="Modo Oscuro"
+        >
+          <svg className="w-3.5 h-3.5 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+          <span>Oscuro</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTheme('system')}
+          className={cn(
+            'flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all duration-200 text-xs font-medium',
+            theme === 'system'
+              ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm font-semibold border border-slate-200/60 dark:border-slate-600/50'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/40'
+          )}
+          title="Seguir preferencia del sistema"
+        >
+          <svg className="w-3.5 h-3.5 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          <span>Auto</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminSidebar({ userName, userRole, permisosEmpresa, proyectos, constructoraNombre }: Props) {
   const pathname = usePathname()
   const router = useRouter()
@@ -381,9 +442,9 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
   return (
     <>
       {/* Header móvil */}
-      <header className="lg:hidden flex items-center justify-between p-4 bg-slate-900 border-b border-slate-800 text-white shrink-0">
+      <header className="lg:hidden flex items-center justify-between p-4 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 text-slate-900 dark:text-white shrink-0 shadow-xs">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M3 10h18M3 7l9-4 9 4" />
             </svg>
@@ -394,7 +455,7 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
         </div>
         <button
           onClick={() => setIsOpen(true)}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 focus:outline-none"
+          className="p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none transition-colors"
         >
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -413,55 +474,71 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
       {/* Menú lateral (Aside) */}
       <aside
         className={cn(
-          "bg-slate-900 flex flex-col transition-transform duration-300 ease-in-out",
+          "bg-white dark:bg-slate-900 flex flex-col transition-all duration-300 ease-in-out border-r border-slate-200/80 dark:border-slate-800/80",
           "fixed inset-y-0 left-0 z-50 w-64 shadow-2xl lg:shadow-none",
           "lg:translate-x-0 lg:static lg:w-60 lg:flex lg:shrink-0",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
           {effectiveProyecto ? (
-            <div className="flex-1 min-w-0">
-              <Link
-                href="/admin"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-1.5 text-slate-500 hover:text-slate-300 text-xs mb-2 transition-colors"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Todos los proyectos
-              </Link>
+            <div className="flex-1 min-w-0 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                  Proyecto Activo
+                </span>
+              </div>
               <div className="flex items-start gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
-                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M3 10h18M3 7l9-4 9 4" />
                   </svg>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-white text-sm font-semibold leading-tight truncate">{effectiveProyecto.nombre}</p>
+                  <p className="text-slate-900 dark:text-white text-sm font-bold leading-tight truncate">{effectiveProyecto.nombre}</p>
                   <span className={cn(
-                    'inline-block text-[10px] font-medium px-1.5 py-0.5 rounded mt-1',
+                    'inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-md mt-1 border',
                     effectiveProyecto.tipo === 'desarrollo'
-                      ? 'bg-indigo-900 text-indigo-300'
-                      : 'bg-amber-900 text-amber-300'
+                      ? 'bg-indigo-50 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border-indigo-200/60 dark:border-indigo-700/50'
+                      : 'bg-amber-50 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 border-amber-200/60 dark:border-amber-700/50'
                   )}>
                     {effectiveProyecto.tipo === 'desarrollo' ? 'DESARROLLO' : 'OBRA'}
                   </span>
                 </div>
               </div>
+
+              {/* Selector / Botón Prominente de Todos los Proyectos */}
+              <div className="pt-1.5 flex flex-col gap-1.5">
+                <Link
+                  href="/admin"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-800/90 hover:bg-indigo-50 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/70 rounded-xl text-xs font-semibold text-indigo-700 dark:text-indigo-300 transition-all group shadow-xs"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 group-hover:-translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Todos los proyectos
+                  </span>
+                  <span className="text-[10px] bg-slate-200/80 dark:bg-slate-700/60 px-1.5 py-0.5 rounded text-slate-700 dark:text-slate-300 font-mono">Ver lista</span>
+                </Link>
+              </div>
             </div>
           ) : (
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M3 10h18M3 7l9-4 9 4" />
                 </svg>
               </div>
               <div className="min-w-0">
-                <p className="text-white text-sm font-semibold leading-none truncate">{constructoraNombre}</p>
-                <p className="text-slate-400 text-xs mt-0.5">Panel ERP</p>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Modo Empresa
+                </span>
+                <p className="text-slate-900 dark:text-white text-sm font-extrabold leading-none truncate mt-0.5">{constructoraNombre}</p>
               </div>
             </div>
           )}
@@ -469,7 +546,7 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
           {/* Botón cerrar móvil */}
           <button
             onClick={() => setIsOpen(false)}
-            className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-850 ml-2"
+            className="lg:hidden p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 ml-2"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -477,24 +554,9 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
           </button>
         </div>
 
-        {/* Buscador global — secciones se filtran en memoria contra el
-            catálogo; los datos van por una sola RPC con debounce. */}
-        <BuscadorGlobal
-          ctx={{
-            rol: userRole,
-            permisosEmpresa,
-            proyectos,
-            proyectoActual: effectiveProyecto
-              ? {
-                  id: effectiveProyecto.id,
-                  nombre: effectiveProyecto.nombre,
-                  tipo: effectiveProyecto.tipo as 'desarrollo' | 'obra',
-                  modoCuentas: (effectiveProyecto.modo_cuentas ?? 'empresa') as 'empresa' | 'especificas',
-                }
-              : null,
-          }}
-          onNavegar={() => setIsOpen(false)}
-        />
+        {/* El buscador global vive en la barra superior (app/admin/layout.tsx),
+            no acá: en el ancho del sidebar el panel de resultados quedaba
+            demasiado angosto para leer título y contexto de cada uno. */}
 
         {/* Navegación */}
         <nav className="flex-1 p-3 space-y-4 overflow-y-auto admin-scroll">
@@ -503,10 +565,10 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
             if (visibleItems.length === 0) return null
             return (
               <div key={section.label}>
-                <p className="px-3 mb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                  {section.label}
+                <p className="px-3 mb-1.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                  <span>{section.label}</span>
                 </p>
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {visibleItems.map(item => {
                     const isActive = item.href === '/admin'
                       ? pathname === '/admin'
@@ -517,10 +579,10 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
                         href={item.href}
                         onClick={() => setIsOpen(false)}
                         className={cn(
-                          'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors',
+                          'flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150',
                           isActive
-                            ? 'bg-indigo-600 text-white'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                            ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md shadow-indigo-600/20'
+                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white'
                         )}
                       >
                         {item.icon}
@@ -534,16 +596,17 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
           })}
         </nav>
 
-        {/* Usuario + Logout */}
-        <div className="p-3 border-t border-slate-800">
+        {/* Usuario + Tema + Logout */}
+        <div className="p-3 border-t border-slate-200/80 dark:border-slate-800">
+          <ThemeToggle />
           <div className="px-3 py-2 mb-1">
-            <p className="text-white text-sm font-medium truncate">{userName}</p>
-            <p className="text-slate-500 text-xs capitalize">{userRole}</p>
+            <p className="text-slate-900 dark:text-white text-sm font-semibold truncate">{userName}</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs capitalize">{userRole}</p>
           </div>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2 text-slate-400 hover:text-white
-                       hover:bg-slate-800 rounded-lg text-sm transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-white
+                       hover:bg-rose-50 dark:hover:bg-slate-800/80 rounded-xl text-sm transition-colors font-medium"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
@@ -555,5 +618,4 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
       </aside>
     </>
   )
-
 }

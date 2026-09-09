@@ -38,6 +38,26 @@ export function etiquetaTipo(tipo: TipoResultado): string {
   return ETIQUETA_TIPO[tipo]
 }
 
+// Encabezado de cada grupo del panel de resultados.
+const ETIQUETA_GRUPO: Record<TipoResultado, string> = {
+  seccion: 'Secciones',
+  proyecto: 'Proyectos',
+  proveedor: 'Proveedores',
+  cliente: 'Clientes',
+  unidad: 'Unidades',
+  presupuesto: 'Presupuestos',
+}
+
+// Orden fijo de los grupos. No se confía en el orden que devuelve la RPC:
+// un UNION ALL no garantiza el orden de las ramas sin un ORDER BY externo,
+// y además las secciones (que se resuelven en el cliente) tienen que ir
+// siempre primero — son lo que más se busca y lo que responde al instante.
+export const ORDEN_TIPOS: TipoResultado[] = ['seccion', 'proyecto', 'proveedor', 'cliente', 'unidad', 'presupuesto']
+
+export function etiquetaGrupo(tipo: TipoResultado): string {
+  return ETIQUETA_GRUPO[tipo]
+}
+
 const DIACRITICOS = /[̀-ͯ]/g
 
 function normalizar(texto: string): string {

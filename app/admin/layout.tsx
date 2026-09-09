@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { getAuthUser, getConstructoraContext } from '@/lib/tenant'
 import AdminSidebar from '@/components/admin/AdminSidebar'
+import BuscadorGlobal from '@/components/admin/BuscadorGlobal'
 import ChatAsistente from '@/components/admin/ChatAsistente'
 import { MODULOS, puedeAcceder } from '@/lib/permisos'
 import type { ModuloKey } from '@/lib/permisos'
@@ -12,6 +13,8 @@ const MODULO_KEYS = MODULOS.map(m => m.key)
 // un proyecto vive en /caja pero su permiso es 'tesoreria') — sin este mapeo
 // el guard de abajo nunca matchea ese segmento y la ruta queda sin proteger.
 const SEGMENTO_A_MODULO: Record<string, ModuloKey> = { caja: 'tesoreria' }
+
+import AdminBreadcrumbs from '@/components/admin/AdminBreadcrumbs'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Autenticación y headers en paralelo — getAuthUser() está cacheado por
@@ -63,7 +66,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen bg-slate-50 overflow-hidden admin-typography-system">
+    <div className="flex flex-col lg:flex-row h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden admin-typography-system transition-colors duration-200">
       <AdminSidebar
         userName={constructoraCtx?.perfilNombre ?? user.email ?? 'Usuario'}
         userRole={rol}
@@ -72,7 +75,21 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         constructoraNombre={constructoraCtx?.constructoraNombre ?? 'Panel ERP'}
       />
       <main className="flex-1 overflow-auto admin-scroll">
+        {/* Barra superior: acompaña el scroll del contenido (sticky) para
+            que buscar no obligue a volver arriba. El buscador vivía en el
+            sidebar, pero ahí el panel de resultados quedaba tan angosto
+            que no se leía el contexto de cada resultado. */}
+        <header className="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8 py-3">
+            <BuscadorGlobal
+              rol={rol}
+              permisosEmpresa={permisosEmpresa}
+              proyectos={proyectosAsignados}
+            />
+          </div>
+        </header>
         <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+          <AdminBreadcrumbs />
           {children}
         </div>
       </main>

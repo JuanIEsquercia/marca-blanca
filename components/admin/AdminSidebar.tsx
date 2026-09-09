@@ -381,6 +381,13 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
 
   const [proyecto, setProyecto] = useState<ProyectoData | null>(null)
   const [isOpen, setIsOpen] = useState(false)
+  // Solo las secciones que el usuario abrió o cerró a mano. Lo que no está
+  // acá se decide por la ruta actual (ver `abierta` más abajo), así que al
+  // navegar a otra sección esa se despliega sola sin pisar la elección
+  // explícita del usuario en las demás. Vive en memoria a propósito: el
+  // sidebar no se desmonta al navegar dentro del panel, y persistirlo
+  // obligaría a leer localStorage en un efecto (mismatch de hidratación).
+  const [seccionesAbiertas, setSeccionesAbiertas] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     if (!obraId) {
@@ -430,6 +437,14 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
     if (userRole === 'admin') return true
     if (item.permiso === null) return true
     return puedeAcceder(userRole, permisosEmpresa, proyectos, item.permiso, obraId)
+  }
+
+  // '/admin' matchea exacto porque es prefijo de todas las demás rutas del
+  // panel; el resto por prefijo, para que una subruta marque igual a su
+  // sección. Se extrajo del render porque ahora también decide qué sección
+  // arranca desplegada y qué ítem sigue visible con la sección plegada.
+  function esRutaActiva(item: NavItem): boolean {
+    return item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href)
   }
 
   async function handleLogout() {
@@ -558,39 +573,70 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
             no acá: en el ancho del sidebar el panel de resultados quedaba
             demasiado angosto para leer título y contexto de cada uno. */}
 
-        {/* Navegación */}
-        <nav className="flex-1 p-3 space-y-4 overflow-y-auto admin-scroll">
+        {/* Navegación — secciones plegables. Con 10-12 ítems visibles a la
+            vez el sidebar entraba en scroll, sobre todo en móvil. Cada
+            sección arranca plegada salvo la que contiene la página actual,
+            así se ve un puñado de líneas en vez de la lista entera. */}
+        <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto admin-scroll">
           {sections.map(section => {
             const visibleItems = section.items.filter(puedeVer)
             if (visibleItems.length === 0) return null
+
+            const contieneActiva = visibleItems.some(esRutaActiva)
+            // Sin decisión explícita del usuario, la sección de la página
+            // actual va abierta y el resto plegado.
+            const abierta = seccionesAbiertas[section.label] ?? contieneActiva
+            // Aunque esté plegada, el ítem activo se sigue mostrando: nunca
+            // se pierde de vista dónde está parado el usuario.
+            const itemsAMostrar = abierta ? visibleItems : visibleItems.filter(esRutaActiva)
+
             return (
               <div key={section.label}>
-                <p className="px-3 mb-1.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                  <span>{section.label}</span>
-                </p>
-                <div className="space-y-1">
-                  {visibleItems.map(item => {
-                    const isActive = item.href === '/admin'
-                      ? pathname === '/admin'
-                      : pathname.startsWith(item.href)
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setIsOpen(false)}
-                        className={cn(
-                          'flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150',
-                          isActive
-                            ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md shadow-indigo-600/20'
-                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white'
-                        )}
-                      >
-                        {item.icon}
-                        <span className="flex-1">{item.label}</span>
-                      </Link>
-                    )
-                  })}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setSeccionesAbiertas(prev => ({ ...prev, [section.label]: !abierta }))}
+                  aria-expanded={abierta}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider
+                             text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300
+                             hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
+                >
+                  <svg
+                    className={cn('w-3 h-3 shrink-0 transition-transform duration-200', abierta ? 'rotate-90' : '')}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span className="flex-1 text-left">{section.label}</span>
+                  {!abierta && (
+                    <span className="text-[10px] font-semibold text-slate-300 dark:text-slate-600 tabular-nums">
+                      {visibleItems.length}
+                    </span>
+                  )}
+                </button>
+
+                {itemsAMostrar.length > 0 && (
+                  <div className="space-y-1 mt-0.5">
+                    {itemsAMostrar.map(item => {
+                      const isActive = esRutaActiva(item)
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setIsOpen(false)}
+                          className={cn(
+                            'flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150',
+                            isActive
+                              ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md shadow-indigo-600/20'
+                              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white'
+                          )}
+                        >
+                          {item.icon}
+                          <span className="flex-1">{item.label}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )
           })}

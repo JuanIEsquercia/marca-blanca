@@ -99,6 +99,26 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
       return estaVencido(fechaVencimiento, estado, estadoPendiente)
     }
 
+    // La diferencia entre lo certificado y lo liquidado NO siempre es un
+    // pendiente. Un anticipo o una seña se cobran ANTES de certificar nada
+    // (es un caso soportado a propósito: un cobro puede no tener
+    // certificado, ver CobrosObraManager), y ahí la resta da NEGATIVA.
+    // Mostrar eso como "Pendiente: -US$ 1.815" mandaba al usuario a buscar
+    // un pendiente que no existe en ningún lado — reportado en vivo sobre
+    // una obra con 1 anticipo cobrado y 0 certificados.
+    function saldoContraCertificado(certificado: number, liquidado: number, verbo: 'cobrar' | 'pagar') {
+      const diferencia = redondear2(certificado - liquidado)
+      if (diferencia > 0) return { label: `Pendiente de ${verbo}`, monto: diferencia, adelantado: false }
+      if (diferencia < 0) {
+        return {
+          label: verbo === 'cobrar' ? 'Cobrado por adelantado' : 'Pagado por adelantado',
+          monto: Math.abs(diferencia),
+          adelantado: true,
+        }
+      }
+      return { label: `Sin saldo pendiente de ${verbo}`, monto: 0, adelantado: false }
+    }
+
     const certificadosEstancados = [...(certificados ?? []), ...(certificadosSub ?? [])]
       .filter(c => c.estado === 'borrador' && diasDesde(c.created_at) > DIAS_CERTIFICADO_ESTANCADO)
     const cobrosVencidos = (cobros ?? []).filter(c => algunaVencida(c.pagos, c.estado, c.fecha_vencimiento, 'Pendiente'))
@@ -107,42 +127,42 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Dashboard</h1>
           <p className="text-slate-500 text-sm mt-1">{ctx.obraNombre} — Obra de construcción</p>
         </div>
 
         {(certificadosEstancados.length > 0 || cobrosVencidos.length > 0 || pagosVencidos.length > 0) && (
           <div className="space-y-2">
             {certificadosEstancados.length > 0 && puede('certificados') && (
-              <Link href={`/admin/proyectos/${obraId}/certificados`} className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors">
-                <svg className="w-5 h-5 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <p className="text-sm text-amber-800 flex-1"><strong>{certificadosEstancados.length} certificado{certificadosEstancados.length > 1 ? 's' : ''}</strong> en borrador hace más de {DIAS_CERTIFICADO_ESTANCADO} días sin presentar</p>
-                <span className="text-xs text-amber-600">Ver →</span>
+              <Link href={`/admin/proyectos/${obraId}/certificados`} className="flex items-center gap-3 p-3.5 bg-amber-50/80 border-l-4 border-l-amber-500 border border-amber-200/60 rounded-r-2xl hover:bg-amber-100/70 transition-all group">
+                <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p className="text-sm text-amber-900 flex-1"><strong>{certificadosEstancados.length} certificado{certificadosEstancados.length > 1 ? 's' : ''}</strong> en borrador hace más de {DIAS_CERTIFICADO_ESTANCADO} días sin presentar</p>
+                <span className="text-xs font-semibold text-amber-700 group-hover:translate-x-1 transition-transform">Ver →</span>
               </Link>
             )}
             {cobrosVencidos.length > 0 && puede('cobros') && (
-              <Link href={`/admin/proyectos/${obraId}/cobros`} className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors">
-                <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                <p className="text-sm text-red-800 flex-1"><strong>{cobrosVencidos.length} cobro{cobrosVencidos.length > 1 ? 's' : ''}</strong> vencido{cobrosVencidos.length > 1 ? 's' : ''} sin cobrar</p>
-                <span className="text-xs text-red-500">Ver →</span>
+              <Link href={`/admin/proyectos/${obraId}/cobros`} className="flex items-center gap-3 p-3.5 bg-red-50/80 border-l-4 border-l-red-500 border border-red-200/60 rounded-r-2xl hover:bg-red-100/70 transition-all group">
+                <svg className="w-5 h-5 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <p className="text-sm text-red-900 flex-1"><strong>{cobrosVencidos.length} cobro{cobrosVencidos.length > 1 ? 's' : ''}</strong> vencido{cobrosVencidos.length > 1 ? 's' : ''} sin cobrar</p>
+                <span className="text-xs font-semibold text-red-600 group-hover:translate-x-1 transition-transform">Ver →</span>
               </Link>
             )}
             {pagosVencidos.length > 0 && puede('gastos') && (
-              <Link href={`/admin/proyectos/${obraId}/gastos`} className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors">
-                <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                <p className="text-sm text-red-800 flex-1"><strong>{pagosVencidos.length} pago{pagosVencidos.length > 1 ? 's' : ''} a subcontratistas</strong> vencido{pagosVencidos.length > 1 ? 's' : ''} sin pagar</p>
-                <span className="text-xs text-red-500">Ver →</span>
+              <Link href={`/admin/proyectos/${obraId}/gastos`} className="flex items-center gap-3 p-3.5 bg-red-50/80 border-l-4 border-l-red-500 border border-red-200/60 rounded-r-2xl hover:bg-red-100/70 transition-all group">
+                <svg className="w-5 h-5 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <p className="text-sm text-red-900 flex-1"><strong>{pagosVencidos.length} pago{pagosVencidos.length > 1 ? 's' : ''} a subcontratistas</strong> vencido{pagosVencidos.length > 1 ? 's' : ''} sin pagar</p>
+                <span className="text-xs font-semibold text-red-600 group-hover:translate-x-1 transition-transform">Ver →</span>
               </Link>
             )}
           </div>
         )}
 
         {!contratos || contratos.length === 0 ? (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
-            <p className="text-amber-800 font-medium">Sin contrato de obra cargado</p>
+          <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-6 text-center shadow-xs">
+            <p className="text-amber-900 font-semibold">Sin contrato de obra cargado</p>
             {puede('certificados') && (
-              <p className="text-amber-600 text-sm mt-1">
-                Ingresá a <Link href={`/admin/proyectos/${obraId}/certificados`} className="underline">Contratos</Link> para comenzar.
+              <p className="text-amber-700 text-sm mt-1">
+                Ingresá a <Link href={`/admin/proyectos/${obraId}/certificados`} className="underline font-semibold hover:text-amber-800">Contratos</Link> para comenzar.
               </p>
             )}
           </div>
@@ -158,56 +178,65 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
                 return acc
               }, {})
               const ultimoCertif = certifDelContrato[0] ?? null
-              // Los certificados no tienen columna moneda propia: son un %
-              // del contrato, siempre en contrato.moneda.
               const totalCertificados = redondear2(certifDelContrato.reduce((s, c) => s + Number(c.monto_certificado), 0))
 
               return (
                 <div key={contrato.id} className="space-y-3">
                   {contratos.length > 1 && (
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                       {contrato.compradores?.nombre_completo}{contrato.descripcion ? ` — ${contrato.descripcion}` : ''}
                     </p>
                   )}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <div className="bg-white border border-slate-200 rounded-xl p-5">
-                      <p className="text-xs font-medium text-slate-500 mb-1">Monto del contrato</p>
-                      <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate" title={formatCurrency(contrato.monto_total, contrato.moneda)}>{formatCurrency(contrato.monto_total, contrato.moneda)}</p>
-                      <p className="text-xs text-slate-400 mt-1">{contrato.compradores?.nombre_completo}</p>
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Monto del contrato</p>
+                      <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate tabular-nums" title={formatCurrency(contrato.monto_total, contrato.moneda)}>{formatCurrency(contrato.monto_total, contrato.moneda)}</p>
+                      <p className="text-xs text-slate-400 mt-1 font-medium">{contrato.compradores?.nombre_completo}</p>
                     </div>
-                    <div className="bg-white border border-slate-200 rounded-xl p-5">
-                      <p className="text-xs font-medium text-slate-500 mb-1">Total certificado</p>
-                      <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate" title={formatCurrency(totalCertificados, contrato.moneda)}>{formatCurrency(totalCertificados, contrato.moneda)}</p>
-                      <p className="text-xs text-slate-400 mt-1">
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Total certificado</p>
+                      <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate tabular-nums" title={formatCurrency(totalCertificados, contrato.moneda)}>{formatCurrency(totalCertificados, contrato.moneda)}</p>
+                      <p className="text-xs text-slate-400 mt-1 font-medium">
                         {contrato.monto_total > 0
                           ? `${Math.round((totalCertificados / contrato.monto_total) * 100)}% del contrato`
                           : '—'}
                       </p>
                     </div>
-                    <div className="bg-white border border-slate-200 rounded-xl p-5">
-                      <p className="text-xs font-medium text-slate-500 mb-1">Total cobrado</p>
+                    <div className="bg-emerald-50/40 border border-emerald-200/60 rounded-2xl p-5 shadow-xs">
+                      <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wider mb-1">Total cobrado</p>
                       {Object.keys(totalCobradoPorMoneda).length === 0 ? (
-                        <p className="text-xl sm:text-2xl font-bold text-emerald-700 truncate" title={formatCurrency(0, contrato.moneda)}>{formatCurrency(0, contrato.moneda)}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-emerald-700 truncate tabular-nums" title={formatCurrency(0, contrato.moneda)}>{formatCurrency(0, contrato.moneda)}</p>
                       ) : (
                         Object.entries(totalCobradoPorMoneda).map(([moneda, monto]) => (
-                          <p key={moneda} className="text-xl sm:text-2xl font-bold text-emerald-700 truncate" title={formatCurrency(monto, moneda)}>{formatCurrency(monto, moneda)}</p>
+                          <p key={moneda} className="text-xl sm:text-2xl font-bold text-emerald-700 truncate tabular-nums" title={formatCurrency(monto, moneda)}>{formatCurrency(monto, moneda)}</p>
                         ))
                       )}
-                      <p className="text-xs text-slate-400 mt-1">
-                        Pendiente: {formatCurrency(redondear2(totalCertificados - (totalCobradoPorMoneda[contrato.moneda] ?? 0)), contrato.moneda)}
-                      </p>
+                      {(() => {
+                        const saldo = saldoContraCertificado(totalCertificados, totalCobradoPorMoneda[contrato.moneda] ?? 0, 'cobrar')
+                        return (
+                          <p className="text-xs text-slate-500 mt-1 font-medium">
+                            {saldo.label}
+                            {saldo.monto > 0 && <>: <span className="tabular-nums font-semibold">{formatCurrency(saldo.monto, contrato.moneda)}</span></>}
+                            {saldo.adelantado && (
+                              <span className="block text-slate-400 font-normal mt-0.5">
+                                Se cobró más de lo certificado hasta ahora — típico de un anticipo o seña.
+                              </span>
+                            )}
+                          </p>
+                        )
+                      })()}
                     </div>
                   </div>
 
                   {ultimoCertif && (
-                    <div className="bg-white border border-slate-200 rounded-xl p-5">
-                      <p className="text-sm font-semibold text-slate-700 mb-3">Último certificado</p>
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
+                      <p className="text-sm font-bold text-slate-800 mb-3">Último certificado</p>
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium text-slate-900">N°{ultimoCertif.numero} — {ultimoCertif.periodo}</p>
+                          <p className="font-semibold text-slate-900">N°{ultimoCertif.numero} — {ultimoCertif.periodo}</p>
                           <p className="text-sm text-slate-500 mt-0.5">{ultimoCertif.porcentaje_avance}% de avance</p>
                         </div>
-                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                        <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
                           ultimoCertif.estado === 'aprobado' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
                           ultimoCertif.estado === 'presentado' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                           'bg-slate-50 text-slate-600 border-slate-200'
@@ -224,9 +253,9 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
         )}
 
         {contratosSub && contratosSub.length > 0 && (
-          <div className="space-y-5 pt-2 border-t border-slate-100">
-            <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-red-400" />
+          <div className="space-y-5 pt-4 border-t border-slate-200/60">
+            <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
               Subcontratistas
             </p>
             {contratosSub.map(contrato => {
@@ -243,48 +272,59 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
 
               return (
                 <div key={contrato.id} className="space-y-3">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                     {contrato.proveedores?.razon_social}{contrato.descripcion ? ` — ${contrato.descripcion}` : ''}
                   </p>
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <div className="bg-white border border-slate-200 rounded-xl p-5">
-                      <p className="text-xs font-medium text-slate-500 mb-1">Monto del contrato</p>
-                      <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate" title={formatCurrency(contrato.monto_total, contrato.moneda)}>{formatCurrency(contrato.monto_total, contrato.moneda)}</p>
-                      <p className="text-xs text-slate-400 mt-1">{contrato.proveedores?.razon_social}</p>
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Monto del contrato</p>
+                      <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate tabular-nums" title={formatCurrency(contrato.monto_total, contrato.moneda)}>{formatCurrency(contrato.monto_total, contrato.moneda)}</p>
+                      <p className="text-xs text-slate-400 mt-1 font-medium">{contrato.proveedores?.razon_social}</p>
                     </div>
-                    <div className="bg-white border border-slate-200 rounded-xl p-5">
-                      <p className="text-xs font-medium text-slate-500 mb-1">Total certificado</p>
-                      <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate" title={formatCurrency(totalCertificados, contrato.moneda)}>{formatCurrency(totalCertificados, contrato.moneda)}</p>
-                      <p className="text-xs text-slate-400 mt-1">
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Total certificado</p>
+                      <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate tabular-nums" title={formatCurrency(totalCertificados, contrato.moneda)}>{formatCurrency(totalCertificados, contrato.moneda)}</p>
+                      <p className="text-xs text-slate-400 mt-1 font-medium">
                         {contrato.monto_total > 0
                           ? `${Math.round((totalCertificados / contrato.monto_total) * 100)}% del contrato`
                           : '—'}
                       </p>
                     </div>
-                    <div className="bg-white border border-red-100 rounded-xl p-5">
-                      <p className="text-xs font-medium text-slate-500 mb-1">Total pagado</p>
+                    <div className="bg-red-50/40 border border-red-200/60 rounded-2xl p-5 shadow-xs">
+                      <p className="text-xs font-semibold text-red-800 uppercase tracking-wider mb-1">Total pagado</p>
                       {Object.keys(totalPagadoPorMoneda).length === 0 ? (
-                        <p className="text-xl sm:text-2xl font-bold text-red-700 truncate" title={formatCurrency(0, contrato.moneda)}>{formatCurrency(0, contrato.moneda)}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-red-700 truncate tabular-nums" title={formatCurrency(0, contrato.moneda)}>{formatCurrency(0, contrato.moneda)}</p>
                       ) : (
                         Object.entries(totalPagadoPorMoneda).map(([moneda, monto]) => (
-                          <p key={moneda} className="text-xl sm:text-2xl font-bold text-red-700 truncate" title={formatCurrency(monto, moneda)}>{formatCurrency(monto, moneda)}</p>
+                          <p key={moneda} className="text-xl sm:text-2xl font-bold text-red-700 truncate tabular-nums" title={formatCurrency(monto, moneda)}>{formatCurrency(monto, moneda)}</p>
                         ))
                       )}
-                      <p className="text-xs text-slate-400 mt-1">
-                        Pendiente: {formatCurrency(redondear2(totalCertificados - (totalPagadoPorMoneda[contrato.moneda] ?? 0)), contrato.moneda)}
-                      </p>
+                      {(() => {
+                        const saldo = saldoContraCertificado(totalCertificados, totalPagadoPorMoneda[contrato.moneda] ?? 0, 'pagar')
+                        return (
+                          <p className="text-xs text-slate-500 mt-1 font-medium">
+                            {saldo.label}
+                            {saldo.monto > 0 && <>: <span className="tabular-nums font-semibold">{formatCurrency(saldo.monto, contrato.moneda)}</span></>}
+                            {saldo.adelantado && (
+                              <span className="block text-slate-400 font-normal mt-0.5">
+                                Se pagó más de lo certificado hasta ahora — típico de un adelanto al subcontratista.
+                              </span>
+                            )}
+                          </p>
+                        )
+                      })()}
                     </div>
                   </div>
 
                   {ultimoCertif && (
-                    <div className="bg-white border border-slate-200 rounded-xl p-5">
-                      <p className="text-sm font-semibold text-slate-700 mb-3">Último certificado</p>
+                    <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
+                      <p className="text-sm font-bold text-slate-800 mb-3">Último certificado</p>
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium text-slate-900">N°{ultimoCertif.numero} — {ultimoCertif.periodo}</p>
+                          <p className="font-semibold text-slate-900">N°{ultimoCertif.numero} — {ultimoCertif.periodo}</p>
                           <p className="text-sm text-slate-500 mt-0.5">{ultimoCertif.porcentaje_avance}% de avance</p>
                         </div>
-                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                        <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
                           ultimoCertif.estado === 'aprobado' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
                           ultimoCertif.estado === 'presentado' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                           'bg-slate-50 text-slate-600 border-slate-200'
@@ -304,13 +344,6 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
   }
 
   // Dashboard para DESARROLLO inmobiliario
-  // Antes esto traía TODOS los contratos_venta de la obra con joins anidados
-  // a compradores/unidades/cuotas (filas completas) solo para mostrar 5 en
-  // "Últimas ventas" y sumar dos agregados en JS — con muchos contratos esa
-  // única query pesaba mucho más de lo que hacía falta. Se separa en 3
-  // queries angostas: la de display ya viene limitada a 5 desde la DB, y los
-  // dos agregados solo piden las columnas que suman (sin joins anidados).
-  // Las cuotas no tienen obra_id directo; se obtienen via contratos_venta (que sí tiene obra_id).
   const [
     unidadesRes,
     ultimasVentasRes,
@@ -357,10 +390,50 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
   }
 
   const kpis = [
-    { label: 'Disponibles', value: stats.disponibles, color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
-    { label: 'Reservadas', value: stats.reservadas, color: 'bg-amber-50 text-amber-700 border-amber-100' },
-    { label: 'Vendidas', value: stats.vendidas, color: 'bg-slate-100 text-slate-700 border-slate-200' },
-    { label: 'Total', value: stats.total, color: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
+    {
+      label: 'Disponibles',
+      value: stats.disponibles,
+      pct: stats.total > 0 ? Math.round((stats.disponibles / stats.total) * 100) : 0,
+      iconBg: 'bg-emerald-50 text-emerald-600 border-emerald-200/60',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
+        </svg>
+      )
+    },
+    {
+      label: 'Reservadas',
+      value: stats.reservadas,
+      pct: stats.total > 0 ? Math.round((stats.reservadas / stats.total) * 100) : 0,
+      iconBg: 'bg-amber-50 text-amber-600 border-amber-200/60',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      )
+    },
+    {
+      label: 'Vendidas',
+      value: stats.vendidas,
+      pct: stats.total > 0 ? Math.round((stats.vendidas / stats.total) * 100) : 0,
+      iconBg: 'bg-slate-100 text-slate-700 border-slate-200/60',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    },
+    {
+      label: 'Total Unidades',
+      value: stats.total,
+      pct: 100,
+      iconBg: 'bg-indigo-50 text-indigo-600 border-indigo-200/60',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
+        </svg>
+      )
+    },
   ]
 
   const base = `/admin/proyectos/${obraId}`
@@ -368,70 +441,89 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+        <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Dashboard</h1>
         <p className="text-slate-500 text-sm mt-1">{ctx.obraNombre}</p>
       </div>
 
       {((stats.cuotas_vencidas > 0 && puede('contratos')) || (stats.reservas_por_vencer > 0 && puede('reservas'))) && (
         <div className="space-y-2">
           {stats.cuotas_vencidas > 0 && puede('contratos') && (
-            <Link href={`${base}/contratos`} className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors">
-              <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-              <p className="text-sm text-red-800 flex-1"><strong>{stats.cuotas_vencidas} cuota{stats.cuotas_vencidas > 1 ? 's' : ''}</strong> vencida{stats.cuotas_vencidas > 1 ? 's' : ''} sin cobrar</p>
-              <span className="text-xs text-red-500">Ver →</span>
+            <Link href={`${base}/contratos`} className="flex items-center gap-3 p-3.5 bg-red-50/80 border-l-4 border-l-red-500 border border-red-200/60 rounded-r-2xl hover:bg-red-100/70 transition-all group shadow-xs">
+              <svg className="w-5 h-5 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              <p className="text-sm text-red-900 flex-1"><strong>{stats.cuotas_vencidas} cuota{stats.cuotas_vencidas > 1 ? 's' : ''}</strong> vencida{stats.cuotas_vencidas > 1 ? 's' : ''} sin cobrar</p>
+              <span className="text-xs font-semibold text-red-600 group-hover:translate-x-1 transition-transform">Ver →</span>
             </Link>
           )}
           {stats.reservas_por_vencer > 0 && puede('reservas') && (
-            <Link href={`${base}/reservas`} className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors">
-              <svg className="w-5 h-5 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              <p className="text-sm text-amber-800 flex-1"><strong>{stats.reservas_por_vencer} reserva{stats.reservas_por_vencer > 1 ? 's' : ''}</strong> vence{stats.reservas_por_vencer > 1 ? 'n' : ''} en los próximos 7 días</p>
-              <span className="text-xs text-amber-600">Ver →</span>
+            <Link href={`${base}/reservas`} className="flex items-center gap-3 p-3.5 bg-amber-50/80 border-l-4 border-l-amber-500 border border-amber-200/60 rounded-r-2xl hover:bg-amber-100/70 transition-all group shadow-xs">
+              <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <p className="text-sm text-amber-900 flex-1"><strong>{stats.reservas_por_vencer} reserva{stats.reservas_por_vencer > 1 ? 's' : ''}</strong> vence{stats.reservas_por_vencer > 1 ? 'n' : ''} en los próximos 7 días</p>
+              <span className="text-xs font-semibold text-amber-700 group-hover:translate-x-1 transition-transform">Ver →</span>
             </Link>
           )}
         </div>
       )}
 
+      {/* Grid de KPIs Premium */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map(card => (
-          <div key={card.label} className={`p-5 rounded-xl border ${card.color}`}>
-            <p className="text-3xl font-bold">{card.value}</p>
-            <p className="text-sm font-medium mt-1 opacity-80">{card.label}</p>
+          <div key={card.label} className="group bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{card.label}</span>
+              <div className={`w-9 h-9 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-transform ${card.iconBg}`}>
+                {card.icon}
+              </div>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-extrabold tracking-tight text-slate-900 tabular-nums">{card.value}</span>
+              {card.label !== 'Total Unidades' && (
+                <span className="text-xs font-medium text-slate-400">({card.pct}%)</span>
+              )}
+            </div>
+            <div className="mt-3 pt-2 border-t border-slate-100 text-[11px] font-medium text-slate-400">
+              {card.label === 'Total Unidades' ? 'Capacidad total' : `${card.pct}% del desarrollo`}
+            </div>
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <p className="text-sm font-medium text-slate-500 mb-1">Ingresos totales por contratos</p>
-          <p className="text-xl sm:text-2xl md:text-3xl font-bold text-slate-900 truncate" title={formatCurrency(stats.ingresos_contratos)}>{formatCurrency(stats.ingresos_contratos)}</p>
-          <p className="text-xs text-slate-400 mt-2">Suma de precios finales firmados</p>
+        <div className="bg-gradient-to-br from-white to-slate-50/50 border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Ingresos totales por contratos</p>
+          <p className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 truncate tabular-nums tracking-tight" title={formatCurrency(stats.ingresos_contratos)}>
+            {formatCurrency(stats.ingresos_contratos)}
+          </p>
+          <p className="text-xs text-slate-400 mt-2 font-medium">Suma acumulada de precios finales firmados</p>
         </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <p className="text-sm font-medium text-slate-500 mb-1">Saldo en cuotas pendientes</p>
-          <p className="text-xl sm:text-2xl md:text-3xl font-bold text-orange-600 truncate" title={formatCurrency(stats.cuotas_pendientes)}>{formatCurrency(stats.cuotas_pendientes)}</p>
-          <p className="text-xs text-slate-400 mt-2">Total de cuotas en estado Pendiente</p>
+        <div className="bg-gradient-to-br from-white to-orange-50/20 border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Saldo en cuotas pendientes</p>
+          <p className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-orange-600 truncate tabular-nums tracking-tight" title={formatCurrency(stats.cuotas_pendientes)}>
+            {formatCurrency(stats.cuotas_pendientes)}
+          </p>
+          <p className="text-xs text-slate-400 mt-2 font-medium">Total pendiente por cobrar en el plan de pago</p>
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-6">
+      {/* Visualización de Ocupación */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
         <div className="flex justify-between items-center mb-3">
-          <p className="text-sm font-medium text-slate-700">Ocupación del desarrollo</p>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm font-bold text-slate-800">Ocupación del desarrollo</p>
+          <span className="text-xs font-bold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full border border-slate-200/60">
             {stats.total > 0 ? Math.round(((stats.vendidas + stats.reservadas) / stats.total) * 100) : 0}% comprometido
-          </p>
+          </span>
         </div>
-        <div className="h-3 bg-slate-100 rounded-full overflow-hidden flex">
+        <div className="h-3.5 bg-slate-100 rounded-full overflow-hidden flex p-0.5 gap-0.5 ring-1 ring-slate-200/40">
           {stats.total > 0 && (
             <>
-              <div className="bg-slate-400 transition-all" style={{ width: `${(stats.vendidas / stats.total) * 100}%` }} />
-              <div className="bg-amber-400 transition-all" style={{ width: `${(stats.reservadas / stats.total) * 100}%` }} />
-              <div className="bg-emerald-400 transition-all" style={{ width: `${(stats.disponibles / stats.total) * 100}%` }} />
+              <div className="bg-slate-600 rounded-full transition-all duration-500" style={{ width: `${(stats.vendidas / stats.total) * 100}%` }} title="Vendidas" />
+              <div className="bg-amber-400 rounded-full transition-all duration-500" style={{ width: `${(stats.reservadas / stats.total) * 100}%` }} title="Reservadas" />
+              <div className="bg-emerald-400 rounded-full transition-all duration-500" style={{ width: `${(stats.disponibles / stats.total) * 100}%` }} title="Disponibles" />
             </>
           )}
         </div>
-        <div className="flex gap-4 mt-2">
-          {[{ color: 'bg-slate-400', label: 'Vendido' }, { color: 'bg-amber-400', label: 'Reservado' }, { color: 'bg-emerald-400', label: 'Disponible' }].map(l => (
-            <div key={l.label} className="flex items-center gap-1.5 text-xs text-slate-500">
+        <div className="flex gap-4 mt-3 pt-1">
+          {[{ color: 'bg-slate-600', label: 'Vendido' }, { color: 'bg-amber-400', label: 'Reservado' }, { color: 'bg-emerald-400', label: 'Disponible' }].map(l => (
+            <div key={l.label} className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
               <span className={`w-2.5 h-2.5 rounded-full ${l.color}`} />
               {l.label}
             </div>
@@ -440,47 +532,54 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="lg:col-span-2 bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <p className="font-semibold text-slate-800 text-sm">Últimas ventas</p>
+            <p className="font-bold text-slate-800 text-sm">Últimas ventas</p>
             {puede('contratos') && (
-              <Link href={`${base}/contratos`} className="text-xs text-indigo-600 hover:text-indigo-800">Ver todas →</Link>
+              <Link href={`${base}/contratos`} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">Ver todas →</Link>
             )}
           </div>
           {stats.ultimos_contratos.length === 0 ? (
-            <div className="px-5 py-8 text-center text-slate-400 text-sm">Aún no hay ventas registradas.</div>
+            <div className="px-5 py-8 text-center text-slate-400 text-sm italic">Aún no hay ventas registradas.</div>
           ) : (
-            <div className="divide-y divide-slate-50">
+            <div className="divide-y divide-slate-100">
               {stats.ultimos_contratos.map((c: any) => (
-                <div key={c.id} className="flex items-center justify-between px-5 py-3">
+                <div key={c.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/80 transition-colors">
                   <div>
-                    <p className="text-sm font-medium text-slate-900">{c.compradores?.nombre_completo}</p>
-                    <p className="text-xs text-slate-400">P{c.unidades?.piso} - {c.unidades?.numero}{c.unidades?.letra ?? ''} &bull; {formatDate(c.fecha_firma)}</p>
+                    <p className="text-sm font-semibold text-slate-900">{c.compradores?.nombre_completo}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">P{c.unidades?.piso} - {c.unidades?.numero}{c.unidades?.letra ?? ''} &bull; {formatDate(c.fecha_firma)}</p>
                   </div>
-                  <p className="font-semibold text-slate-900 text-sm">{formatCurrency(c.precio_final)}</p>
+                  <p className="font-bold text-slate-900 text-sm tabular-nums">{formatCurrency(c.precio_final)}</p>
                 </div>
               ))}
             </div>
           )}
         </div>
+
         <div className="space-y-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-1">Acciones rápidas</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">Acciones rápidas</p>
           {puede('unidades') && (
-            <Link href={`${base}/unidades`} className="flex items-center gap-3 p-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl transition-colors">
-              <svg className="w-5 h-5 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-              <div>
-                <p className="text-white font-medium text-sm">Registrar venta</p>
+            <Link href={`${base}/unidades`} className="flex items-center gap-3 p-4 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-2xl transition-all shadow-md shadow-indigo-600/10 group">
+              <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+              </div>
+              <div className="flex-1">
+                <p className="font-bold text-sm">Registrar venta</p>
                 <p className="text-indigo-200 text-xs">Desde Unidades</p>
               </div>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
             </Link>
           )}
           {puede('reservas') && (
-            <Link href={`${base}/reservas`} className="flex items-center gap-3 p-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl transition-colors">
-              <svg className="w-5 h-5 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              <div>
-                <p className="text-slate-800 font-medium text-sm">Ver reservas</p>
-                <p className="text-slate-400 text-xs">{stats.reservas_vigentes} vigente{stats.reservas_vigentes !== 1 ? 's' : ''}</p>
+            <Link href={`${base}/reservas`} className="flex items-center gap-3 p-4 bg-white border border-slate-200/80 hover:border-slate-300 rounded-2xl transition-all shadow-xs group">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               </div>
+              <div className="flex-1">
+                <p className="text-slate-900 font-bold text-sm">Ver reservas</p>
+                <p className="text-slate-400 text-xs font-medium">{stats.reservas_vigentes} vigente{stats.reservas_vigentes !== 1 ? 's' : ''}</p>
+              </div>
+              <span className="text-slate-400 group-hover:translate-x-1 group-hover:text-slate-600 transition-all">→</span>
             </Link>
           )}
         </div>

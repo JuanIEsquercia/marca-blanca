@@ -38,23 +38,20 @@ export async function proxy(request: NextRequest) {
 
     const { data: { user } } = await supabase.auth.getUser()
     const pathname = request.nextUrl.pathname
-    const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL
-    const isSuperAdmin = !!SUPERADMIN_EMAIL && user?.email === SUPERADMIN_EMAIL
 
-    // Rutas del super admin
-    if (pathname.startsWith('/superadmin')) {
-      if (!user) {
-        const url = new URL('/auth/login', request.url)
-        url.searchParams.set('redirectTo', pathname)
-        return NextResponse.redirect(url)
-      }
-      if (!isSuperAdmin) {
-        return NextResponse.redirect(new URL('/admin', request.url))
-      }
-    }
-
-    // Rutas del ERP (constructora)
-    if (pathname.startsWith('/admin')) {
+    // El proxy hace AUTENTICACIÓN (¿hay sesión?), no AUTORIZACIÓN (¿quién
+    // es?). Antes también comparaba el email contra SUPERADMIN_EMAIL, y eso
+    // provocaba un loop infinito de redirecciones: si el proxy no lograba
+    // leer esa variable, mandaba /superadmin -> /admin, mientras que
+    // app/admin/layout.tsx (que sí la lee, porque corre en Node) mandaba
+    // /admin -> /superadmin. Ida y vuelta sin fin.
+    //
+    // La comparación vive ahora en un solo lugar por ruta:
+    // app/superadmin/layout.tsx deja entrar solo al superadmin, y
+    // app/admin/layout.tsx manda al superadmin a su panel. Los dos corren
+    // en Node, con acceso garantizado a la variable, y son la barrera real
+    // — el proxy nunca fue la que protegía esto.
+    if (pathname.startsWith('/superadmin') || pathname.startsWith('/admin')) {
       if (!user) {
         const url = new URL('/auth/login', request.url)
         url.searchParams.set('redirectTo', pathname)
@@ -62,10 +59,10 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    // Después de login: redirigir según rol
+    // Después de login siempre a /admin: si resulta ser el superadmin, su
+    // layout lo reenvía a /superadmin en un solo salto más.
     if (pathname === '/auth/login' && user) {
-      const dest = isSuperAdmin ? '/superadmin' : '/admin'
-      return NextResponse.redirect(new URL(dest, request.url))
+      return NextResponse.redirect(new URL('/admin', request.url))
     }
 
     supabaseResponse.headers.set('x-pathname', pathname)

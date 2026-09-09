@@ -23,7 +23,9 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
-  // SUPERADMIN_EMAIL se lee con process.env directo en proxy.ts — NO va en
+  // SUPERADMIN_EMAIL solo lo leen los layouts y las rutas de API, que corren
+  // en Node y tienen process.env garantizado. El proxy ya no lo usa (ver el
+  // comentario en proxy.ts sobre el loop de redirecciones). NO va en
   // `env: {}`: ese bloque inlinea el valor en el bundle del browser y
   // publicaba el email de la cuenta más privilegiada del sistema
   // (auditoría 2026-08-24). Las vars sin NEXT_PUBLIC_ sí están disponibles

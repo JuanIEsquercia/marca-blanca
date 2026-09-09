@@ -124,90 +124,98 @@ export default async function AdminHomePage({
               <Link
                 key={p.id}
                 href={`/admin/proyectos/${p.id}/dashboard`}
-                className="group bg-white border border-slate-200 rounded-2xl p-5 hover:border-indigo-300 hover:shadow-md transition-all"
+                className="group relative bg-white border border-slate-200/80 rounded-2xl p-5 hover:border-indigo-300/60 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-200 ease-out flex flex-col justify-between"
               >
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1 min-w-0">
-                    <h2 className="font-semibold text-slate-900 text-base truncate group-hover:text-indigo-700 transition-colors">
-                      {p.nombre}
-                    </h2>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <span className={cn(
-                        'text-[10px] font-semibold px-2 py-0.5 rounded',
-                        tipo === 'desarrollo'
-                          ? 'bg-indigo-100 text-indigo-700'
-                          : 'bg-amber-100 text-amber-700'
-                      )}>
-                        {tipo === 'desarrollo' ? 'DESARROLLO' : 'OBRA'}
-                      </span>
-                      <span className={cn(
-                        'text-[10px] font-medium px-2 py-0.5 rounded',
-                        ESTADO_COLOR[estado]
-                      )}>
-                        {ESTADO_LABEL[estado]}
-                      </span>
+                <div>
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="font-bold text-slate-900 text-base truncate group-hover:text-indigo-600 transition-colors">
+                        {p.nombre}
+                      </h2>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className={cn(
+                          'text-[10px] font-semibold tracking-wider px-2 py-0.5 rounded-full uppercase border',
+                          tipo === 'desarrollo'
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200/60'
+                            : 'bg-amber-50 text-amber-700 border-amber-200/60'
+                        )}>
+                          {tipo === 'desarrollo' ? 'DESARROLLO' : 'OBRA'}
+                        </span>
+                        <span className={cn(
+                          'inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full border',
+                          ESTADO_COLOR[estado]
+                        )}>
+                          {estado === 'activa' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                          {ESTADO_LABEL[estado]}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0 ml-3">
+                      <ProyectoAcciones obraId={p.id} nombre={p.nombre} tipo={tipo} estadoActual={estado} esAdmin={ctx.perfilRol === 'admin'} />
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/80 border border-slate-200/60 flex items-center justify-center group-hover:from-indigo-50 group-hover:to-indigo-100/50 group-hover:border-indigo-200/60 group-hover:scale-105 transition-all duration-200">
+                        {tipo === 'desarrollo' ? (
+                          <svg className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5 text-slate-400 group-hover:text-amber-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0 ml-3">
-                    <ProyectoAcciones obraId={p.id} nombre={p.nombre} tipo={tipo} estadoActual={estado} esAdmin={ctx.perfilRol === 'admin'} />
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center group-hover:bg-indigo-50 transition-colors">
-                      {tipo === 'desarrollo' ? (
-                        <svg className="w-5 h-5 text-slate-400 group-hover:text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
-                        </svg>
-                      ) : (
-                        <svg className="w-5 h-5 text-slate-400 group-hover:text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      )}
+
+                  {/* Métricas por tipo */}
+                  {tipo === 'desarrollo' && stats ? (
+                    <div className="bg-slate-50/60 border border-slate-100 rounded-xl p-3">
+                      <div className="flex justify-between text-xs text-slate-600 mb-2">
+                        <span className="font-semibold">{stats.total} unidades total</span>
+                        <span className="font-semibold text-slate-700">
+                          {stats.total > 0 ? Math.round(((stats.vendidas + stats.reservadas) / stats.total) * 100) : 0}% comprometido
+                        </span>
+                      </div>
+                      <div className="h-2 bg-slate-200/80 rounded-full overflow-hidden flex p-0.5 gap-0.5 ring-1 ring-slate-200/40">
+                        {stats.total > 0 && (
+                          <>
+                            <div className="bg-slate-600 rounded-full transition-all duration-300" style={{ width: `${(stats.vendidas / stats.total) * 100}%` }} title="Vendidas" />
+                            <div className="bg-amber-400 rounded-full transition-all duration-300" style={{ width: `${(stats.reservadas / stats.total) * 100}%` }} title="Reservadas" />
+                            <div className="bg-emerald-400 rounded-full transition-all duration-300" style={{ width: `${(stats.disponibles / stats.total) * 100}%` }} title="Disponibles" />
+                          </>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-slate-200/40">
+                        {[
+                          { color: 'bg-slate-600', label: `${stats.vendidas} vend.` },
+                          { color: 'bg-amber-400', label: `${stats.reservadas} res.` },
+                          { color: 'bg-emerald-400', label: `${stats.disponibles} disp.` },
+                        ].map(l => (
+                          <div key={l.label} className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
+                            <span className={cn('w-2 h-2 rounded-full shrink-0', l.color)} />
+                            {l.label}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : tipo === 'desarrollo' ? (
+                    <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3 text-xs text-slate-400 italic">
+                      Sin unidades cargadas
+                    </div>
+                  ) : (
+                    <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3 flex items-center gap-2 text-xs text-slate-500">
+                      <span className="w-2 h-2 rounded-full bg-amber-400" />
+                      Obra de construcción en desarrollo
+                    </div>
+                  )}
                 </div>
 
-                {/* Métricas por tipo */}
-                {tipo === 'desarrollo' && stats ? (
-                  <div>
-                    <div className="flex justify-between text-xs text-slate-500 mb-1.5">
-                      <span>{stats.total} unidades</span>
-                      <span>
-                        {stats.total > 0 ? Math.round(((stats.vendidas + stats.reservadas) / stats.total) * 100) : 0}% comprometido
-                      </span>
-                    </div>
-                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
-                      {stats.total > 0 && (
-                        <>
-                          <div className="bg-slate-400" style={{ width: `${(stats.vendidas / stats.total) * 100}%` }} />
-                          <div className="bg-amber-400" style={{ width: `${(stats.reservadas / stats.total) * 100}%` }} />
-                          <div className="bg-emerald-400" style={{ width: `${(stats.disponibles / stats.total) * 100}%` }} />
-                        </>
-                      )}
-                    </div>
-                    <div className="flex gap-3 mt-2">
-                      {[
-                        { color: 'bg-slate-400', label: `${stats.vendidas} vendidas` },
-                        { color: 'bg-amber-400', label: `${stats.reservadas} reservadas` },
-                        { color: 'bg-emerald-400', label: `${stats.disponibles} disponibles` },
-                      ].map(l => (
-                        <div key={l.label} className="flex items-center gap-1 text-[10px] text-slate-400">
-                          <span className={cn('w-2 h-2 rounded-full', l.color)} />
-                          {l.label}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : tipo === 'desarrollo' ? (
-                  <p className="text-xs text-slate-400">Sin unidades cargadas</p>
-                ) : (
-                  <p className="text-xs text-slate-400">Obra de construcción</p>
-                )}
-
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs text-slate-400">
-                    {new Date(p.created_at).toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })}
+                <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-xs text-slate-400 font-medium">
+                    Creado {new Date(p.created_at).toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })}
                   </span>
-                  <span className="text-xs font-medium text-indigo-600 group-hover:text-indigo-700">
-                    Entrar →
+                  <span className="text-xs font-semibold text-indigo-600 group-hover:text-indigo-700 flex items-center gap-1">
+                    Entrar <span className="group-hover:translate-x-1 transition-transform inline-block">→</span>
                   </span>
                 </div>
               </Link>

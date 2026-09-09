@@ -35,24 +35,27 @@ import { ThemeProvider } from '@/components/ThemeProvider'
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className={`${inter.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
-      <head>
+      <body className="antialiased bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
+        {/* Anti-flash del tema oscuro: aplica la clase antes de pintar nada.
+            Va como PRIMER hijo de <body>, no dentro de un <head> propio — la
+            documentación de Next 16 (docs/01-app/.../layout.md) dice que el
+            layout raíz no debe declarar <head> a mano porque rompe el
+            streaming y la de-duplicación de esos tags. Con <head> manual, la
+            página de login (que envuelve LoginForm en <Suspense>, o sea
+            streaming) fallaba con "An unexpected response was received from
+            the server". Un <script> inline acá se ejecuta igual durante el
+            parseo, antes de que se pinte el contenido de abajo. */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               try {
                 const stored = localStorage.getItem('theme-preference');
                 const isDark = stored === 'dark' || ((!stored || stored === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                if (isDark) {
-                  document.documentElement.classList.add('dark');
-                } else {
-                  document.documentElement.classList.remove('dark');
-                }
+                document.documentElement.classList.toggle('dark', isDark);
               } catch (e) {}
             `,
           }}
         />
-      </head>
-      <body className="antialiased bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
         <ThemeProvider>
           {children}
         </ThemeProvider>

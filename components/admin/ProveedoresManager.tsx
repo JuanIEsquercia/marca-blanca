@@ -16,6 +16,10 @@ interface Props {
   constructoraId: string
   puedeVerGastos: boolean
   historialAcotado: boolean
+  // Precarga del filtro por texto — la manda el buscador global del
+  // sidebar vía ?q= para que, al elegir un proveedor ahí, la pantalla
+  // abra ya filtrada en vez de con la nómina entera.
+  busquedaInicial?: string
 }
 
 const EMPTY_PROV = { razon_social: '', cuit: '', email: '', telefono: '', direccion: '', notas: '' }
@@ -40,13 +44,13 @@ function MontosPorMoneda({ montos, vacio, className }: { montos: Record<string, 
   )
 }
 
-export default function ProveedoresManager({ proveedores, gastos, constructoraId, puedeVerGastos, historialAcotado }: Props) {
+export default function ProveedoresManager({ proveedores, gastos, constructoraId, puedeVerGastos, historialAcotado, busquedaInicial }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [soloConDeuda, setSoloConDeuda] = useState(false)
-  const [busqueda, setBusqueda] = useState('')
+  const [busqueda, setBusqueda] = useState(busquedaInicial ?? '')
   const [verPagadosDe, setVerPagadosDe] = useState<string | null>(null) // proveedor_id
 
   const gastosPorProveedor = useMemo(() => {

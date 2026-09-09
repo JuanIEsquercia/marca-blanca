@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import type { RolUsuario } from '@/types/database'
 import { puedeAcceder, type ModuloKey, type ProyectoAsignado } from '@/lib/permisos'
 import { getCurrentProyecto, subscribeProyecto, type ProyectoData } from '@/lib/proyecto-store'
+import BuscadorGlobal from './BuscadorGlobal'
 
 // Cache de módulo: evita el API call cuando se regresa a un proyecto ya visitado
 const proyectoApiCache = new Map<string, ProyectoData>()
@@ -475,6 +476,25 @@ export default function AdminSidebar({ userName, userRole, permisosEmpresa, proy
             </svg>
           </button>
         </div>
+
+        {/* Buscador global — secciones se filtran en memoria contra el
+            catálogo; los datos van por una sola RPC con debounce. */}
+        <BuscadorGlobal
+          ctx={{
+            rol: userRole,
+            permisosEmpresa,
+            proyectos,
+            proyectoActual: effectiveProyecto
+              ? {
+                  id: effectiveProyecto.id,
+                  nombre: effectiveProyecto.nombre,
+                  tipo: effectiveProyecto.tipo as 'desarrollo' | 'obra',
+                  modoCuentas: (effectiveProyecto.modo_cuentas ?? 'empresa') as 'empresa' | 'especificas',
+                }
+              : null,
+          }}
+          onNavegar={() => setIsOpen(false)}
+        />
 
         {/* Navegación */}
         <nav className="flex-1 p-3 space-y-4 overflow-y-auto admin-scroll">

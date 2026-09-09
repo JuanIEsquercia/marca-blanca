@@ -10,7 +10,8 @@ export const metadata: Metadata = { title: 'Proveedores' }
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  searchParams: Promise<{ historial?: string }>
+  // q: término que trae el buscador global del sidebar (lib/buscador.ts).
+  searchParams: Promise<{ historial?: string; q?: string }>
 }
 
 export default async function ProveedoresPage({ searchParams }: Props) {
@@ -24,7 +25,9 @@ export default async function ProveedoresPage({ searchParams }: Props) {
   // operador con Proveedores pero sin Gastos ve la página igual, pero sin
   // montos (RLS de gastos no le devuelve filas).
   const puedeVerGastos = puedeAcceder(ctx.perfilRol, ctx.perfilPermisos, ctx.perfilProyectos, 'gastos', null)
-  const verHistorialCompleto = (await searchParams).historial === 'todo'
+  const params = await searchParams
+  const verHistorialCompleto = params.historial === 'todo'
+  const busquedaParam = typeof params.q === 'string' ? params.q : undefined
   const hace12Meses = new Date()
   hace12Meses.setMonth(hace12Meses.getMonth() - 12)
   const ventanaInicio = hace12Meses.toISOString().slice(0, 10)
@@ -70,6 +73,7 @@ export default async function ProveedoresPage({ searchParams }: Props) {
         constructoraId={ctx.constructoraId}
         puedeVerGastos={puedeVerGastos}
         historialAcotado={!verHistorialCompleto}
+        busquedaInicial={busquedaParam}
       />
     </div>
   )

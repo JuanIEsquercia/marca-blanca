@@ -4382,3 +4382,83 @@ AS $$
 $$;
 
 REVOKE EXECUTE ON FUNCTION registrar_hit_faq_cache(UUID) FROM PUBLIC, authenticated, anon;
+
+-- ============================================================
+-- MIGRATION 076: buscador global del panel — ver migration_076.sql
+-- ============================================================
+CREATE OR REPLACE FUNCTION buscar_global(p_termino TEXT)
+RETURNS TABLE(
+  tipo      TEXT,
+  id        UUID,
+  titulo    TEXT,
+  subtitulo TEXT,
+  obra_id   UUID
+)
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  WITH t AS (
+    SELECT '%' || unaccent(lower(btrim(p_termino))) || '%' AS q
+  )
+  (
+    SELECT 'proyecto'::TEXT, o.id, o.nombre,
+           CASE WHEN o.tipo = 'desarrollo' THEN 'Desarrollo' ELSE 'Obra' END::TEXT,
+           o.id
+    FROM obras o, t
+    WHERE unaccent(lower(o.nombre)) LIKE t.q
+    ORDER BY o.nombre
+    LIMIT 5
+  )
+  UNION ALL
+  (
+    SELECT 'proveedor'::TEXT, p.id, p.razon_social,
+           COALESCE(NULLIF(p.cuit, ''), 'Proveedor')::TEXT,
+           NULL::UUID
+    FROM proveedores p, t
+    WHERE unaccent(lower(p.razon_social)) LIKE t.q
+       OR unaccent(lower(COALESCE(p.cuit, ''))) LIKE t.q
+    ORDER BY p.razon_social
+    LIMIT 5
+  )
+  UNION ALL
+  (
+    SELECT 'cliente'::TEXT, c.id, c.nombre_completo,
+           COALESCE(NULLIF(c.dni_cuit, ''), 'Cliente')::TEXT,
+           NULL::UUID
+    FROM compradores c, t
+    WHERE unaccent(lower(c.nombre_completo)) LIKE t.q
+       OR unaccent(lower(COALESCE(c.dni_cuit, ''))) LIKE t.q
+    ORDER BY c.nombre_completo
+    LIMIT 5
+  )
+  UNION ALL
+  (
+    SELECT 'unidad'::TEXT, u.id,
+           ('Piso ' || u.piso || COALESCE(' - ' || u.numero, '') || COALESCE(u.letra, ''))::TEXT,
+           (o.nombre || ' · ' || u.estado_comercial)::TEXT,
+           u.obra_id
+    FROM unidades u
+    JOIN obras o ON o.id = u.obra_id, t
+    WHERE unaccent(lower(COALESCE(u.numero, ''))) LIKE t.q
+       OR unaccent(lower(COALESCE(u.letra, ''))) LIKE t.q
+       OR unaccent(lower('piso ' || u.piso)) LIKE t.q
+    ORDER BY u.piso, u.numero
+    LIMIT 5
+  )
+  UNION ALL
+  (
+    SELECT 'presupuesto'::TEXT, pr.id, pr.cliente_nombre,
+           ('Presupuesto · ' || pr.estado)::TEXT,
+           pr.obra_id
+    FROM presupuestos pr, t
+    WHERE unaccent(lower(pr.cliente_nombre)) LIKE t.q
+       OR unaccent(lower(COALESCE(pr.cliente_cuit, ''))) LIKE t.q
+    ORDER BY pr.created_at DESC
+    LIMIT 5
+  );
+$$;
+
+-- anon no tiene sesión, así que la RLS no le daría nada igual; se revoca
+-- para dejarlo explícito.
+REVOKE EXECUTE ON FUNCTION buscar_global(TEXT) FROM anon;

@@ -467,20 +467,20 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
       {/* Grid de KPIs Premium */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map(card => (
-          <div key={card.label} className="group bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all">
+          <div key={card.label} className="group bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{card.label}</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{card.label}</span>
               <div className={`w-9 h-9 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-transform ${card.iconBg}`}>
                 {card.icon}
               </div>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-extrabold tracking-tight text-slate-900 tabular-nums">{card.value}</span>
+              <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">{card.value}</span>
               {card.label !== 'Total Unidades' && (
-                <span className="text-xs font-medium text-slate-400">({card.pct}%)</span>
+                <span className="text-xs font-medium text-slate-400 dark:text-slate-500">({card.pct}%)</span>
               )}
             </div>
-            <div className="mt-3 pt-2 border-t border-slate-100 text-[11px] font-medium text-slate-400">
+            <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] font-medium text-slate-400 dark:text-slate-500">
               {card.label === 'Total Unidades' ? 'Capacidad total' : `${card.pct}% del desarrollo`}
             </div>
           </div>
@@ -488,42 +488,42 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-gradient-to-br from-white to-slate-50/50 border border-slate-200/80 rounded-2xl p-6 shadow-xs">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Ingresos totales por contratos</p>
-          <p className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 truncate tabular-nums tracking-tight" title={formatCurrency(stats.ingresos_contratos)}>
+        <div className="bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
+          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Ingresos totales por contratos</p>
+          <p className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-slate-100 truncate tabular-nums tracking-tight" title={formatCurrency(stats.ingresos_contratos)}>
             {formatCurrency(stats.ingresos_contratos)}
           </p>
-          <p className="text-xs text-slate-400 mt-2 font-medium">Suma acumulada de precios finales firmados</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-medium">Suma acumulada de precios finales firmados</p>
         </div>
-        <div className="bg-gradient-to-br from-white to-orange-50/20 border border-slate-200/80 rounded-2xl p-6 shadow-xs">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Saldo en cuotas pendientes</p>
-          <p className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-orange-600 truncate tabular-nums tracking-tight" title={formatCurrency(stats.cuotas_pendientes)}>
+        <div className="bg-gradient-to-br from-white to-orange-50/20 dark:from-slate-900 dark:to-orange-950/20 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
+          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Saldo en cuotas pendientes</p>
+          <p className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-orange-600 dark:text-orange-400 truncate tabular-nums tracking-tight" title={formatCurrency(stats.cuotas_pendientes)}>
             {formatCurrency(stats.cuotas_pendientes)}
           </p>
-          <p className="text-xs text-slate-400 mt-2 font-medium">Total pendiente por cobrar en el plan de pago</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-medium">Total pendiente por cobrar en el plan de pago</p>
         </div>
       </div>
 
       {/* Visualización de Ocupación */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
         <div className="flex justify-between items-center mb-3">
-          <p className="text-sm font-bold text-slate-800">Ocupación del desarrollo</p>
-          <span className="text-xs font-bold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full border border-slate-200/60">
+          <p className="text-sm font-bold text-slate-800 dark:text-slate-200">Ocupación del desarrollo</p>
+          <span className="text-xs font-bold px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full border border-slate-200/60 dark:border-slate-700/60">
             {stats.total > 0 ? Math.round(((stats.vendidas + stats.reservadas) / stats.total) * 100) : 0}% comprometido
           </span>
         </div>
-        <div className="h-3.5 bg-slate-100 rounded-full overflow-hidden flex p-0.5 gap-0.5 ring-1 ring-slate-200/40">
+        <div className="h-3.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex p-0.5 gap-0.5 ring-1 ring-slate-200/40 dark:ring-slate-700/40">
           {stats.total > 0 && (
             <>
-              <div className="bg-slate-600 rounded-full transition-all duration-500" style={{ width: `${(stats.vendidas / stats.total) * 100}%` }} title="Vendidas" />
+              <div className="bg-slate-600 dark:bg-slate-400 rounded-full transition-all duration-500" style={{ width: `${(stats.vendidas / stats.total) * 100}%` }} title="Vendidas" />
               <div className="bg-amber-400 rounded-full transition-all duration-500" style={{ width: `${(stats.reservadas / stats.total) * 100}%` }} title="Reservadas" />
               <div className="bg-emerald-400 rounded-full transition-all duration-500" style={{ width: `${(stats.disponibles / stats.total) * 100}%` }} title="Disponibles" />
             </>
           )}
         </div>
         <div className="flex gap-4 mt-3 pt-1">
-          {[{ color: 'bg-slate-600', label: 'Vendido' }, { color: 'bg-amber-400', label: 'Reservado' }, { color: 'bg-emerald-400', label: 'Disponible' }].map(l => (
-            <div key={l.label} className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+          {[{ color: 'bg-slate-600 dark:bg-slate-400', label: 'Vendido' }, { color: 'bg-amber-400', label: 'Reservado' }, { color: 'bg-emerald-400', label: 'Disponible' }].map(l => (
+            <div key={l.label} className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
               <span className={`w-2.5 h-2.5 rounded-full ${l.color}`} />
               {l.label}
             </div>
@@ -532,24 +532,24 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <p className="font-bold text-slate-800 text-sm">Últimas ventas</p>
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+            <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">Últimas ventas</p>
             {puede('contratos') && (
-              <Link href={`${base}/contratos`} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">Ver todas →</Link>
+              <Link href={`${base}/contratos`} className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">Ver todas →</Link>
             )}
           </div>
           {stats.ultimos_contratos.length === 0 ? (
-            <div className="px-5 py-8 text-center text-slate-400 text-sm italic">Aún no hay ventas registradas.</div>
+            <div className="px-5 py-8 text-center text-slate-400 dark:text-slate-500 text-sm italic">Aún no hay ventas registradas.</div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {stats.ultimos_contratos.map((c: any) => (
-                <div key={c.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/80 transition-colors">
+                <div key={c.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">{c.compradores?.nombre_completo}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">P{c.unidades?.piso} - {c.unidades?.numero}{c.unidades?.letra ?? ''} &bull; {formatDate(c.fecha_firma)}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{c.compradores?.nombre_completo}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">P{c.unidades?.piso} - {c.unidades?.numero}{c.unidades?.letra ?? ''} &bull; {formatDate(c.fecha_firma)}</p>
                   </div>
-                  <p className="font-bold text-slate-900 text-sm tabular-nums">{formatCurrency(c.precio_final)}</p>
+                  <p className="font-bold text-slate-900 dark:text-slate-100 text-sm tabular-nums">{formatCurrency(c.precio_final)}</p>
                 </div>
               ))}
             </div>
@@ -557,7 +557,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
         </div>
 
         <div className="space-y-3">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">Acciones rápidas</p>
+          <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-1">Acciones rápidas</p>
           {puede('unidades') && (
             <Link href={`${base}/unidades`} className="flex items-center gap-3 p-4 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-2xl transition-all shadow-md shadow-indigo-600/10 group">
               <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
@@ -571,15 +571,15 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
             </Link>
           )}
           {puede('reservas') && (
-            <Link href={`${base}/reservas`} className="flex items-center gap-3 p-4 bg-white border border-slate-200/80 hover:border-slate-300 rounded-2xl transition-all shadow-xs group">
-              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-                <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            <Link href={`${base}/reservas`} className="flex items-center gap-3 p-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-2xl transition-all shadow-xs group">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               </div>
               <div className="flex-1">
-                <p className="text-slate-900 font-bold text-sm">Ver reservas</p>
-                <p className="text-slate-400 text-xs font-medium">{stats.reservas_vigentes} vigente{stats.reservas_vigentes !== 1 ? 's' : ''}</p>
+                <p className="text-slate-900 dark:text-slate-100 font-bold text-sm">Ver reservas</p>
+                <p className="text-slate-400 dark:text-slate-500 text-xs font-medium">{stats.reservas_vigentes} vigente{stats.reservas_vigentes !== 1 ? 's' : ''}</p>
               </div>
-              <span className="text-slate-400 group-hover:translate-x-1 group-hover:text-slate-600 transition-all">→</span>
+              <span className="text-slate-400 dark:text-slate-500 group-hover:translate-x-1 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-all">→</span>
             </Link>
           )}
         </div>

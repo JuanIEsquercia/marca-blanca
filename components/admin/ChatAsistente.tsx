@@ -90,8 +90,10 @@ function BurbujaTexto({ autor, texto }: { autor: 'usuario' | 'asistente'; texto:
   return (
     <div className={cn('flex', autor === 'usuario' ? 'justify-end' : 'justify-start')}>
       <div className={cn(
-        'max-w-[85%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words',
-        autor === 'usuario' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-800'
+        'max-w-[85%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words shadow-xs',
+        autor === 'usuario'
+          ? 'bg-indigo-600 text-white'
+          : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700/60'
       )}>
         {texto || '…'}
       </div>
@@ -103,7 +105,7 @@ function NavegacionCard({ label, onNavegar }: { label: string; onNavegar: () => 
   return (
     <div className="flex justify-start">
       <button onClick={onNavegar}
-        className="max-w-[85%] flex items-center gap-2 bg-white border border-indigo-200 rounded-2xl px-3.5 py-2.5 text-sm text-indigo-700 font-medium hover:bg-indigo-50 transition-colors">
+        className="max-w-[85%] flex items-center gap-2 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-800/80 rounded-2xl px-3.5 py-2.5 text-sm text-indigo-700 dark:text-indigo-300 font-medium hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors shadow-xs">
         <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
         </svg>
@@ -130,31 +132,31 @@ function PropuestaCard({
   const campos = Object.entries(input).filter(([k, v]) => v !== null && v !== undefined && v !== '' && k !== 'resumen' && !esClaveId(k))
   return (
     <div className="flex justify-start">
-      <div className="max-w-[90%] w-full bg-white border border-amber-200 rounded-2xl p-3.5 space-y-2.5">
-        <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
+      <div className="max-w-[90%] w-full bg-white dark:bg-slate-850 border border-amber-200 dark:border-amber-700/60 rounded-2xl p-3.5 space-y-2.5 shadow-xs">
+        <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
           {LABEL_HERRAMIENTA[herramienta] ?? herramienta}
         </p>
-        {resumen && <p className="text-sm text-slate-800 font-medium">{resumen}</p>}
+        {resumen && <p className="text-sm text-slate-800 dark:text-slate-200 font-medium">{resumen}</p>}
         <div className="space-y-1">
           {campos.map(([clave, valor]) => (
             <div key={clave} className="flex justify-between gap-3 text-xs">
-              <span className="text-slate-400 shrink-0">{clave}</span>
-              <span className="text-slate-700 font-medium text-right whitespace-pre-wrap">{formatValorPropuesta(valor)}</span>
+              <span className="text-slate-400 dark:text-slate-500 shrink-0">{clave}</span>
+              <span className="text-slate-700 dark:text-slate-300 font-medium text-right whitespace-pre-wrap">{formatValorPropuesta(valor)}</span>
             </div>
           ))}
         </div>
         {resuelta ? (
-          <p className={cn('text-xs font-medium', resuelta === 'confirmada' ? 'text-emerald-600' : 'text-slate-400')}>
+          <p className={cn('text-xs font-medium', resuelta === 'confirmada' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400')}>
             {resuelta === 'confirmada' ? '✓ Confirmado' : '✕ Cancelado'}
           </p>
         ) : (
           <div className="flex gap-2 pt-1">
             <button onClick={onCancelar} disabled={disabled}
-              className="flex-1 py-1.5 border border-slate-300 rounded-lg text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+              className="flex-1 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 font-medium transition-colors">
               Cancelar
             </button>
             <button onClick={onConfirmar} disabled={disabled}
-              className="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold">
+              className="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors">
               Confirmar
             </button>
           </div>
@@ -286,13 +288,13 @@ export default function ChatAsistente({ userName }: Props) {
       </button>
 
       {abierto && (
-        <div className="fixed right-0 top-0 h-full w-full sm:w-[420px] z-50 bg-white shadow-2xl flex flex-col">
-          <div className="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
+        <div className="fixed right-0 top-0 h-full w-full sm:w-[420px] z-50 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col">
+          <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <div>
-              <h2 className="font-bold text-slate-900 text-sm">Asistente</h2>
-              <p className="text-xs text-slate-400">Hola {userName.split(' ')[0]} — preguntame sobre el sistema</p>
+              <h2 className="font-bold text-slate-900 dark:text-white text-sm">Asistente</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Hola {userName.split(' ')[0]} — preguntame sobre el sistema</p>
             </div>
-            <button onClick={() => setAbierto(false)} className="text-slate-400 hover:text-slate-600">
+            <button onClick={() => setAbierto(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -301,7 +303,7 @@ export default function ChatAsistente({ userName }: Props) {
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
             {mensajes.length === 0 && (
-              <p className="text-sm text-slate-400 text-center mt-8">
+              <p className="text-sm text-slate-500 dark:text-slate-400 text-center mt-8">
                 Preguntame cómo hacer algo en el sistema, o pedime que lo cargue por vos.
               </p>
             )}
@@ -319,10 +321,10 @@ export default function ChatAsistente({ userName }: Props) {
             })}
           </div>
 
-          <form onSubmit={enviarMensaje} className="p-3 border-t border-slate-200 flex gap-2 shrink-0">
+          <form onSubmit={enviarMensaje} className="p-3 border-t border-slate-200 dark:border-slate-800 flex gap-2 shrink-0">
             <input value={input} onChange={e => setInput(e.target.value)} disabled={enviando}
               placeholder="Escribí tu pregunta..."
-              className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60" />
+              className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60" />
             <button type="submit" disabled={enviando || !input.trim()}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors">
               {enviando ? '...' : 'Enviar'}

@@ -1,20 +1,20 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: var(--font-inter), var(--font-jakarta), system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-jetbrains-mono), monospace;
 }
 
 :root {
-  --background: #ffffff;
+  --background: #f8fafc;
   --foreground: #0f172a;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f172a;
-    --foreground: #f8fafc;
-  }
+.dark {
+  --background: #020617;
+  --foreground: #f8fafc;
 }
 
 body {
@@ -37,12 +37,6 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-sans);
 }
 
-/* Forzar texto oscuro en todos los campos de formulario — evita herencia del color-scheme */
-input, select, textarea {
-  color: #0f172a;
-  background-color: #ffffff;
-}
-
 /* Scrollbar personalizada para el panel admin */
 .admin-scroll::-webkit-scrollbar {
   width: 6px;
@@ -50,13 +44,18 @@ input, select, textarea {
 .admin-scroll::-webkit-scrollbar-track {
   background: #f1f5f9;
 }
+.dark .admin-scroll::-webkit-scrollbar-track {
+  background: #0f172a;
+}
 .admin-scroll::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 3px;
 }
+.dark .admin-scroll::-webkit-scrollbar-thumb {
+  background: #334155;
+}
 
-/* Barras de filtros con scroll horizontal en mobile — se puede seguir
-   scrolleando, solo se oculta la barra de scroll visible. */
+/* Barras de filtros con scroll horizontal en mobile */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -71,3 +70,4 @@ input, select, textarea {
   .print-only { display: block !important; }
   body { background: white; color: black; }
 }
+

@@ -95,8 +95,8 @@ export default async function AdminHomePage({
       )}
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Proyectos</h1>
-          <p className="text-slate-500 text-sm mt-1">{ctx.constructoraNombre}</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Proyectos</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{ctx.constructoraNombre}</p>
         </div>
         {ctx.perfilRol === 'admin' && (
           <NuevoProyectoModal
@@ -107,7 +107,7 @@ export default async function AdminHomePage({
       </div>
 
       {lista.length === 0 ? (
-        <div className="text-center py-20 text-slate-400">
+        <div className="text-center py-20 text-slate-400 dark:text-slate-500">
           <svg className="w-12 h-12 mx-auto mb-4 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16" />
           </svg>
@@ -124,21 +124,21 @@ export default async function AdminHomePage({
               <Link
                 key={p.id}
                 href={`/admin/proyectos/${p.id}/dashboard`}
-                className="group relative bg-white border border-slate-200/80 rounded-2xl p-5 hover:border-indigo-300/60 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-200 ease-out flex flex-col justify-between"
+                className="group relative bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 hover:border-indigo-300/60 dark:hover:border-indigo-500/50 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-200 ease-out flex flex-col justify-between"
               >
                 <div>
                   {/* Header */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1 min-w-0">
-                      <h2 className="font-bold text-slate-900 text-base truncate group-hover:text-indigo-600 transition-colors">
+                      <h2 className="font-bold text-slate-900 dark:text-slate-100 text-base truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                         {p.nombre}
                       </h2>
                       <div className="flex items-center gap-2 mt-2">
                         <span className={cn(
                           'text-[10px] font-semibold tracking-wider px-2 py-0.5 rounded-full uppercase border',
                           tipo === 'desarrollo'
-                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200/60'
-                            : 'bg-amber-50 text-amber-700 border-amber-200/60'
+                            ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200/60 dark:border-indigo-800/60'
+                            : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200/60 dark:border-amber-800/60'
                         )}>
                           {tipo === 'desarrollo' ? 'DESARROLLO' : 'OBRA'}
                         </span>
@@ -153,13 +153,13 @@ export default async function AdminHomePage({
                     </div>
                     <div className="flex items-center gap-1 shrink-0 ml-3">
                       <ProyectoAcciones obraId={p.id} nombre={p.nombre} tipo={tipo} estadoActual={estado} esAdmin={ctx.perfilRol === 'admin'} />
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/80 border border-slate-200/60 flex items-center justify-center group-hover:from-indigo-50 group-hover:to-indigo-100/50 group-hover:border-indigo-200/60 group-hover:scale-105 transition-all duration-200">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/80 dark:from-slate-800 dark:to-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-center group-hover:from-indigo-50 group-hover:to-indigo-100/50 dark:group-hover:from-indigo-900/40 dark:group-hover:to-indigo-900/60 group-hover:border-indigo-200/60 dark:group-hover:border-indigo-700/60 group-hover:scale-105 transition-all duration-200">
                         {tipo === 'desarrollo' ? (
-                          <svg className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-5 h-5 text-slate-400 dark:text-slate-500 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
                           </svg>
                         ) : (
-                          <svg className="w-5 h-5 text-slate-400 group-hover:text-amber-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-5 h-5 text-slate-400 dark:text-slate-500 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
                         )}
@@ -169,29 +169,29 @@ export default async function AdminHomePage({
 
                   {/* Métricas por tipo */}
                   {tipo === 'desarrollo' && stats ? (
-                    <div className="bg-slate-50/60 border border-slate-100 rounded-xl p-3">
-                      <div className="flex justify-between text-xs text-slate-600 mb-2">
+                    <div className="bg-slate-50/60 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl p-3">
+                      <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300 mb-2">
                         <span className="font-semibold">{stats.total} unidades total</span>
-                        <span className="font-semibold text-slate-700">
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">
                           {stats.total > 0 ? Math.round(((stats.vendidas + stats.reservadas) / stats.total) * 100) : 0}% comprometido
                         </span>
                       </div>
-                      <div className="h-2 bg-slate-200/80 rounded-full overflow-hidden flex p-0.5 gap-0.5 ring-1 ring-slate-200/40">
+                      <div className="h-2 bg-slate-200/80 dark:bg-slate-700/80 rounded-full overflow-hidden flex p-0.5 gap-0.5 ring-1 ring-slate-200/40 dark:ring-slate-700/40">
                         {stats.total > 0 && (
                           <>
-                            <div className="bg-slate-600 rounded-full transition-all duration-300" style={{ width: `${(stats.vendidas / stats.total) * 100}%` }} title="Vendidas" />
+                            <div className="bg-slate-600 dark:bg-slate-400 rounded-full transition-all duration-300" style={{ width: `${(stats.vendidas / stats.total) * 100}%` }} title="Vendidas" />
                             <div className="bg-amber-400 rounded-full transition-all duration-300" style={{ width: `${(stats.reservadas / stats.total) * 100}%` }} title="Reservadas" />
                             <div className="bg-emerald-400 rounded-full transition-all duration-300" style={{ width: `${(stats.disponibles / stats.total) * 100}%` }} title="Disponibles" />
                           </>
                         )}
                       </div>
-                      <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-slate-200/40">
+                      <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-slate-200/40 dark:border-slate-700/40">
                         {[
-                          { color: 'bg-slate-600', label: `${stats.vendidas} vend.` },
+                          { color: 'bg-slate-600 dark:bg-slate-400', label: `${stats.vendidas} vend.` },
                           { color: 'bg-amber-400', label: `${stats.reservadas} res.` },
                           { color: 'bg-emerald-400', label: `${stats.disponibles} disp.` },
                         ].map(l => (
-                          <div key={l.label} className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
+                          <div key={l.label} className="flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
                             <span className={cn('w-2 h-2 rounded-full shrink-0', l.color)} />
                             {l.label}
                           </div>
@@ -199,22 +199,22 @@ export default async function AdminHomePage({
                       </div>
                     </div>
                   ) : tipo === 'desarrollo' ? (
-                    <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3 text-xs text-slate-400 italic">
+                    <div className="bg-slate-50/50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-xl p-3 text-xs text-slate-400 dark:text-slate-500 italic">
                       Sin unidades cargadas
                     </div>
                   ) : (
-                    <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3 flex items-center gap-2 text-xs text-slate-500">
+                    <div className="bg-slate-50/50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-xl p-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                       <span className="w-2 h-2 rounded-full bg-amber-400" />
                       Obra de construcción en desarrollo
                     </div>
                   )}
                 </div>
 
-                <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs text-slate-400 font-medium">
+                <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">
                     Creado {new Date(p.created_at).toLocaleDateString('es-AR', { month: 'short', year: 'numeric' })}
                   </span>
-                  <span className="text-xs font-semibold text-indigo-600 group-hover:text-indigo-700 flex items-center gap-1">
+                  <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 dark:group-hover:text-indigo-300 flex items-center gap-1">
                     Entrar <span className="group-hover:translate-x-1 transition-transform inline-block">→</span>
                   </span>
                 </div>

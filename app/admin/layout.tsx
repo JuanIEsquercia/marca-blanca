@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { getAuthUser, getConstructoraContext } from '@/lib/tenant'
 import AdminSidebar from '@/components/admin/AdminSidebar'
 import BuscadorGlobal from '@/components/admin/BuscadorGlobal'
+import Notificaciones from '@/components/admin/Notificaciones'
 import ChatAsistente from '@/components/admin/ChatAsistente'
 import { MODULOS, puedeAcceder } from '@/lib/permisos'
 import type { ModuloKey } from '@/lib/permisos'
@@ -80,12 +81,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             sidebar, pero ahí el panel de resultados quedaba tan angosto
             que no se leía el contexto de cada resultado. */}
         <header className="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md">
-          <div className="max-w-7xl mx-auto px-6 lg:px-8 py-3">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8 py-3 flex items-center gap-3">
             <BuscadorGlobal
               rol={rol}
               permisosEmpresa={permisosEmpresa}
               proyectos={proyectosAsignados}
             />
+            <div className="ml-auto">
+              {constructoraCtx && <Notificaciones constructoraId={constructoraCtx.constructoraId} />}
+            </div>
           </div>
         </header>
         <div className="p-6 lg:p-8 max-w-7xl mx-auto">

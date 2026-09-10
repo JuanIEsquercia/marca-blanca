@@ -32,8 +32,13 @@ export const TIPO_CAMBIO_DEFECTO: TipoIndice = 'USD_MINORISTA'
 // UVI (idVariable 32) se probó y se DESCARTÓ: técnicamente es la serie
 // atada al costo de la construcción, pero el usuario confirmó que en el
 // mercado no la usa nadie. No se captura para no llenar la tabla de una
-// serie que ninguna pantalla va a leer. El índice que sí se usa en
-// contratos de obra es el CAC, que no tiene API (ver TIPO_CAC abajo).
+// serie que ninguna pantalla va a leer.
+//
+// UVA, en cambio, SÍ SE USA (confirmado por el usuario) — no podarla junto
+// con UVI por parecerse. Entre las dos cubren distinto: UVA sigue la
+// inflación y aparece en planes de cuotas; el costo de obra se ajusta por
+// CAC, que publica la Cámara de la Construcción y no tiene API pública, así
+// que va por carga manual (ver TIPO_CAC abajo).
 export const SERIES_BCRA: Record<TipoIndice, DefinicionSerie> = {
   USD_MINORISTA: {
     idVariable: 4,

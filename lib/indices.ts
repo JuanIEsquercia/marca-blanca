@@ -12,7 +12,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 const BCRA_BASE = 'https://api.bcra.gob.ar/estadisticas/v4.0/Monetarias'
 
-export type TipoIndice = 'USD_MAYORISTA' | 'USD_MINORISTA' | 'UVA' | 'UVI' | 'CER' | 'ICL'
+export type TipoIndice = 'USD_MINORISTA' | 'USD_MAYORISTA' | 'UVA' | 'CER' | 'ICL'
 
 interface DefinicionSerie {
   idVariable: number
@@ -20,27 +20,35 @@ interface DefinicionSerie {
   descripcion: string
 }
 
+// Cotización por defecto para convertir entre ARS y USD. Es el MINORISTA,
+// no el mayorista: confirmado por el usuario (2026-09-10) que es el valor
+// que efectivamente usan las constructoras. El mayorista se sigue
+// capturando porque aparece en contratos que lo citan explícitamente, pero
+// no es el default de ninguna pantalla.
+export const TIPO_CAMBIO_DEFECTO: TipoIndice = 'USD_MINORISTA'
+
 // idVariable sacados del catálogo real del BCRA (GET /Monetarias).
+//
+// UVI (idVariable 32) se probó y se DESCARTÓ: técnicamente es la serie
+// atada al costo de la construcción, pero el usuario confirmó que en el
+// mercado no la usa nadie. No se captura para no llenar la tabla de una
+// serie que ninguna pantalla va a leer. El índice que sí se usa en
+// contratos de obra es el CAC, que no tiene API (ver TIPO_CAC abajo).
 export const SERIES_BCRA: Record<TipoIndice, DefinicionSerie> = {
-  USD_MAYORISTA: {
-    idVariable: 5,
-    etiqueta: 'Dólar mayorista',
-    descripcion: 'Tipo de cambio mayorista de referencia — el que se usa para valuar contratos, no el de pizarra.',
-  },
   USD_MINORISTA: {
     idVariable: 4,
     etiqueta: 'Dólar minorista',
-    descripcion: 'Tipo de cambio minorista (promedio vendedor) — el de pizarra al público.',
+    descripcion: 'Tipo de cambio minorista (promedio vendedor). Es el valor de referencia que más se usa.',
+  },
+  USD_MAYORISTA: {
+    idVariable: 5,
+    etiqueta: 'Dólar mayorista',
+    descripcion: 'Tipo de cambio mayorista de referencia — solo para contratos que lo citan explícitamente.',
   },
   UVA: {
     idVariable: 31,
     etiqueta: 'UVA',
-    descripcion: 'Unidad de Valor Adquisitivo — sigue la inflación (CER). Se usa en créditos y alquileres.',
-  },
-  UVI: {
-    idVariable: 32,
-    etiqueta: 'UVI',
-    descripcion: 'Unidad de Vivienda — sigue el costo de la construcción, no la inflación general. Es la serie de esta lista más cercana al CAC.',
+    descripcion: 'Unidad de Valor Adquisitivo — sigue la inflación (CER). Créditos y alquileres.',
   },
   CER: {
     idVariable: 30,
@@ -143,6 +151,28 @@ export interface UltimoValor {
   tipo: string
   fecha: string
   valor: number
+}
+
+// Convierte entre ARS y USD a la cotización de una fecha. Devuelve null si
+// no hay cotización cargada hasta esa fecha — nunca un número inventado:
+// mostrar un equivalente con un dólar que no es el de ese día es peor que
+// no mostrarlo.
+export async function convertirMoneda(
+  supabase: SupabaseClient,
+  monto: number,
+  desde: 'ARS' | 'USD',
+  hasta: 'ARS' | 'USD',
+  fecha: string,
+  tipoCambio: TipoIndice = TIPO_CAMBIO_DEFECTO
+): Promise<number | null> {
+  if (desde === hasta) return monto
+
+  const { data, error } = await supabase.rpc('valor_indice', { p_tipo: tipoCambio, p_fecha: fecha })
+  const cotizacion = typeof data === 'number' ? data : Number(data)
+  if (error || !Number.isFinite(cotizacion) || cotizacion <= 0) return null
+
+  const resultado = desde === 'USD' ? monto * cotizacion : monto / cotizacion
+  return Math.round(resultado * 100) / 100
 }
 
 export async function ultimosValores(supabase: SupabaseClient): Promise<UltimoValor[]> {

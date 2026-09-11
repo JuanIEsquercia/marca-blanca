@@ -58,8 +58,8 @@ export default async function GastosProyectoPage({ params }: { params: Promise<{
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Gastos</h1>
-        <p className="text-slate-500 text-sm mt-1">Egresos imputados a este proyecto</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Gastos</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{ctx.obraNombre} — egresos e imputación por rubro</p>
       </div>
       <GastosManager
         gastos={gastos ?? []}

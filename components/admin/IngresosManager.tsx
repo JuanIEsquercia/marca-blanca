@@ -138,23 +138,23 @@ export default function IngresosManager({ ingresos, historialAcotado }: Props) {
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-3">
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="bg-white border border-slate-200 rounded-lg px-4 py-2.5">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wide">Total pendiente de cobro</p>
-            <MontosPorMoneda montos={totalPendienteGeneral} vacio="$0" className="text-sm font-bold text-amber-700" />
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5">
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wide">Total pendiente de cobro</p>
+            <MontosPorMoneda montos={totalPendienteGeneral} vacio="$0" className="text-sm font-bold text-amber-700 dark:text-amber-400" />
           </div>
-          <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
-            <input type="checkbox" checked={soloConDeuda} onChange={e => setSoloConDeuda(e.target.checked)} />
+          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+            <input type="checkbox" checked={soloConDeuda} onChange={e => setSoloConDeuda(e.target.checked)} className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500" />
             Solo proyectos con saldo pendiente
           </label>
         </div>
         <select
           value={proyectoFiltro}
           onChange={e => { setProyectoFiltro(e.target.value); setPaginaMeses(0) }}
-          className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value={FILTRO_TODOS}>Todos los proyectos</option>
-          <option value={FILTRO_SIN_PROYECTO}>Sin proyecto</option>
-          {proyectoOptions.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
+          <option value={FILTRO_TODOS} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Todos los proyectos</option>
+          <option value={FILTRO_SIN_PROYECTO} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Sin proyecto</option>
+          {proyectoOptions.map(([id, nombre]) => <option key={id} value={id} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{nombre}</option>)}
         </select>
       </div>
 
@@ -162,35 +162,35 @@ export default function IngresosManager({ ingresos, historialAcotado }: Props) {
           columna "Cobrado" de abajo (que mira para atrás). */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Cuándo vence lo pendiente</p>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Cuándo vence lo pendiente</p>
           {meses.length > 0 && (
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setPaginaMeses(p => Math.max(0, p - 1))}
                 disabled={paginaMeses === 0}
-                className="text-xs font-medium text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                 ← Anterior
               </button>
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">
                 {paginaMeses === 0 ? 'próximos 12 meses' : labelVentanaMeses(ordenInicioVentana, ordenFinVentana)}
               </span>
               <button
                 onClick={() => setPaginaMeses(p => p + 1)}
                 disabled={!hayPaginaSiguiente}
-                className="text-xs font-medium text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                 Siguiente →
               </button>
             </div>
           )}
         </div>
         {vencidos.length === 0 && mesesVentana.length === 0 && sinVencimiento.length === 0 ? (
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-400 dark:text-slate-500">
             {meses.length === 0 && vencidos.length === 0 && sinVencimiento.length === 0
               ? 'Nada pendiente de cobro en este momento.'
               : 'Nada en esta ventana de 12 meses.'}
           </p>
         ) : (
-          <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
             {paginaMeses === 0 && vencidos.length > 0 && (
               <FilaMes
                 label="Vencido"
@@ -239,18 +239,18 @@ export default function IngresosManager({ ingresos, historialAcotado }: Props) {
           const isExpanded = expanded === clave
 
           return (
-            <div key={clave} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-              <button onClick={() => setExpanded(isExpanded ? null : clave)} className="w-full flex items-center gap-4 px-5 py-4 text-left">
+            <div key={clave} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+              <button onClick={() => setExpanded(isExpanded ? null : clave)} className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-slate-900">{g.obraNombre}</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{g.obraNombre}</p>
                     {tieneDeuda && (
-                      <span className="text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                      <span className="text-xs font-medium bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full">
                         Le deben <MontosPorMoneda montos={totalPendiente} vacio="" />
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">{g.items.length} movimiento(s)</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{g.items.length} movimiento(s)</p>
                 </div>
                 <svg className={cn('w-4 h-4 text-slate-400 transition-transform shrink-0', isExpanded && 'rotate-180')}
                   fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -259,29 +259,29 @@ export default function IngresosManager({ ingresos, historialAcotado }: Props) {
               </button>
 
               {isExpanded && (
-                <div className="border-t border-slate-100 bg-slate-50 px-5 py-4">
+                <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-5 py-4">
                   <div className="flex flex-wrap gap-4 mb-3">
-                    <div className="bg-white border border-slate-200 rounded-lg px-4 py-2.5">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Pendiente</p>
-                      <MontosPorMoneda montos={totalPendiente} vacio="$0" className="text-sm font-bold text-amber-700" />
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5">
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wide">Pendiente</p>
+                      <MontosPorMoneda montos={totalPendiente} vacio="$0" className="text-sm font-bold text-amber-700 dark:text-amber-400" />
                     </div>
-                    <div className="bg-white border border-slate-200 rounded-lg px-4 py-2.5">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5">
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wide">
                         Cobrado{historialAcotado ? ' (últimos 12 meses)' : ''}
                       </p>
-                      <MontosPorMoneda montos={totalPagado} vacio="$0" className="text-sm font-bold text-slate-700" />
+                      <MontosPorMoneda montos={totalPagado} vacio="$0" className="text-sm font-bold text-slate-700 dark:text-slate-300" />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    {pendientes.length === 0 && <p className="text-xs text-slate-400">Sin pendientes.</p>}
+                    {pendientes.length === 0 && <p className="text-xs text-slate-400 dark:text-slate-500">Sin pendientes.</p>}
                     {pendientes.map(i => (
-                      <div key={i.id} className="flex items-center justify-between bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs">
+                      <div key={i.id} className="flex items-center justify-between bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/60 rounded-lg px-3 py-2 text-xs">
                         <div className="min-w-0">
-                          <p className="text-slate-700 truncate">{i.descripcion}{i.clienteNombre ? ` — ${i.clienteNombre}` : ''}</p>
-                          <p className="text-slate-400">{i.fechaVencimiento ? `Vence ${formatDate(i.fechaVencimiento)}` : 'Sin vencimiento'}</p>
+                          <p className="text-slate-700 dark:text-slate-200 truncate">{i.descripcion}{i.clienteNombre ? ` — ${i.clienteNombre}` : ''}</p>
+                          <p className="text-slate-400 dark:text-slate-500">{i.fechaVencimiento ? `Vence ${formatDate(i.fechaVencimiento)}` : 'Sin vencimiento'}</p>
                         </div>
-                        <span className="font-semibold text-amber-700 shrink-0 ml-3">{formatCurrency(i.monto, i.moneda)}</span>
+                        <span className="font-semibold text-amber-700 dark:text-amber-400 shrink-0 ml-3">{formatCurrency(i.monto, i.moneda)}</span>
                       </div>
                     ))}
 
@@ -289,22 +289,22 @@ export default function IngresosManager({ ingresos, historialAcotado }: Props) {
                       verPagadosDe === clave ? (
                         <>
                           {pagados.map(i => (
-                            <div key={i.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs opacity-70">
+                            <div key={i.id} className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs opacity-70">
                               <div className="min-w-0">
-                                <p className="text-slate-700 truncate">{i.descripcion}{i.clienteNombre ? ` — ${i.clienteNombre}` : ''}</p>
-                                <p className="text-slate-400">{i.fechaPago ? `Cobrado ${formatDate(i.fechaPago)}` : '—'}</p>
+                                <p className="text-slate-700 dark:text-slate-300 truncate">{i.descripcion}{i.clienteNombre ? ` — ${i.clienteNombre}` : ''}</p>
+                                <p className="text-slate-400 dark:text-slate-500">{i.fechaPago ? `Cobrado ${formatDate(i.fechaPago)}` : '—'}</p>
                               </div>
-                              <span className="font-medium text-slate-500 shrink-0 ml-3">{formatCurrency(i.monto, i.moneda)}</span>
+                              <span className="font-medium text-slate-500 dark:text-slate-400 shrink-0 ml-3">{formatCurrency(i.monto, i.moneda)}</span>
                             </div>
                           ))}
                           {historialAcotado && (
-                            <Link href="/admin/ingresos?historial=todo" className="text-xs text-indigo-500 hover:underline block pt-1">
+                            <Link href="/admin/ingresos?historial=todo" className="text-xs text-indigo-500 dark:text-indigo-400 hover:underline block pt-1">
                               Ver historial de cobros completo
                             </Link>
                           )}
                         </>
                       ) : (
-                        <button onClick={() => setVerPagadosDe(clave)} className="text-xs text-indigo-500 hover:underline pt-1">
+                        <button onClick={() => setVerPagadosDe(clave)} className="text-xs text-indigo-500 dark:text-indigo-400 hover:underline pt-1">
                           Ver {pagados.length} cobrado(s){historialAcotado ? ' (últimos 12 meses)' : ''}
                         </button>
                       )
@@ -318,12 +318,12 @@ export default function IngresosManager({ ingresos, historialAcotado }: Props) {
       </div>
 
       {grupos.length === 0 && (
-        <div className="text-center py-16 text-slate-400 bg-white border border-slate-200 rounded-2xl">
+        <div className="text-center py-16 text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
           <p className="text-sm">No hay cuotas ni cobros de obra registrados todavía.</p>
         </div>
       )}
       {grupos.length > 0 && gruposFiltrados.length === 0 && (
-        <div className="text-center py-16 text-slate-400 bg-white border border-slate-200 rounded-2xl">
+        <div className="text-center py-16 text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
           <p className="text-sm">Ningún proyecto tiene saldo pendiente de cobro ahora mismo.</p>
         </div>
       )}
@@ -342,11 +342,11 @@ function FilaMes({ label, totales, cantidad, abierto, onToggle, items, danger }:
 }) {
   return (
     <div>
-      <button onClick={onToggle} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 transition-colors">
-        <span className={cn('text-sm font-medium capitalize w-40 shrink-0', danger ? 'text-red-600' : 'text-slate-700')}>{label}</span>
-        <span className="text-xs text-slate-400 shrink-0">{cantidad} ítem(s)</span>
+      <button onClick={onToggle} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+        <span className={cn('text-sm font-medium capitalize w-40 shrink-0', danger ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-200')}>{label}</span>
+        <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">{cantidad} ítem(s)</span>
         <span className="flex-1" />
-        <MontosPorMoneda montos={totales} vacio="—" className={cn('text-sm font-semibold', danger ? 'text-red-600' : 'text-slate-900')} />
+        <MontosPorMoneda montos={totales} vacio="—" className={cn('text-sm font-semibold', danger ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white')} />
         <svg className={cn('w-3.5 h-3.5 text-slate-400 transition-transform shrink-0', abierto && 'rotate-180')}
           fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -355,11 +355,11 @@ function FilaMes({ label, totales, cantidad, abierto, onToggle, items, danger }:
       {abierto && (
         <div className="px-4 pb-3 space-y-1">
           {items.map(i => (
-            <div key={i.id} className="flex items-center justify-between text-xs px-3 py-1.5 bg-slate-50 rounded-lg">
-              <span className="text-slate-600 truncate">
+            <div key={i.id} className="flex items-center justify-between text-xs px-3 py-1.5 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+              <span className="text-slate-600 dark:text-slate-300 truncate">
                 {i.obraNombre ?? 'Sin proyecto'} — {i.descripcion}{i.clienteNombre ? ` — ${i.clienteNombre}` : ''}
               </span>
-              <span className="font-medium text-slate-700 shrink-0 ml-3">{formatCurrency(i.monto, i.moneda)}</span>
+              <span className="font-medium text-slate-700 dark:text-slate-200 shrink-0 ml-3">{formatCurrency(i.monto, i.moneda)}</span>
             </div>
           ))}
         </div>

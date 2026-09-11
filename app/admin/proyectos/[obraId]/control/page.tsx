@@ -93,9 +93,9 @@ export default async function ControlObraPage({ params }: { params: Promise<{ ob
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Control de obra</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Lo presupuestado contra lo ejecutado, rubro por rubro — {ctx.obraNombre}
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Control de obra</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+          {ctx.obraNombre} — presupuesto vs ejecutado por rubro
         </p>
       </div>
 

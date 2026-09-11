@@ -33,8 +33,8 @@ export default async function UnidadesPage({ params }: { params: Promise<{ obraI
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Unidades</h1>
-        <p className="text-slate-500 text-sm mt-1">Gestioná el stock, precios y estados de todas las unidades</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Unidades</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Inventario de departamentos, cocheras o locales</p>
       </div>
       <InventoryGrid
         unidades={unidades ?? []}

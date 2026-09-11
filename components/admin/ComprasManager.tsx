@@ -129,9 +129,9 @@ interface Props {
 type ConfirmState = { title: string; message: string; confirmLabel?: string; onConfirm: () => Promise<void> }
 
 const ESTADO_ORDEN_INFO: Record<EstadoOrdenCompra, { label: string; color: string }> = {
-  borrador: { label: 'Borrador', color: 'bg-slate-100 text-slate-600' },
-  confirmada: { label: 'Confirmada', color: 'bg-indigo-100 text-indigo-700' },
-  cancelada: { label: 'Cancelada', color: 'bg-red-100 text-red-600' },
+  borrador: { label: 'Borrador', color: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700' },
+  confirmada: { label: 'Confirmada', color: 'bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800' },
+  cancelada: { label: 'Cancelada', color: 'bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-300 border border-red-200 dark:border-red-800' },
 }
 
 // "Cuánto se recibió" y el estado de cumplimiento son SIEMPRE derivados de
@@ -142,13 +142,13 @@ function cantidadRecibida(item: ItemRow): number {
 }
 
 function estadoCumplimiento(items: ItemRow[]): { label: string; color: string } {
-  if (items.length === 0) return { label: 'Sin ítems', color: 'bg-slate-100 text-slate-400' }
+  if (items.length === 0) return { label: 'Sin ítems', color: 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500' }
   const recibidos = items.map(cantidadRecibida)
   const completos = items.every((it, idx) => recibidos[idx] >= it.cantidad_solicitada)
   const algoRecibido = recibidos.some(r => r > 0)
-  if (completos) return { label: 'Completa', color: 'bg-emerald-100 text-emerald-700' }
-  if (algoRecibido) return { label: 'Parcial', color: 'bg-amber-100 text-amber-700' }
-  return { label: 'Sin recibir', color: 'bg-slate-100 text-slate-500' }
+  if (completos) return { label: 'Completa', color: 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300' }
+  if (algoRecibido) return { label: 'Parcial', color: 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300' }
+  return { label: 'Sin recibir', color: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400' }
 }
 
 const EMPTY_ITEM_FORM = { producto_id: '', cantidad_solicitada: '', notas: '', creandoNuevo: false, nuevoNombre: '', nuevoUnidad: 'unidad' }
@@ -911,10 +911,10 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
 
   return (
     <div>
-      <div className="flex rounded-lg border border-slate-300 overflow-x-auto max-w-full text-sm bg-white no-scrollbar w-fit mb-5">
+      <div className="flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-x-auto max-w-full text-sm bg-white dark:bg-slate-900 no-scrollbar w-fit mb-5 shadow-xs">
         {([['ordenes', 'Órdenes'], ['stock', 'Stock'], ['acopios', 'Acopios']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
-            className={cn('px-4 py-2 transition-colors', tab === key ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50')}>
+            className={cn('px-4 py-2 transition-colors', tab === key ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800')}>
             {label}
           </button>
         ))}
@@ -926,34 +926,34 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
             <button onClick={openReparto} disabled={productosConStock.length === 0}
               title={productosConStock.length === 0 ? 'Todavía no hay stock cargado (confirmá una recepción primero)' : undefined}
               className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed
-                         text-white rounded-lg text-sm font-medium transition-colors">
+                         text-white rounded-lg text-sm font-medium transition-colors shadow-xs">
               Repartir stock
             </button>
           </div>
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Producto</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Ubicación</th>
-                    <th className="text-right px-4 py-3 font-semibold text-slate-600">Cantidad</th>
-                    <th className="text-right px-4 py-3 font-semibold text-slate-600"></th>
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Producto</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Ubicación</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Cantidad</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600 dark:text-slate-300"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {stockResumen.map((r, i) => (
-                    <tr key={i} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium text-slate-900">
+                    <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
                         {productos.find(p => p.id === r.producto_id)?.nombre ?? '—'}
                       </td>
-                      <td className="px-4 py-3 text-slate-600">{nombreUbicacion(r.obra_id)}</td>
-                      <td className={cn('px-4 py-3 text-right font-semibold', r.cantidad < 0 ? 'text-red-600' : 'text-slate-800')}>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{nombreUbicacion(r.obra_id)}</td>
+                      <td className={cn('px-4 py-3 text-right font-semibold', r.cantidad < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-slate-200')}>
                         {r.cantidad}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button onClick={() => handleDeleteStock(r)}
-                          className="text-xs text-red-400 hover:text-red-600 transition-colors">Eliminar</button>
+                          className="text-xs text-red-400 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors">Eliminar</button>
                       </td>
                     </tr>
                   ))}
@@ -961,7 +961,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
               </table>
             </div>
             {stockResumen.length === 0 && (
-              <div className="text-center py-12 text-slate-400">
+              <div className="text-center py-12 text-slate-400 dark:text-slate-500">
                 <p className="text-sm">Todavía no hay stock — confirmá una recepción de una orden de compra para que aparezca acá.</p>
               </div>
             )}
@@ -972,42 +972,42 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
           <div className="flex justify-end mb-4">
             <button onClick={openNuevoAcopio}
               className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-500
-                         text-white rounded-lg text-sm font-medium transition-colors">
+                         text-white rounded-lg text-sm font-medium transition-colors shadow-xs">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               Nuevo acopio
             </button>
           </div>
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">N°</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Proveedor</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Producto de referencia</th>
-                    <th className="text-right px-4 py-3 font-semibold text-slate-600">Saldo actual</th>
-                    <th className="text-right px-4 py-3 font-semibold text-slate-600">Valor estimado hoy</th>
-                    <th className="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
+                  <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">N°</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Proveedor</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Producto de referencia</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Saldo actual</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Valor estimado hoy</th>
+                    <th className="text-center px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Estado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {acopios.map(a => {
                     const saldo = saldoDeAcopio(a.id)
                     const valorEstimado = saldo * precioReferenciaEstimado(a)
                     return (
-                      <tr key={a.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setDetalleAcopio(a)}>
-                        <td className="px-4 py-3 font-medium text-slate-900">ACO-{a.numero}</td>
-                        <td className="px-4 py-3 text-slate-600">{a.proveedores?.razon_social ?? '—'}</td>
-                        <td className="px-4 py-3 text-slate-600">{a.productos?.nombre ?? '—'}</td>
-                        <td className={cn('px-4 py-3 text-right font-semibold', saldo < 0 ? 'text-red-600' : 'text-slate-900')}>
+                      <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors" onClick={() => setDetalleAcopio(a)}>
+                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">ACO-{a.numero}</td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{a.proveedores?.razon_social ?? '—'}</td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{a.productos?.nombre ?? '—'}</td>
+                        <td className={cn('px-4 py-3 text-right font-semibold', saldo < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white')}>
                           {saldo} {a.productos?.unidad_medida ?? ''}
                         </td>
-                        <td className="px-4 py-3 text-right text-slate-500">{formatCurrency(valorEstimado, a.moneda)}</td>
+                        <td className="px-4 py-3 text-right text-slate-500 dark:text-slate-400">{formatCurrency(valorEstimado, a.moneda)}</td>
                         <td className="px-4 py-3 text-center">
-                          <span className={cn('inline-block text-xs font-medium px-2.5 py-0.5 rounded-full',
-                            a.estado === 'activo' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500')}>
+                          <span className={cn('inline-block text-xs font-medium px-2.5 py-0.5 rounded-full border',
+                            a.estado === 'activo' ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700')}>
                             {a.estado === 'activo' ? 'Activo' : 'Cerrado'}
                           </span>
                         </td>
@@ -1018,7 +1018,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
               </table>
             </div>
             {acopios.length === 0 && (
-              <div className="text-center py-12 text-slate-400">
+              <div className="text-center py-12 text-slate-400 dark:text-slate-500">
                 <p className="text-sm">Todavía no hay acopios cargados.</p>
               </div>
             )}
@@ -1032,30 +1032,30 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
           placeholder="Buscar por número, obra o notas..."
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
-          className="w-full md:flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm
+          className="w-full md:flex-1 px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm
                      focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
         <div className="flex flex-wrap gap-2 shrink-0">
-          <div className="flex rounded-lg border border-slate-300 overflow-x-auto max-w-full text-sm bg-white no-scrollbar">
+          <div className="flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-x-auto max-w-full text-sm bg-white dark:bg-slate-900 no-scrollbar shadow-xs">
             {(['todos', 'borrador', 'confirmada', 'cancelada'] as const).map(e => (
               <button key={e}
                 onClick={() => setFiltroEstado(e)}
                 className={cn(
                   'px-3 py-2 transition-colors',
-                  filtroEstado === e ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                  filtroEstado === e ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                 )}>
                 {e === 'todos' ? 'Todos' : ESTADO_ORDEN_INFO[e].label}
               </button>
             ))}
           </div>
           <button onClick={() => setShowProductos(true)}
-            className="flex items-center gap-2 px-3 py-2 border border-slate-300 bg-white hover:bg-slate-50
-                       text-slate-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+            className="flex items-center gap-2 px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700
+                       text-slate-700 dark:text-slate-200 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shadow-xs">
             Productos
           </button>
           <button onClick={openNew}
             className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-500
-                       text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+                       text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap shadow-xs">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -1065,29 +1065,29 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
       </div>
 
       {/* Tabla */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">N°</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Destino</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Emisión</th>
-                <th className="text-center px-4 py-3 font-semibold text-slate-600">Ítems</th>
-                <th className="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
-                <th className="text-center px-4 py-3 font-semibold text-slate-600">Cumplimiento</th>
+              <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">N°</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Destino</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Emisión</th>
+                <th className="text-center px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Ítems</th>
+                <th className="text-center px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Estado</th>
+                <th className="text-center px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Cumplimiento</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {ordenesFiltradas.map(o => {
                 const cumplimiento = estadoCumplimiento(o.orden_compra_items ?? [])
                 return (
-                  <tr key={o.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setDetalleOrden(o)}>
-                    <td className="px-4 py-3 font-medium text-slate-900">OC-{o.numero}</td>
-                    <td className="px-4 py-3 text-slate-600">{o.obras?.nombre ?? 'Empresa (sin asignar)'}</td>
-                    <td className="px-4 py-3 text-slate-500">{formatDate(o.fecha_emision)}</td>
-                    <td className="px-4 py-3 text-center text-slate-600">{(o.orden_compra_items ?? []).length}</td>
+                  <tr key={o.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors" onClick={() => setDetalleOrden(o)}>
+                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">OC-{o.numero}</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{o.obras?.nombre ?? 'Empresa (sin asignar)'}</td>
+                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{formatDate(o.fecha_emision)}</td>
+                    <td className="px-4 py-3 text-center text-slate-600 dark:text-slate-300">{(o.orden_compra_items ?? []).length}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={cn('inline-block text-xs font-medium px-2.5 py-0.5 rounded-full', ESTADO_ORDEN_INFO[o.estado].color)}>
                         {ESTADO_ORDEN_INFO[o.estado].label}
@@ -1101,13 +1101,13 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                     <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-3">
                         <button onClick={() => imprimirOrden(o)}
-                          className="text-xs text-slate-400 hover:text-indigo-600 transition-colors">Imprimir</button>
+                          className="text-xs text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Imprimir</button>
                         {o.estado !== 'cancelada' && (
                           <button onClick={() => handleCancelar(o)}
-                            className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Cancelar</button>
+                            className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">Cancelar</button>
                         )}
                         <button onClick={() => handleDelete(o)}
-                          className="text-xs text-red-400 hover:text-red-600 transition-colors">Eliminar</button>
+                          className="text-xs text-red-400 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors">Eliminar</button>
                       </div>
                     </td>
                   </tr>
@@ -1117,7 +1117,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
           </table>
         </div>
         {ordenesFiltradas.length === 0 && (
-          <div className="text-center py-12 text-slate-400">
+          <div className="text-center py-12 text-slate-400 dark:text-slate-500">
             <p className="text-sm">No hay órdenes de compra{filtroEstado !== 'todos' ? ` en estado ${ESTADO_ORDEN_INFO[filtroEstado].label.toLowerCase()}` : ''}.</p>
           </div>
         )}
@@ -1126,21 +1126,21 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
       {/* Panel de detalle */}
       {detalleActual && (
         <div className="fixed inset-0 z-40 flex items-stretch">
-          <div className="flex-1 bg-black/40" onClick={() => setDetalleOrden(null)} />
-          <div className="w-full max-w-2xl bg-slate-50 flex flex-col shadow-2xl overflow-hidden">
-            <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-start justify-between shrink-0">
+          <div className="flex-1 bg-black/50 backdrop-blur-xs" onClick={() => setDetalleOrden(null)} />
+          <div className="w-full max-w-2xl bg-slate-50 dark:bg-slate-950 flex flex-col shadow-2xl overflow-hidden border-l border-slate-200 dark:border-slate-800">
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-start justify-between shrink-0">
               <div>
-                <p className="font-bold text-slate-900 text-lg">OC-{detalleActual.numero}</p>
-                <p className="text-slate-500 text-sm mt-0.5">
+                <p className="font-bold text-slate-900 dark:text-white text-lg">OC-{detalleActual.numero}</p>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
                   {detalleActual.obras?.nombre ?? 'Empresa (sin asignar)'} · Emitida {formatDate(detalleActual.fecha_emision)}
                 </p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button onClick={() => imprimirOrden(detalleActual)}
-                  className="text-xs font-medium text-indigo-600 hover:text-indigo-800 px-2 py-1.5">
+                  className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 px-2 py-1.5">
                   Imprimir
                 </button>
-                <button onClick={() => setDetalleOrden(null)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
+                <button onClick={() => setDetalleOrden(null)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -1150,22 +1150,22 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {/* Ítems solicitados */}
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-100">
-                  <p className="font-semibold text-slate-800 text-sm">Ítems solicitados</p>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
+                <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                  <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Ítems solicitados</p>
                 </div>
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
                   {(detalleActual.orden_compra_items ?? []).map(item => {
                     const recibido = cantidadRecibida(item)
                     const unidad = item.unidad_medida ?? item.productos?.unidad_medida ?? ''
                     return (
                       <div key={item.id} className="px-4 py-3 flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-800 truncate">{item.productos?.nombre ?? '—'}</p>
-                          {item.notas && <p className="text-xs text-slate-400">{item.notas}</p>}
+                          <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{item.productos?.nombre ?? '—'}</p>
+                          {item.notas && <p className="text-xs text-slate-400 dark:text-slate-500">{item.notas}</p>}
                         </div>
                         <div className="text-right shrink-0 text-sm">
-                          <span className={recibido >= item.cantidad_solicitada ? 'text-emerald-600 font-semibold' : 'text-slate-700'}>
+                          <span className={recibido >= item.cantidad_solicitada ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-700 dark:text-slate-300'}>
                             {recibido} / {item.cantidad_solicitada} {unidad}
                           </span>
                         </div>
@@ -1176,37 +1176,37 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
               </div>
 
               {/* Recepciones */}
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                  <p className="font-semibold text-slate-800 text-sm">Recepciones</p>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
+                <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Recepciones</p>
                   {detalleActual.estado !== 'cancelada' && (
                     <button onClick={() => openRecepcion(detalleActual)}
-                      className="text-xs font-medium text-indigo-600 hover:text-indigo-800">
+                      className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
                       + Registrar recepción
                     </button>
                   )}
                 </div>
                 {(detalleActual.orden_compra_recepciones ?? []).length === 0 ? (
-                  <div className="px-4 py-8 text-center text-slate-400 text-sm">Todavía no se registró ninguna recepción.</div>
+                  <div className="px-4 py-8 text-center text-slate-400 dark:text-slate-500 text-sm">Todavía no se registró ninguna recepción.</div>
                 ) : (
-                  <div className="divide-y divide-slate-100">
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
                     {detalleActual.orden_compra_recepciones.map(r => {
                       const total = r.orden_compra_recepcion_items.reduce((s, it) => s + it.subtotal, 0)
                       return (
                         <div key={r.id} className="px-4 py-3">
                           <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-medium text-slate-800">{r.proveedores?.razon_social ?? '—'}</p>
-                            <p className="text-sm font-semibold text-slate-900">{formatCurrency(total, r.moneda)}</p>
+                            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{r.proveedores?.razon_social ?? '—'}</p>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(total, r.moneda)}</p>
                           </div>
                           <div className="flex items-center justify-between mt-0.5">
-                            <p className="text-xs text-slate-400">
+                            <p className="text-xs text-slate-400 dark:text-slate-500">
                               {formatDate(r.fecha)} · {r.gasto_id ? 'Confirmada — gasto generado' : 'Sin confirmar'}
                             </p>
                             {!r.gasto_id && (
                               <button
                                 onClick={() => handleConfirmarRecepcion(r.id)}
                                 disabled={confirmandoId === r.id}
-                                className="text-xs font-medium text-emerald-600 hover:text-emerald-800 disabled:opacity-50"
+                                className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 disabled:opacity-50"
                               >
                                 {confirmandoId === r.id ? 'Confirmando...' : 'Confirmar'}
                               </button>
@@ -1225,11 +1225,11 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
 
       {/* Modal Nueva orden */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="font-bold text-slate-900">Nueva orden de compra</h2>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="font-bold text-slate-900 dark:text-white text-lg">Nueva orden de compra</h2>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -1239,24 +1239,24 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
               <form id="orden-form" onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Destino</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Destino</label>
                     <select value={ordenForm.obra_id} onChange={e => setOrdenForm(f => ({ ...f, obra_id: e.target.value }))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
                       <option value="">Empresa (repartir después)</option>
                       {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de emisión *</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Fecha de emisión *</label>
                     <input required type="date" value={ordenForm.fecha_emision}
                       onChange={e => setOrdenForm(f => ({ ...f, fecha_emision: e.target.value }))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
 
                 {ordenForm.obra_id && (
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Rubro de obra</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Rubro de obra</label>
                     <RubroSelect
                       rubros={rubrosDisponibles}
                       value={ordenForm.rubro_id}
@@ -1264,47 +1264,47 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                       onCreated={r => setRubrosNuevos(prev => [...prev, r])}
                       constructoraId={constructoraId}
                       emptyLabel="Sin imputar a un rubro" />
-                    <p className="text-[11px] text-slate-400 mt-1">
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
                       Al confirmar la recepción, el gasto que se genera queda imputado a este rubro y entra en Control de obra.
                     </p>
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Notas</label>
                   <textarea rows={2} value={ordenForm.notas}
                     onChange={e => setOrdenForm(f => ({ ...f, notas: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
                 </div>
 
-                <div className="border-t border-slate-100 pt-4">
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold text-slate-700">Ítems solicitados</p>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Ítems solicitados</p>
                     <button type="button" onClick={agregarItem}
-                      className="text-xs font-medium text-indigo-600 hover:text-indigo-800">+ Agregar ítem</button>
+                      className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">+ Agregar ítem</button>
                   </div>
                   <div className="space-y-2">
                     {itemsForm.map((item, idx) => (
-                      <div key={idx} className="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                      <div key={idx} className="flex items-start gap-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5">
                         {item.creandoNuevo ? (
                           <div className="flex-1 min-w-0 flex gap-2">
                             <input autoFocus placeholder="Nombre del producto" value={item.nuevoNombre}
                               onChange={e => actualizarItem(idx, 'nuevoNombre', e.target.value)}
-                              className="flex-1 min-w-0 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                              className="flex-1 min-w-0 px-2 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                             <input placeholder="Unidad" value={item.nuevoUnidad}
                               onChange={e => actualizarItem(idx, 'nuevoUnidad', e.target.value)}
-                              className="w-20 shrink-0 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                              className="w-20 shrink-0 px-2 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                             <button type="button" onClick={() => crearProductoEnFila(idx)}
                               disabled={creandoProductoLoading || !item.nuevoNombre.trim()}
                               className="shrink-0 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-medium">
                               {creandoProductoLoading ? '...' : 'Crear'}
                             </button>
                             <button type="button" onClick={() => cancelarNuevoProducto(idx)}
-                              className="shrink-0 text-slate-400 hover:text-slate-600 px-1">✕</button>
+                              className="shrink-0 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 px-1">✕</button>
                           </div>
                         ) : (
                           <select value={item.producto_id} onChange={e => elegirProducto(idx, e.target.value)}
-                            className="flex-1 min-w-0 px-2 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            className="flex-1 min-w-0 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <option value="">Producto...</option>
                             {productosDisponibles.map(p => <option key={p.id} value={p.id}>{p.nombre} ({p.unidad_medida})</option>)}
                             <option value="__nuevo__">+ Agregar producto nuevo</option>
@@ -1312,35 +1312,35 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                         )}
                         <input type="number" min="0" step="0.01" placeholder="Cant." value={item.cantidad_solicitada}
                           onChange={e => actualizarItem(idx, 'cantidad_solicitada', e.target.value)}
-                          className="w-20 shrink-0 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                          className="w-20 shrink-0 px-2 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                         <button type="button" onClick={() => quitarItem(idx)}
-                          className="shrink-0 text-slate-400 hover:text-red-500 px-1.5 py-1.5">✕</button>
+                          className="shrink-0 text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 px-1.5 py-1.5">✕</button>
                       </div>
                     ))}
                   </div>
                   {creandoProductoError && (
-                    <p className="text-xs text-red-600 mt-2">{creandoProductoError}</p>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-2">{creandoProductoError}</p>
                   )}
                   {productosDisponibles.length === 0 && (
-                    <p className="text-xs text-amber-600 mt-2">
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
                       Todavía no hay productos — elegí &quot;+ Agregar producto nuevo&quot; en el selector de arriba para crear el primero.
                     </p>
                   )}
                 </div>
 
                 {error && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
+                  <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg text-sm">{error}</div>
                 )}
               </form>
             </div>
-            <div className="p-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+            <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
               <button type="button" onClick={() => setShowForm(false)}
-                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
+                className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                 Cancelar
               </button>
               <button type="submit" form="orden-form" disabled={loading}
                 className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60
-                           text-white rounded-xl text-sm font-semibold">
+                           text-white rounded-xl text-sm font-semibold transition-colors">
                 {loading ? 'Creando...' : 'Crear orden'}
               </button>
             </div>
@@ -1350,14 +1350,14 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
 
       {/* Modal Administrar productos */}
       {showProductos && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-md max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
               <div>
-                <h2 className="font-bold text-slate-900">Administrar productos</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Catálogo de insumos para las órdenes de compra</p>
+                <h2 className="font-bold text-slate-900 dark:text-white text-lg">Administrar productos</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Catálogo de insumos para las órdenes de compra</p>
               </div>
-              <button onClick={() => setShowProductos(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowProductos(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -1366,21 +1366,21 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
 
             <div className="flex-1 overflow-y-auto p-4 space-y-1.5">
               {productos.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-6">No hay productos creados.</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6">No hay productos creados.</p>
               ) : productos.map(p => (
                 <div key={p.id} className={cn(
                   'flex items-center justify-between px-3 py-2.5 rounded-lg border',
-                  p.activo ? 'border-slate-100 hover:bg-slate-50' : 'border-slate-100 bg-slate-50 opacity-60'
+                  p.activo ? 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50' : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 opacity-60'
                 )}>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">{p.nombre}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{p.nombre}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
                       {p.unidad_medida}{p.categorias_costo ? ` · ${p.categorias_costo.nombre}` : ''}
                     </p>
                   </div>
                   <button
                     onClick={() => handleToggleProducto(p)}
-                    className="text-xs text-slate-400 hover:text-slate-700 transition-colors px-1 shrink-0"
+                    className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors px-1 shrink-0"
                   >
                     {p.activo ? 'Desactivar' : 'Activar'}
                   </button>
@@ -1388,31 +1388,31 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
               ))}
             </div>
 
-            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 rounded-b-2xl">
               <form onSubmit={handleCreateProducto} className="space-y-2">
-                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Nuevo producto</p>
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Nuevo producto</p>
                 <div className="flex gap-2">
                   <input
                     required
                     placeholder="Ej: Cemento, Hierro ø12..."
                     value={productoForm.nombre}
                     onChange={e => setProductoForm(f => ({ ...f, nombre: e.target.value }))}
-                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm
-                               focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm
+                               focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                   <input
                     placeholder="Unidad"
                     value={productoForm.unidad_medida}
                     onChange={e => setProductoForm(f => ({ ...f, unidad_medida: e.target.value }))}
-                    className="w-24 px-3 py-2 border border-slate-300 rounded-lg text-sm
-                               focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    className="w-24 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm
+                               focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                 </div>
                 <div className="flex gap-2">
                   <select
                     value={productoForm.categoria_id}
                     onChange={e => setProductoForm(f => ({ ...f, categoria_id: e.target.value }))}
-                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="">Sin categoría</option>
                     {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
@@ -1436,14 +1436,14 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
 
       {/* Modal Registrar recepción */}
       {recepcionOrden && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
               <div>
-                <h2 className="font-bold text-slate-900">Registrar recepción</h2>
-                <p className="text-xs text-slate-500 mt-0.5">OC-{recepcionOrden.numero}</p>
+                <h2 className="font-bold text-slate-900 dark:text-white text-lg">Registrar recepción</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">OC-{recepcionOrden.numero}</p>
               </div>
-              <button onClick={() => setRecepcionOrden(null)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setRecepcionOrden(null)} className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -1453,7 +1453,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
               <form id="recepcion-form" onSubmit={handleSubmitRecepcion} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Proveedor *</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Proveedor *</label>
                     <ProveedorSelect
                       proveedores={proveedoresDisponibles}
                       onCreated={p => setProveedoresNuevos(prev => [...prev, { id: p.id, razon_social: p.razon_social }])}
@@ -1463,26 +1463,26 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                       puedeCrear={puedeCrearProveedor}
                       required
                       emptyLabel="Elegir..."
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Fecha *</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Fecha *</label>
                     <input required type="date" value={recepcionForm.fecha}
                       onChange={e => setRecepcionForm(f => ({ ...f, fecha: e.target.value }))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Moneda</label>
                   <select value={recepcionForm.moneda} onChange={e => setRecepcionForm(f => ({ ...f, moneda: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option>ARS</option>
                     <option>USD</option>
                   </select>
                 </div>
 
-                <div className="border-t border-slate-100 pt-4">
-                  <p className="text-xs font-semibold text-slate-700 mb-2">Qué llegó en esta recepción</p>
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Qué llegó en esta recepción</p>
                   <div className="space-y-2">
                     {(recepcionOrden.orden_compra_items ?? []).map(item => {
                       const recibido = cantidadRecibida(item)
@@ -1490,18 +1490,18 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                       const unidad = item.unidad_medida ?? item.productos?.unidad_medida ?? ''
                       const valores = recepcionItems[item.id] ?? { cantidad: '', precio: '' }
                       return (
-                        <div key={item.id} className="bg-slate-50 border border-slate-200 rounded-lg p-2.5">
-                          <p className="text-sm font-medium text-slate-800">{item.productos?.nombre ?? '—'}</p>
-                          <p className="text-xs text-slate-400 mb-1.5">Pendiente: {pendiente} {unidad}</p>
+                        <div key={item.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5">
+                          <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{item.productos?.nombre ?? '—'}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mb-1.5">Pendiente: {pendiente} {unidad}</p>
                           <div className="flex gap-2">
                             <input type="number" min="0" max={pendiente} step="0.01" placeholder="Cantidad"
                               value={valores.cantidad}
                               onChange={e => actualizarRecepcionItem(item.id, 'cantidad', e.target.value)}
-                              className="flex-1 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                              className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                             <input type="number" min="0" step="0.01" placeholder="Precio unitario"
                               value={valores.precio}
                               onChange={e => actualizarRecepcionItem(item.id, 'precio', e.target.value)}
-                              className="flex-1 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                              className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                           </div>
                         </div>
                       )
@@ -1509,7 +1509,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                   </div>
                 </div>
 
-                <div className="border-t border-slate-100 pt-4">
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
                   <IvaCalculator
                     montoNeto={String(netoRecepcion)} netoReadOnly labelNeto="Subtotal (ítems)"
                     iva={recepcionForm.iva} monto={recepcionForm.monto}
@@ -1519,41 +1519,41 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Percepciones</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Percepciones</label>
                   <input type="number" min="0" step="0.01" value={recepcionForm.percepciones}
                     onChange={e => setRecepcionForm(f => ({ ...f, percepciones: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">N° comprobante</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">N° comprobante</label>
                   <input value={recepcionForm.numero_comprobante}
                     onChange={e => setRecepcionForm(f => ({ ...f, numero_comprobante: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Notas</label>
                   <textarea rows={2} value={recepcionForm.notas}
                     onChange={e => setRecepcionForm(f => ({ ...f, notas: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
                 </div>
 
                 {recepcionError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{recepcionError}</div>
+                  <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg text-sm">{recepcionError}</div>
                 )}
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">
                   Esto guarda la recepción como borrador — todavía no genera el gasto. Confirmala desde la lista de recepciones cuando estés list@ para que impacte en Gastos y en el stock.
                 </p>
               </form>
             </div>
-            <div className="p-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+            <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
               <button type="button" onClick={() => setRecepcionOrden(null)}
-                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
+                className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                 Cancelar
               </button>
               <button type="submit" form="recepcion-form" disabled={recepcionLoading}
                 className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60
-                           text-white rounded-xl text-sm font-semibold">
+                           text-white rounded-xl text-sm font-semibold transition-colors">
                 {recepcionLoading ? 'Guardando...' : 'Guardar recepción'}
               </button>
             </div>
@@ -1565,61 +1565,61 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
 
       {/* Modal Repartir stock */}
       {showReparto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="p-6 border-b border-slate-200">
-              <h2 className="font-bold text-slate-900">Repartir stock</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Mueve cantidad del pool de empresa a una obra, entre obras, o de vuelta al pool.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-sm">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="font-bold text-slate-900 dark:text-white text-lg">Repartir stock</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Mueve cantidad del pool de empresa a una obra, entre obras, o de vuelta al pool.</p>
             </div>
             <form onSubmit={handleSubmitReparto} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Producto *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Producto *</label>
                 <select required value={repartoForm.producto_id}
                   onChange={e => setRepartoForm(f => ({ ...f, producto_id: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="">Elegir...</option>
                   {productosConStock.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Desde</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Desde</label>
                   <select value={repartoForm.obra_origen} onChange={e => setRepartoForm(f => ({ ...f, obra_origen: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">Empresa (pool)</option>
                     {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
                   </select>
                   {repartoForm.producto_id && (
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                       Hay {stockDe(repartoForm.producto_id, repartoForm.obra_origen || null)} ahí
                     </p>
                   )}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Hacia</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Hacia</label>
                   <select value={repartoForm.obra_destino} onChange={e => setRepartoForm(f => ({ ...f, obra_destino: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">Empresa (pool)</option>
                     {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Cantidad *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Cantidad *</label>
                 <input required type="number" min="0" step="0.01" value={repartoForm.cantidad}
                   onChange={e => setRepartoForm(f => ({ ...f, cantidad: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               {repartoError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{repartoError}</div>
+                <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg text-sm">{repartoError}</div>
               )}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowReparto(false)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                   Cancelar
                 </button>
                 <button type="submit" disabled={repartoLoading}
-                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold transition-colors">
                   {repartoLoading ? 'Guardando...' : 'Repartir'}
                 </button>
               </div>
@@ -1631,21 +1631,21 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
       {/* Panel de detalle: Acopio */}
       {detalleAcopioActual && (
         <div className="fixed inset-0 z-40 flex items-stretch">
-          <div className="flex-1 bg-black/40" onClick={() => setDetalleAcopio(null)} />
-          <div className="w-full max-w-2xl bg-slate-50 flex flex-col shadow-2xl overflow-hidden">
-            <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-start justify-between shrink-0">
+          <div className="flex-1 bg-black/50 backdrop-blur-xs" onClick={() => setDetalleAcopio(null)} />
+          <div className="w-full max-w-2xl bg-slate-50 dark:bg-slate-950 flex flex-col shadow-2xl overflow-hidden border-l border-slate-200 dark:border-slate-800">
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-start justify-between shrink-0">
               <div>
-                <p className="font-bold text-slate-900 text-lg">ACO-{detalleAcopioActual.numero}</p>
-                <p className="text-slate-500 text-sm mt-0.5">
+                <p className="font-bold text-slate-900 dark:text-white text-lg">ACO-{detalleAcopioActual.numero}</p>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
                   {detalleAcopioActual.proveedores?.razon_social ?? '—'} · Referencia: {detalleAcopioActual.productos?.nombre ?? '—'} · Cargado {formatDate(detalleAcopioActual.fecha)}
                 </p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button onClick={() => handleDeleteAcopio(detalleAcopioActual)}
-                  className="text-xs text-red-400 hover:text-red-600 px-2 py-1.5 transition-colors">
+                  className="text-xs text-red-400 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 px-2 py-1.5 transition-colors">
                   Eliminar
                 </button>
-                <button onClick={() => setDetalleAcopio(null)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
+                <button onClick={() => setDetalleAcopio(null)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -1655,41 +1655,41 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="bg-white border border-slate-200 rounded-xl p-4">
-                  <p className="text-xs text-slate-400 mb-1">Saldo actual</p>
-                  <p className={cn('text-xl font-bold', saldoDeAcopio(detalleAcopioActual.id) < 0 ? 'text-red-600' : 'text-slate-900')}>
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-xs">
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Saldo actual</p>
+                  <p className={cn('text-xl font-bold', saldoDeAcopio(detalleAcopioActual.id) < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white')}>
                     {saldoDeAcopio(detalleAcopioActual.id)} {detalleAcopioActual.productos?.unidad_medida ?? ''}
                   </p>
                 </div>
-                <div className="bg-white border border-slate-200 rounded-xl p-4">
-                  <p className="text-xs text-slate-400 mb-1">Pagado originalmente</p>
-                  <p className="text-xl font-bold text-slate-900">{formatCurrency(detalleAcopioActual.monto_pagado, detalleAcopioActual.moneda)}</p>
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-xs">
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Pagado originalmente</p>
+                  <p className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(detalleAcopioActual.monto_pagado, detalleAcopioActual.moneda)}</p>
                 </div>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                  <p className="font-semibold text-slate-800 text-sm">Retiros</p>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
+                <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Retiros</p>
                   <button onClick={() => openRetiro(detalleAcopioActual)}
-                    className="text-xs font-medium text-indigo-600 hover:text-indigo-800">
+                    className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
                     + Registrar retiro
                   </button>
                 </div>
                 {(detalleAcopioActual.acopio_retiros ?? []).length === 0 ? (
-                  <div className="px-4 py-8 text-center text-slate-400 text-sm">Todavía no se registró ningún retiro.</div>
+                  <div className="px-4 py-8 text-center text-slate-400 dark:text-slate-500 text-sm">Todavía no se registró ningún retiro.</div>
                 ) : (
-                  <div className="divide-y divide-slate-100">
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
                     {[...detalleAcopioActual.acopio_retiros].sort((a, b) => b.fecha.localeCompare(a.fecha)).map(r => (
                       <div key={r.id} className="px-4 py-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-medium text-slate-800">{r.productos?.nombre ?? '—'}</p>
+                          <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{r.productos?.nombre ?? '—'}</p>
                           <div className="flex items-center gap-2 shrink-0">
-                            <p className="text-sm font-semibold text-slate-900">{r.cantidad} {r.productos?.unidad_medida ?? ''}</p>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{r.cantidad} {r.productos?.unidad_medida ?? ''}</p>
                             <button onClick={() => handleDeleteRetiro(r)}
-                              className="text-xs text-red-400 hover:text-red-600 transition-colors">✕</button>
+                              className="text-xs text-red-400 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors">✕</button>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between mt-0.5 text-xs text-slate-400">
+                        <div className="flex items-center justify-between mt-0.5 text-xs text-slate-400 dark:text-slate-500">
                           <span>{formatDate(r.fecha)} · {r.obra_id ? (r.obras?.nombre ?? 'Proyecto eliminado') : 'Empresa (pool)'}</span>
                           <span>
                             {r.precio_unitario_retiro != null
@@ -1697,7 +1697,7 @@ export default function ComprasManager({ ordenes, productos, proveedores, obras,
                               : `Descuenta ${r.cantidad_referencia_descontada} directo`}
                           </span>
                         </div>
-                        {r.notas && <p className="text-xs text-slate-400 mt-1">{r.notas}</p>}
+                        {r.notas && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{r.notas}</p>}
                       </div>
                     ))}
                   </div>

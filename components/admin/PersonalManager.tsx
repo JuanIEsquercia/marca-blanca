@@ -298,7 +298,7 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
       {/* ── CUADRILLAS ── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-700">Cuadrillas</h2>
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Cuadrillas</h2>
           <button onClick={abrirNuevaCuadrilla}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -309,7 +309,7 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
         </div>
 
         {cuadrillas.length === 0 ? (
-          <div className="text-center py-8 text-slate-400 bg-white border border-slate-200 rounded-2xl text-sm">
+          <div className="text-center py-8 text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl text-sm">
             Sin cuadrillas todavía — agrupá personal para asignarlo de a varios en un solo paso.
           </div>
         ) : (
@@ -318,25 +318,25 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
               const miembros = miembrosDeCuadrilla(c.id)
               const capataz = personal.find(p => p.id === c.capataz_id)
               return (
-                <div key={c.id} className="bg-white border border-slate-200 rounded-2xl p-4">
+                <div key={c.id} className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
                   <div className="flex items-start justify-between mb-2">
                     <div>
-                      <p className="font-semibold text-slate-900">{c.nombre}</p>
-                      {capataz && <p className="text-xs text-slate-400">Capataz: {capataz.nombre}</p>}
+                      <p className="font-semibold text-slate-900 dark:text-white">{c.nombre}</p>
+                      {capataz && <p className="text-xs text-slate-400 dark:text-slate-500">Capataz: {capataz.nombre}</p>}
                     </div>
                     <button onClick={() => handleDeleteCuadrilla(c)}
-                      className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>
+                      className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 px-1 transition-colors">✕</button>
                   </div>
-                  <p className="text-xs text-slate-500 mb-3">{miembros.length} persona{miembros.length !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">{miembros.length} persona{miembros.length !== 1 ? 's' : ''}</p>
                   {miembros.length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-3">
                       {miembros.map(m => (
-                        <span key={m.id} className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{m.nombre}</span>
+                        <span key={m.id} className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{m.nombre}</span>
                       ))}
                     </div>
                   )}
                   <button onClick={() => abrirAsignarCuadrilla(c)} disabled={miembros.length === 0 || obras.length === 0}
-                    className="w-full text-xs px-3 py-1.5 border border-indigo-200 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors">
+                    className="w-full text-xs px-3 py-1.5 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors">
                     Asignar cuadrilla a proyecto
                   </button>
                 </div>
@@ -349,13 +349,13 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
       {/* ── PERSONAL ── */}
       <div>
         <div className="flex flex-col md:flex-row gap-3 justify-between mb-3">
-          <div className="flex rounded-lg border border-slate-300 overflow-x-auto max-w-full text-sm bg-white w-fit no-scrollbar">
+          <div className="flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-x-auto max-w-full text-sm bg-white dark:bg-slate-800 w-fit no-scrollbar">
             {(['todos', 'disponible', 'asignado', 'licencia', 'baja'] as const).map(e => (
               <button key={e}
                 onClick={() => setFiltroEstado(e)}
                 className={cn(
                   'px-3 py-2 transition-colors capitalize',
-                  filtroEstado === e ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                  filtroEstado === e ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                 )}>
                 {e === 'todos' ? 'Todos' : ESTADO_INFO[e].label}
               </button>
@@ -371,11 +371,11 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
         </div>
 
         {filtrados.length === 0 ? (
-          <div className="text-center py-16 text-slate-400 bg-white border border-slate-200 rounded-2xl">
+          <div className="text-center py-16 text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl">
             <p className="text-sm">No hay personal{filtroEstado !== 'todos' ? ` en estado ${ESTADO_INFO[filtroEstado].label.toLowerCase()}` : ''}.</p>
           </div>
         ) : (
-          <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl divide-y divide-slate-100 dark:divide-slate-800 shadow-xs">
             {filtrados.map(p => {
               const vigente = asignacionVigente(p)
               const historial = [...(p.personal_asignaciones ?? [])].sort((a, b) => b.fecha_desde.localeCompare(a.fecha_desde))
@@ -384,23 +384,23 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
               return (
                 <div key={p.id}>
                   <div
-                    className={cn('px-5 py-4 flex items-center gap-4 cursor-pointer hover:bg-slate-50 transition-colors', isExpanded && 'bg-slate-50')}
+                    className={cn('px-5 py-4 flex items-center gap-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors', isExpanded && 'bg-slate-50 dark:bg-slate-800/50')}
                     onClick={() => setExpanded(isExpanded ? null : p.id)}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-slate-900">{p.nombre}</p>
+                        <p className="font-semibold text-slate-900 dark:text-white">{p.nombre}</p>
                         <span className={cn('text-xs px-2 py-0.5 rounded font-medium', ESTADO_INFO[p.estado].color)}>{ESTADO_INFO[p.estado].label}</span>
                         {p.cuadrilla_id && cuadrillas.find(c => c.id === p.cuadrilla_id) && (
-                          <span className="text-xs px-2 py-0.5 rounded font-medium bg-violet-50 text-violet-600">
+                          <span className="text-xs px-2 py-0.5 rounded font-medium bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400">
                             {cuadrillas.find(c => c.id === p.cuadrilla_id)?.nombre}
                           </span>
                         )}
                         {vigente && (
-                          <span className="text-xs px-2 py-0.5 rounded font-medium bg-slate-100 text-slate-600">→ {obraNombre(obras, vigente.obra_id)}</span>
+                          <span className="text-xs px-2 py-0.5 rounded font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">→ {obraNombre(obras, vigente.obra_id)}</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
+                      <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                         {[TIPO_CONTRATACION_LABEL[p.tipo_contratacion], p.categoria].filter(Boolean).join(' · ')}
                         {p.jornal && <span>· {formatCurrency(p.jornal, 'ARS')}/día</span>}
                       </div>
@@ -409,7 +409,7 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
                       {p.estado !== 'baja' && (
                         <select value={p.cuadrilla_id ?? ''} onChange={e => cambiarCuadrilla(p, e.target.value || null)}
                           title="Cuadrilla"
-                          className="text-xs px-2 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                          className="text-xs px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
                           <option value="">— Sin cuadrilla —</option>
                           {cuadrillas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                         </select>
@@ -422,30 +422,30 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
                       )}
                       {p.estado === 'asignado' && (
                         <button onClick={() => liberar(p, 'disponible')}
-                          className="text-xs px-2.5 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+                          className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
                           Devolver
                         </button>
                       )}
                       {(p.estado === 'disponible' || p.estado === 'asignado') && (
                         <button onClick={() => liberar(p, 'licencia')}
-                          className="text-xs px-2.5 py-1.5 border border-amber-200 text-amber-700 hover:bg-amber-50 rounded-lg transition-colors">
+                          className="text-xs px-2.5 py-1.5 border border-amber-200 dark:border-amber-900/60 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors">
                           Licencia
                         </button>
                       )}
                       {(p.estado === 'licencia' || p.estado === 'baja') && (
                         <button onClick={() => liberar(p, 'disponible')}
-                          className="text-xs px-2.5 py-1.5 border border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors">
+                          className="text-xs px-2.5 py-1.5 border border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors">
                           Reactivar
                         </button>
                       )}
                       {p.estado !== 'baja' && (
                         <button onClick={() => liberar(p, 'baja')}
-                          className="text-xs px-2.5 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                          className="text-xs px-2.5 py-1.5 border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors">
                           Dar de baja
                         </button>
                       )}
                       <button onClick={() => handleDeletePersonal(p)}
-                        className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>
+                        className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 px-1 transition-colors">✕</button>
                       <svg className={cn('w-4 h-4 text-slate-400 transition-transform', isExpanded && 'rotate-180')} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
@@ -453,31 +453,31 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
                   </div>
 
                   {isExpanded && (
-                    <div className="bg-slate-50 border-t border-slate-100 px-5 py-4 space-y-3">
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                    <div className="bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 px-5 py-4 space-y-3">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
                         {p.dni && <span>DNI: {p.dni}</span>}
                         {p.cuil && <span>CUIL: {p.cuil}</span>}
                         {p.telefono && <span>Tel: {p.telefono}</span>}
                         {p.fecha_ingreso && <span>Ingreso: {formatDate(p.fecha_ingreso)}</span>}
                         {p.art_aseguradora && <span>ART: {p.art_aseguradora}{p.art_vencimiento ? ` (vence ${formatDate(p.art_vencimiento)})` : ''}</span>}
                       </div>
-                      {p.notas && <p className="text-xs text-slate-500 italic">{p.notas}</p>}
+                      {p.notas && <p className="text-xs text-slate-500 dark:text-slate-400 italic">{p.notas}</p>}
 
-                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Trazabilidad — historial de asignaciones</p>
+                      <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Trazabilidad — historial de asignaciones</p>
                       {historial.length === 0 ? (
-                        <p className="text-xs text-slate-400">Todavía no fue asignado a ningún proyecto.</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">Todavía no fue asignado a ningún proyecto.</p>
                       ) : (
-                        <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
                           {historial.map(a => (
                             <div key={a.id} className="px-4 py-2.5 grid grid-cols-[1fr_auto] items-center gap-3 text-sm">
                               <div className="min-w-0">
-                                <p className="text-slate-800 truncate">{obraNombre(obras, a.obra_id)}</p>
-                                <p className="text-xs text-slate-400">
+                                <p className="text-slate-800 dark:text-slate-200 truncate">{obraNombre(obras, a.obra_id)}</p>
+                                <p className="text-xs text-slate-400 dark:text-slate-500">
                                   {formatDate(a.fecha_desde)} — {a.fecha_hasta ? formatDate(a.fecha_hasta) : 'vigente'}
                                 </p>
                               </div>
                               {a.fecha_hasta === null && (
-                                <span className="text-xs px-2 py-0.5 rounded font-medium bg-indigo-50 text-indigo-600 shrink-0">Vigente</span>
+                                <span className="text-xs px-2 py-0.5 rounded font-medium bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shrink-0">Vigente</span>
                               )}
                             </div>
                           ))}
@@ -494,112 +494,112 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
 
       {/* Modal: nueva persona */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowForm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">Nueva persona</h2>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs" onClick={() => setShowForm(false)}>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Nueva persona</h2>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <form onSubmit={handleCrearPersonal} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Nombre completo *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Nombre completo *</label>
                 <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">DNI</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">DNI</label>
                   <input value={form.dni} onChange={e => setForm(f => ({ ...f, dni: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">CUIL</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">CUIL</label>
                   <input value={form.cuil} onChange={e => setForm(f => ({ ...f, cuil: e.target.value }))}
                     placeholder="20-12345678-9"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Teléfono</label>
                   <input value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Tipo de contratación</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Tipo de contratación</label>
                   <select value={form.tipo_contratacion} onChange={e => setForm(f => ({ ...f, tipo_contratacion: e.target.value as TipoContratacion }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="relacion_dependencia">Relación de dependencia</option>
                     <option value="contratado">Contratado</option>
                     <option value="subcontratista">Subcontratista</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Categoría</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Categoría</label>
                   <input value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
                     placeholder="Oficial, Medio Oficial, Ayudante..."
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Cuadrilla</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Cuadrilla</label>
                 {creandoCuadrillaInline ? (
                   <div className="flex gap-2">
                     <input autoFocus value={nuevaCuadrillaNombre}
                       onChange={e => setNuevaCuadrillaNombre(e.target.value)}
                       placeholder="Nombre de la cuadrilla"
-                      className="flex-1 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="flex-1 px-3 py-2 border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                     <button type="button" onClick={crearCuadrillaInline} disabled={creandoCuadrillaInlineLoading || !nuevaCuadrillaNombre.trim()}
                       className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
                       {creandoCuadrillaInlineLoading ? '...' : 'Crear'}
                     </button>
                     <button type="button" onClick={() => { setCreandoCuadrillaInline(false); setNuevaCuadrillaNombre('') }}
-                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-600">Cancelar</button>
+                      className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300">Cancelar</button>
                   </div>
                 ) : (
                   <select value={form.cuadrilla_id}
                     onChange={e => e.target.value === '__nuevo__' ? setCreandoCuadrillaInline(true) : setForm(f => ({ ...f, cuadrilla_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">— Sin cuadrilla —</option>
                     {cuadrillasDisponibles.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                     <option value="__nuevo__">+ Crear cuadrilla nueva</option>
                   </select>
                 )}
-                <p className="text-xs text-slate-400 mt-1">Asignar la cuadrilla completa a un proyecto asigna a esta persona junto con el resto.</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Asignar la cuadrilla completa a un proyecto asigna a esta persona junto con el resto.</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Jornal (costo/día)</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Jornal (costo/día)</label>
                   <input type="number" min="0" step="0.01" value={form.jornal} onChange={e => setForm(f => ({ ...f, jornal: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">ART</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">ART</label>
                   <input value={form.art_aseguradora} onChange={e => setForm(f => ({ ...f, art_aseguradora: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Vencimiento ART</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Vencimiento ART</label>
                   <input type="date" value={form.art_vencimiento} onChange={e => setForm(f => ({ ...f, art_vencimiento: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de ingreso</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Fecha de ingreso</label>
                 <input type="date" value={form.fecha_ingreso} onChange={e => setForm(f => ({ ...f, fecha_ingreso: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Notas</label>
                 <textarea rows={2} value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+              {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setShowForm(false)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">Cancelar</button>
                 <button type="submit" disabled={loading}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                   {loading ? 'Guardando...' : 'Crear persona'}
@@ -612,51 +612,51 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
 
       {/* Modal: nueva cuadrilla */}
       {showCuadrillaForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowCuadrillaForm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">Nueva cuadrilla</h2>
-              <button onClick={() => setShowCuadrillaForm(false)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs" onClick={() => setShowCuadrillaForm(false)}>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Nueva cuadrilla</h2>
+              <button onClick={() => setShowCuadrillaForm(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <form onSubmit={handleCrearCuadrilla} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Nombre *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Nombre *</label>
                 <input required value={cuadrillaForm.nombre} onChange={e => setCuadrillaForm(f => ({ ...f, nombre: e.target.value }))}
                   placeholder="Ej: Cuadrilla A"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Capataz</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Capataz</label>
                 {creandoCapataz ? (
                   <div className="flex gap-2">
                     <input autoFocus value={nuevoCapatazNombre}
                       onChange={e => setNuevoCapatazNombre(e.target.value)}
                       placeholder="Nombre de la persona"
-                      className="flex-1 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="flex-1 px-3 py-2 border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                     <button type="button" onClick={crearCapatazInline} disabled={creandoCapatazLoading || !nuevoCapatazNombre.trim()}
                       className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
                       {creandoCapatazLoading ? '...' : 'Crear'}
                     </button>
                     <button type="button" onClick={() => { setCreandoCapataz(false); setNuevoCapatazNombre('') }}
-                      className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-600">Cancelar</button>
+                      className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300">Cancelar</button>
                   </div>
                 ) : (
                   <select value={cuadrillaForm.capataz_id}
                     onChange={e => e.target.value === '__nuevo__' ? setCreandoCapataz(true) : setCuadrillaForm(f => ({ ...f, capataz_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">— Sin asignar —</option>
                     {personalParaCapataz.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                     <option value="__nuevo__">+ Crear persona nueva</option>
                   </select>
                 )}
               </div>
-              <p className="text-xs text-slate-400">Los integrantes se asignan después, desde la ficha de cada persona.</p>
-              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+              <p className="text-xs text-slate-400 dark:text-slate-500">Los integrantes se asignan después, desde la ficha de cada persona.</p>
+              {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setShowCuadrillaForm(false)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">Cancelar</button>
                 <button type="submit" disabled={loading}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                   {loading ? 'Guardando...' : 'Crear cuadrilla'}
@@ -669,29 +669,29 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
 
       {/* Modal: asignar / reasignar persona */}
       {asignarTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setAsignarTarget(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs" onClick={() => setAsignarTarget(null)}>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 {asignarTarget.estado === 'asignado' ? 'Reasignar' : 'Asignar'} {asignarTarget.nombre}
               </h2>
-              <button onClick={() => setAsignarTarget(null)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setAsignarTarget(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <form onSubmit={handleAsignarSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Proyecto *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Proyecto *</label>
                 <select required value={asignarObraId} onChange={e => setAsignarObraId(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="">— Elegir —</option>
                   {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
                 </select>
               </div>
-              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+              {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setAsignarTarget(null)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">Cancelar</button>
                 <button type="submit" disabled={loading || !asignarObraId}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                   {loading ? 'Guardando...' : 'Confirmar'}
@@ -704,30 +704,30 @@ export default function PersonalManager({ personal, cuadrillas, obras, construct
 
       {/* Modal: asignar cuadrilla completa */}
       {asignarCuadrillaTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setAsignarCuadrillaTarget(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs" onClick={() => setAsignarCuadrillaTarget(null)}>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Asignar cuadrilla</h2>
-                <p className="text-xs text-slate-400 mt-0.5">{asignarCuadrillaTarget.nombre} — {miembrosDeCuadrilla(asignarCuadrillaTarget.id).length} persona(s)</p>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Asignar cuadrilla</h2>
+                <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">{asignarCuadrillaTarget.nombre} — {miembrosDeCuadrilla(asignarCuadrillaTarget.id).length} persona(s)</p>
               </div>
-              <button onClick={() => setAsignarCuadrillaTarget(null)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setAsignarCuadrillaTarget(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <form onSubmit={handleAsignarCuadrillaSubmit} className="p-6 space-y-4">
-              <p className="text-xs text-slate-500">Asigna a cada integrante de la cuadrilla a este proyecto — quien ya estaba ahí no se toca.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Asigna a cada integrante de la cuadrilla a este proyecto — quien ya estaba ahí no se toca.</p>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Proyecto *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Proyecto *</label>
                 <select required value={asignarCuadrillaObraId} onChange={e => setAsignarCuadrillaObraId(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
                 </select>
               </div>
-              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+              {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setAsignarCuadrillaTarget(null)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">Cancelar</button>
                 <button type="submit" disabled={loading}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                   {loading ? 'Asignando...' : 'Asignar cuadrilla'}

@@ -58,16 +58,16 @@ export default function IvaCalculator({
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">{labelNeto} *</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{labelNeto} *</label>
           <input required={!netoReadOnly} readOnly={netoReadOnly} type="number" min="0" step="0.01" value={montoNeto}
             onChange={e => onChangeMontoNeto(e.target.value)}
-            className={cn('w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500',
-              netoReadOnly && 'bg-slate-50 text-slate-500')} />
+            className={cn('w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500',
+              netoReadOnly && 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400')} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">IVA</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">IVA</label>
           <select value={modo} onChange={e => setModo(e.target.value as ModoIva)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
             <option value="0">Sin IVA</option>
             <option value="10.5">10.5%</option>
             <option value="21">21%</option>
@@ -77,24 +77,24 @@ export default function IvaCalculator({
       </div>
       {modo === 'personalizado' && (
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">% de IVA</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">% de IVA</label>
           <input type="number" min="0" step="0.01" value={pctPersonalizado}
             onChange={e => setPctPersonalizado(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">IVA calculado</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">IVA calculado</label>
           <input type="number" min="0" step="0.01" value={iva}
             onChange={e => onChangeIva(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Total *</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Total *</label>
           <input required type="number" min="0" step="0.01" value={monto}
             onChange={e => onChangeMonto(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
       </div>
     </div>

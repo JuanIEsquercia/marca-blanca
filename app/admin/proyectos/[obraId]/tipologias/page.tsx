@@ -22,8 +22,8 @@ export default async function TipologiasPage({ params }: { params: Promise<{ obr
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Tipologías</h1>
-        <p className="text-slate-500 text-sm mt-1">Definí los tipos de unidades: m², descripción y recorrido virtual 360°</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Tipologías</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Modelos de unidad, superficies y ambientes</p>
       </div>
       <TipologiasManager
         tipologias={tipologias ?? []}

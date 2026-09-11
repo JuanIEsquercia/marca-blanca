@@ -55,10 +55,10 @@ function PermisosCheckboxes({
             <button
               type="button"
               onClick={() => toggleSeccion(sec)}
-              className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 hover:text-slate-700"
+              className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 hover:text-slate-700 dark:hover:text-slate-200"
             >
               <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
-                ${allChecked ? 'bg-indigo-600 border-indigo-600' : someChecked ? 'bg-indigo-200 border-indigo-400' : 'border-slate-300'}`}>
+                ${allChecked ? 'bg-indigo-600 border-indigo-600' : someChecked ? 'bg-indigo-200 dark:bg-indigo-900 border-indigo-400 dark:border-indigo-600' : 'border-slate-300 dark:border-slate-700'}`}>
                 {(allChecked || someChecked) && (
                   <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d={allChecked ? 'M5 13l4 4L19 7' : 'M5 12h14'} />
@@ -73,7 +73,7 @@ function PermisosCheckboxes({
                 return (
                   <label key={m.key} className="flex items-center gap-2 cursor-pointer group" title={m.descripcion}>
                     <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
-                      ${value.includes(m.key) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 group-hover:border-indigo-400'}`}
+                      ${value.includes(m.key) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 dark:border-slate-700 group-hover:border-indigo-400'}`}
                       onClick={() => toggle(m.key)}>
                       {value.includes(m.key) && (
                         <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -81,12 +81,12 @@ function PermisosCheckboxes({
                         </svg>
                       )}
                     </span>
-                    <span className="text-sm text-slate-700 select-none" onClick={() => toggle(m.key)}>
+                    <span className="text-sm text-slate-700 dark:text-slate-300 select-none" onClick={() => toggle(m.key)}>
                       {m.label}
                     </span>
                     {aviso && (
                       <span
-                        className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-bold shrink-0"
+                        className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 text-[9px] font-bold shrink-0"
                         title={aviso}
                       >
                         i
@@ -103,9 +103,6 @@ function PermisosCheckboxes({
   )
 }
 
-// Árbol proyecto → módulos: tildar un proyecto revela su propio checklist,
-// scopeado al tipo de ESE proyecto (mismo PermisosCheckboxes de arriba,
-// uno por proyecto tildado en vez de uno global).
 function ArbolProyectos({
   obras,
   value,
@@ -127,7 +124,7 @@ function ArbolProyectos({
   }
 
   if (obras.length === 0) {
-    return <p className="text-xs text-slate-400 italic">No hay proyectos creados todavía.</p>
+    return <p className="text-xs text-slate-400 dark:text-slate-500 italic">No hay proyectos creados todavía.</p>
   }
 
   return (
@@ -135,10 +132,10 @@ function ArbolProyectos({
       {obras.map(o => {
         const asignado = value.find(p => p.obraId === o.id)
         return (
-          <div key={o.id} className={`border rounded-lg transition-colors ${asignado ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-200'}`}>
+          <div key={o.id} className={`border rounded-lg transition-colors ${asignado ? 'border-indigo-200 dark:border-indigo-800 bg-indigo-50/30 dark:bg-indigo-950/20' : 'border-slate-200 dark:border-slate-800'}`}>
             <label className="flex items-center gap-2 p-2.5 cursor-pointer">
               <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
-                ${asignado ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}
+                ${asignado ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 dark:border-slate-700'}`}
                 onClick={() => toggleProyecto(o.id)}>
                 {asignado && (
                   <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -146,13 +143,13 @@ function ArbolProyectos({
                   </svg>
                 )}
               </span>
-              <span className="text-sm font-medium text-slate-800 select-none" onClick={() => toggleProyecto(o.id)}>
+              <span className="text-sm font-medium text-slate-800 dark:text-slate-200 select-none" onClick={() => toggleProyecto(o.id)}>
                 {o.nombre}
               </span>
-              <span className="text-xs text-slate-400">({o.tipo === 'obra' ? 'Obra' : 'Desarrollo'})</span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">({o.tipo === 'obra' ? 'Obra' : 'Desarrollo'})</span>
             </label>
             {asignado && (
-              <div className="px-3 pb-3 pt-1 border-t border-slate-100">
+              <div className="px-3 pb-3 pt-1 border-t border-slate-100 dark:border-slate-800">
                 <PermisosCheckboxes
                   value={asignado.permisos}
                   onChange={p => setPermisosProyecto(o.id, p)}
@@ -172,7 +169,6 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
   const [, startTransition] = useTransition()
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null)
 
-  // Creación
   const [showForm, setShowForm] = useState(false)
   const [nombre, setNombre] = useState('')
   const [email, setEmail] = useState('')
@@ -185,12 +181,8 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  // Búsqueda en la tabla — por nombre/email o por proyecto/módulo al que
-  // tiene acceso (antes no había forma de responder "¿quién ve Tesorería?"
-  // sin abrir operador por operador).
   const [busqueda, setBusqueda] = useState('')
 
-  // Edición de permisos
   const [editPermisosPerfil, setEditPermisosPerfil] = useState<PerfilConEmail | null>(null)
   const [editProyectos, setEditProyectos] = useState<ProyectoAsignado[]>([])
   const [editPermisosEmpresa, setEditPermisosEmpresa] = useState<string[]>([])
@@ -222,9 +214,6 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
     setShowForm(true)
   }
 
-  // Prellena proyectos/módulos con los de un operador existente — el caso
-  // típico de "el nuevo arquitecto necesita lo mismo que Juan" antes exigía
-  // tildar cada proyecto y cada módulo de cero.
   function aplicarPlantilla(idOrigen: string) {
     setCopiarDeId(idOrigen)
     const origen = operadores.find(o => o.id === idOrigen)
@@ -309,8 +298,8 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <p className="text-slate-500 text-sm">
-            Operadores: <span className={`font-semibold ${cupoLleno ? 'text-red-600' : 'text-slate-700'}`}>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">
+            Operadores: <span className={`font-semibold ${cupoLleno ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-200'}`}>
               {operadores.length} / {MAX_OPERADORES}
             </span>
           </p>
@@ -319,9 +308,7 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
           onClick={openCreate}
           disabled={cupoLleno}
           title={cupoLleno ? `Límite de ${MAX_OPERADORES} operadores alcanzado` : undefined}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                     disabled:opacity-40 disabled:cursor-not-allowed
-                     text-white rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -331,80 +318,79 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
       </div>
 
       {cupoLleno && (
-        <div className="mb-5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
+        <div className="mb-5 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-400 text-sm">
           Cupo máximo de {MAX_OPERADORES} operadores alcanzado. Eliminá uno para crear otro.
         </div>
       )}
 
       {perfiles.length > 0 && (
         <div className="mb-4 relative">
-          <svg className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 10.5A6.5 6.5 0 114 10.5a6.5 6.5 0 0113 0z" />
           </svg>
           <input
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
             placeholder="Buscar por nombre, email, proyecto o módulo (ej. &quot;Tesorería&quot;)..."
-            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm
-                       focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
       )}
 
       {/* Tabla */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Nombre</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Email</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Rol</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Acceso a proyectos y módulos</th>
+              <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Nombre</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Email</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Rol</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Acceso a proyectos y módulos</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {perfilesFiltrados.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-500">
                     Ningún usuario coincide con &quot;{busqueda}&quot;.
                   </td>
                 </tr>
               )}
               {perfilesFiltrados.map(p => (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-900 align-top">
+                <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <td className="px-4 py-3 font-medium text-slate-900 dark:text-white align-top">
                     {p.nombre}
                     {p.id === currentUserId && (
-                      <span className="ml-2 text-xs text-indigo-600 font-normal">(vos)</span>
+                      <span className="ml-2 text-xs text-indigo-600 dark:text-indigo-400 font-normal">(vos)</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-600 align-top">{p.email}</td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-400 align-top">{p.email}</td>
                   <td className="px-4 py-3 align-top">
                     <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full border
                       ${p.rol === 'admin'
-                        ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                        : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                        ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>
                       {p.rol === 'admin' ? 'Administrador' : 'Operador'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     {p.rol === 'admin' ? (
-                      <span className="text-xs text-slate-400 italic">Acceso total</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500 italic">Acceso total</span>
                     ) : p.proyectos.length === 0 && (p.permisos ?? []).length === 0 ? (
-                      <span className="text-xs text-red-500">Sin acceso</span>
+                      <span className="text-xs text-red-500 dark:text-red-400">Sin acceso</span>
                     ) : (
                       <div className="space-y-1.5">
                         {p.proyectos.map(proy => (
                           <div key={proy.obraId} className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-slate-800 text-white rounded-md">
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-slate-800 dark:bg-slate-700 text-white rounded-md">
                               {nombreDeObra(proy.obraId)}
                             </span>
                             {proy.permisos.length === 0 ? (
-                              <span className="text-[10px] text-slate-400 italic">sin módulos</span>
+                              <span className="text-[10px] text-slate-400 dark:text-slate-500 italic">sin módulos</span>
                             ) : proy.permisos.map(key => (
-                              <span key={key} className="text-[10px] font-medium px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-md border border-indigo-100">
+                              <span key={key} className="text-[10px] font-medium px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-md border border-indigo-100 dark:border-indigo-800">
                                 {moduloLabel(key)}
                               </span>
                             ))}
@@ -412,11 +398,11 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
                         ))}
                         {(p.permisos ?? []).length > 0 && (
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-slate-500 text-white rounded-md">
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-slate-500 dark:bg-slate-600 text-white rounded-md">
                               Empresa
                             </span>
                             {(p.permisos ?? []).map(key => (
-                              <span key={key} className="text-[10px] font-medium px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-md border border-emerald-100">
+                              <span key={key} className="text-[10px] font-medium px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-md border border-emerald-100 dark:border-emerald-800">
                                 {moduloLabel(key)}
                               </span>
                             ))}
@@ -430,7 +416,7 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
                       {p.rol !== 'admin' && (
                         <button
                           onClick={() => openEditPermisos(p)}
-                          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                          className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium transition-colors"
                         >
                           Editar permisos
                         </button>
@@ -438,7 +424,7 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
                       {p.id !== currentUserId && (
                         <button
                           onClick={() => handleDelete(p.id, p.nombre)}
-                          className="text-xs text-red-400 hover:text-red-600 transition-colors"
+                          className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors"
                         >
                           Eliminar
                         </button>
@@ -454,11 +440,11 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
 
       {/* Modal crear operador */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="font-bold text-slate-900">Nuevo operador</h2>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="font-bold text-slate-900 dark:text-white">Nuevo operador</h2>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -468,81 +454,75 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
               <form id="create-form" onSubmit={handleCreate} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Nombre *</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Nombre *</label>
                     <input required value={nombre} onChange={e => setNombre(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
-                                 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Email *</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Email *</label>
                     <input required type="email" value={email} onChange={e => setEmail(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
-                                 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Contraseña *</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Contraseña *</label>
                     <input required type="password" minLength={8} value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="Mínimo 8 caracteres"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
-                                 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Repetir contraseña *</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Repetir contraseña *</label>
                     <input required type="password" minLength={8} value={passwordConfirm}
                       onChange={e => setPasswordConfirm(e.target.value)}
                       placeholder="Repetí la contraseña"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
-                                 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
 
                 {operadores.length > 0 && (
-                  <div className="border-t border-slate-100 pt-4">
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Copiar permisos de (opcional)</label>
+                  <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Copiar permisos de (opcional)</label>
                     <select value={copiarDeId} onChange={e => aplicarPlantilla(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white
-                                 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                       <option value="">— Empezar en blanco —</option>
                       {operadores.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
                     </select>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                       Prellena proyectos y módulos con los mismos que tiene ese operador — después podés ajustarlos abajo.
                     </p>
                   </div>
                 )}
 
-                <div className="border-t border-slate-100 pt-4">
-                  <p className="text-xs font-semibold text-slate-700 mb-1">Proyectos y módulos</p>
-                  <p className="text-xs text-slate-400 mb-3">
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">Proyectos y módulos</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">
                     Tildá los proyectos a los que va a acceder — cada uno con sus propios módulos.
                   </p>
                   <ArbolProyectos obras={obras} value={proyectos} onChange={setProyectos} />
                 </div>
 
-                <div className="border-t border-slate-100 pt-4">
-                  <p className="text-xs font-semibold text-slate-700 mb-3">Empresa (fuera de proyectos)</p>
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-3">Empresa (fuera de proyectos)</p>
                   <PermisosCheckboxes value={permisosEmpresa} onChange={setPermisosEmpresa} modulos={MODULOS_EMPRESA_INFO} />
                 </div>
 
                 {error && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
+                  <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">{error}</div>
                 )}
                 {success && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                  <div className="p-3 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-400 text-sm">
                     Operador creado exitosamente.
                   </div>
                 )}
               </form>
             </div>
-            <div className="p-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+            <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
               <button type="button" onClick={() => setShowForm(false)}
-                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
+                className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                 Cancelar
               </button>
               <button type="submit" form="create-form" disabled={loading}
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60
-                           text-white rounded-xl text-sm font-semibold">
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-xl text-sm font-semibold">
                 {loading ? 'Creando...' : 'Crear operador'}
               </button>
             </div>
@@ -552,14 +532,14 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
 
       {/* Modal editar permisos */}
       {editPermisosPerfil && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
               <div>
-                <h2 className="font-bold text-slate-900">Permisos de acceso</h2>
-                <p className="text-xs text-slate-500 mt-0.5">{editPermisosPerfil.nombre}</p>
+                <h2 className="font-bold text-slate-900 dark:text-white">Permisos de acceso</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{editPermisosPerfil.nombre}</p>
               </div>
-              <button onClick={() => setEditPermisosPerfil(null)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setEditPermisosPerfil(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -567,28 +547,27 @@ export default function UsuariosManager({ perfiles, obras, currentUserId, constr
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               <div>
-                <p className="text-xs font-semibold text-slate-700 mb-1">Proyectos y módulos</p>
-                <p className="text-xs text-slate-400 mb-3">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">Proyectos y módulos</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">
                   Tildá los proyectos a los que puede acceder — cada uno con sus propios módulos.
                 </p>
                 <ArbolProyectos obras={obras} value={editProyectos} onChange={setEditProyectos} />
               </div>
-              <div className="border-t border-slate-100 pt-4">
-                <p className="text-xs font-semibold text-slate-700 mb-3">Empresa (fuera de proyectos)</p>
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-3">Empresa (fuera de proyectos)</p>
                 <PermisosCheckboxes value={editPermisosEmpresa} onChange={setEditPermisosEmpresa} modulos={MODULOS_EMPRESA_INFO} />
               </div>
               {editError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{editError}</div>
+                <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">{editError}</div>
               )}
             </div>
-            <div className="p-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+            <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
               <button onClick={() => setEditPermisosPerfil(null)}
-                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50">
+                className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                 Cancelar
               </button>
               <button onClick={handleSavePermisos} disabled={editLoading}
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60
-                           text-white rounded-xl text-sm font-semibold">
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-xl text-sm font-semibold">
                 {editLoading ? 'Guardando...' : 'Guardar permisos'}
               </button>
             </div>

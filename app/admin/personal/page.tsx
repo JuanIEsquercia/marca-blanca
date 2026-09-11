@@ -36,8 +36,8 @@ export default async function PersonalPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Personal</h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Personal</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
           Trabajadores y cuadrillas — asigná a un proyecto y llevá el rastreo de dónde trabajó cada uno
         </p>
       </div>

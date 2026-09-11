@@ -132,7 +132,7 @@ function PropuestaCard({
   const campos = Object.entries(input).filter(([k, v]) => v !== null && v !== undefined && v !== '' && k !== 'resumen' && !esClaveId(k))
   return (
     <div className="flex justify-start">
-      <div className="max-w-[90%] w-full bg-white dark:bg-slate-850 border border-amber-200 dark:border-amber-700/60 rounded-2xl p-3.5 space-y-2.5 shadow-xs">
+      <div className="max-w-[90%] w-full bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700/60 rounded-2xl p-3.5 space-y-2.5 shadow-xs">
         <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
           {LABEL_HERRAMIENTA[herramienta] ?? herramienta}
         </p>
@@ -146,7 +146,7 @@ function PropuestaCard({
           ))}
         </div>
         {resuelta ? (
-          <p className={cn('text-xs font-medium', resuelta === 'confirmada' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400')}>
+          <p className={cn('text-xs font-medium', resuelta === 'confirmada' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500')}>
             {resuelta === 'confirmada' ? '✓ Confirmado' : '✕ Cancelado'}
           </p>
         ) : (

@@ -26,9 +26,9 @@ export default async function CuentasProyectoPage({ params }: { params: Promise<
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Cuentas del proyecto</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          {ctx.obraNombre} — cuentas bancarias y cajas específicas de este proyecto
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Cuentas del proyecto</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+          {ctx.obraNombre} — cuentas bancarias exclusivas del desarrollo
         </p>
       </div>
       <CuentasPropiasManager

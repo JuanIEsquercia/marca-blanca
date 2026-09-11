@@ -97,20 +97,20 @@ export default function NuevoPresupuestoForm({ constructoraId, rubros = [], comp
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-2xl p-6">
-        <h2 className="text-sm font-semibold text-slate-700 mb-4">Datos del cliente</h2>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">Datos del cliente</h2>
         <ClienteYFechasForm form={form} onChange={setForm} descripcionLabel="Descripción del trabajo" compradores={compradores} />
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-6">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-xs">
         <ItemsRubroTable filas={filas} onChange={setFilas} moneda={form.moneda} titulo="Ítems del presupuesto" rubros={rubros} />
       </div>
 
-      {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 rounded-lg px-3 py-2">{error}</p>}
 
       <div className="flex gap-3">
         <Link href="/admin/presupuestos"
-          className="px-5 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+          className="px-5 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
           Cancelar
         </Link>
         <button type="submit" disabled={loading}

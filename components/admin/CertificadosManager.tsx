@@ -207,7 +207,7 @@ export default function CertificadosManager({ contratos, certificados, contratoO
 
       {!readOnly && !showContratoForm && (
         <button onClick={abrirNuevoContrato}
-          className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-slate-300 hover:border-indigo-300 hover:bg-indigo-50/50 text-slate-500 hover:text-indigo-600 rounded-2xl text-sm font-medium transition-colors w-full justify-center">
+          className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-2xl text-sm font-medium transition-colors w-full justify-center">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
@@ -216,30 +216,30 @@ export default function CertificadosManager({ contratos, certificados, contratoO
       )}
 
       {showContratoForm && (
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-800">Nuevo contrato</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+          <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="font-semibold text-slate-800 dark:text-white">Nuevo contrato</h2>
+            <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
               {contratos.length === 0
                 ? 'Cargá el contrato con el cliente para comenzar a emitir certificados'
                 : 'Con el cliente (entra plata) o con un subcontratista (sale plata) — cada uno certifica y se paga por separado'}
             </p>
           </div>
           <form onSubmit={handleContratoSubmit} className="p-6 space-y-4">
-            <div className="flex rounded-lg border border-slate-300 overflow-hidden text-sm">
+            <div className="flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden text-sm bg-white dark:bg-slate-800">
               <button type="button" onClick={() => setContratoTipo('cliente')}
                 className={cn('flex-1 px-3 py-2 transition-colors',
-                  contratoTipo === 'cliente' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50')}>
+                  contratoTipo === 'cliente' ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700')}>
                 Contrato con el cliente
               </button>
               <button type="button" onClick={() => setContratoTipo('subcontratista')}
                 className={cn('flex-1 px-3 py-2 transition-colors',
-                  contratoTipo === 'subcontratista' ? 'bg-amber-600 text-white' : 'text-slate-600 hover:bg-slate-50')}>
+                  contratoTipo === 'subcontratista' ? 'bg-amber-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700')}>
                 Subcontratista
               </button>
             </div>
             {contratoTipo === 'cliente' && contratos.some(c => c.tipo === 'cliente') && (
-              <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
                 Este proyecto ya tiene {contratos.filter(c => c.tipo === 'cliente').length} contrato(s) con el cliente — este se suma como otra etapa, no los reemplaza.
               </p>
             )}
@@ -251,7 +251,7 @@ export default function CertificadosManager({ contratos, certificados, contratoO
                 descripcionLabel="Descripción del trabajo subcontratado"
                 identidad={
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Proveedor *</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Proveedor *</label>
                     <ProveedorSelect
                       proveedores={[...proveedores, ...proveedoresNuevos]}
                       onCreated={p => setProveedoresNuevos(prev => [...prev, p])}
@@ -270,11 +270,11 @@ export default function CertificadosManager({ contratos, certificados, contratoO
 
             <ItemsRubroTable filas={contratoFilas} onChange={setContratoFilas} moneda={contratoForm.moneda} titulo="Ítems del contrato" rubros={rubros} />
 
-            {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+            {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded-lg px-3 py-2">{error}</p>}
             <div className="flex gap-3 justify-end">
               {contratos.length > 0 && (
                 <button type="button" onClick={() => setShowContratoForm(false)}
-                  className="px-5 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  className="px-5 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                   Cancelar
                 </button>
               )}

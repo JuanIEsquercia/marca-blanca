@@ -117,15 +117,15 @@ export default function NuevoProyectoModal({ constructoraId, cuentasExistentes }
       {/* Modal */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg">
             <form onSubmit={handleSubmit}>
               {/* Header */}
-              <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
-                <h2 className="text-lg font-bold text-slate-900">Nuevo Proyecto</h2>
+              <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Nuevo Proyecto</h2>
                 <button
                   type="button"
                   onClick={resetAndClose}
-                  className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="w-8 h-8 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -137,7 +137,7 @@ export default function NuevoProyectoModal({ constructoraId, cuentasExistentes }
 
                 {/* Tipo de proyecto */}
                 <div>
-                  <p className="text-sm font-semibold text-slate-700 mb-3">¿Qué tipo de proyecto es?</p>
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">¿Qué tipo de proyecto es?</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {([
                       {
@@ -145,8 +145,8 @@ export default function NuevoProyectoModal({ constructoraId, cuentasExistentes }
                         label: 'Desarrollo',
                         desc: 'Venta de unidades, reservas, contratos',
                         badge: 'DESARROLLO',
-                        badgeColor: 'bg-indigo-100 text-indigo-700',
-                        activeColor: 'border-indigo-500 bg-indigo-50',
+                        badgeColor: 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80',
+                        activeColor: 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40',
                         icon: (
                           <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
@@ -158,8 +158,8 @@ export default function NuevoProyectoModal({ constructoraId, cuentasExistentes }
                         label: 'Obra',
                         desc: 'Certificados de avance, cobros al cliente',
                         badge: 'OBRA',
-                        badgeColor: 'bg-amber-100 text-amber-700',
-                        activeColor: 'border-amber-500 bg-amber-50',
+                        badgeColor: 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80',
+                        activeColor: 'border-amber-500 bg-amber-50 dark:bg-amber-950/40',
                         icon: (
                           <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -175,14 +175,14 @@ export default function NuevoProyectoModal({ constructoraId, cuentasExistentes }
                           'flex flex-col items-start gap-2 p-4 rounded-xl border-2 text-left transition-all',
                           tipo === opt.value
                             ? opt.activeColor
-                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800/40'
                         )}
                       >
                         <div className={cn(
                           'p-2 rounded-lg',
                           tipo === opt.value
-                            ? opt.value === 'desarrollo' ? 'text-indigo-600' : 'text-amber-600'
-                            : 'text-slate-400'
+                            ? opt.value === 'desarrollo' ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'
+                            : 'text-slate-400 dark:text-slate-500'
                         )}>
                           {opt.icon}
                         </div>
@@ -190,8 +190,8 @@ export default function NuevoProyectoModal({ constructoraId, cuentasExistentes }
                           <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded', opt.badgeColor)}>
                             {opt.badge}
                           </span>
-                          <p className="text-sm font-semibold text-slate-900 mt-1.5">{opt.label}</p>
-                          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{opt.desc}</p>
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white mt-1.5">{opt.label}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{opt.desc}</p>
                         </div>
                       </button>
                     ))}
@@ -200,7 +200,7 @@ export default function NuevoProyectoModal({ constructoraId, cuentasExistentes }
 
                 {/* Nombre */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                     Nombre del proyecto <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -209,33 +209,33 @@ export default function NuevoProyectoModal({ constructoraId, cuentasExistentes }
                     onChange={e => setNombre(e.target.value)}
                     placeholder={tipo === 'desarrollo' ? 'Ej: Torre San Martín' : 'Ej: Casa Rodríguez — Tigre'}
                     required
-                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm
+                    className="w-full px-3.5 py-2.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl text-sm
                                focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                 </div>
 
                 {/* Dirección */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                    Dirección <span className="text-slate-400 font-normal">(opcional)</span>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Dirección <span className="text-slate-400 dark:text-slate-500 font-normal">(opcional)</span>
                   </label>
                   <input
                     type="text"
                     value={direccion}
                     onChange={e => setDireccion(e.target.value)}
                     placeholder="Ej: Av. Santa Fe 1234, CABA"
-                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm
+                    className="w-full px-3.5 py-2.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl text-sm
                                focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                 </div>
 
                 {/* Cuentas */}
                 <div>
-                  <p className="text-sm font-semibold text-slate-700 mb-3">Cuentas bancarias</p>
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Cuentas bancarias</p>
                   <div className="space-y-2">
                     <label className={cn(
                       'flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors',
-                      modoCuentas === 'empresa' ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'
+                      modoCuentas === 'empresa' ? 'border-indigo-300 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/40' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800/40'
                     )}>
                       <input
                         type="radio"
@@ -245,14 +245,14 @@ export default function NuevoProyectoModal({ constructoraId, cuentasExistentes }
                         className="mt-0.5 accent-indigo-600"
                       />
                       <div>
-                        <p className="text-sm font-medium text-slate-900">Usar cuentas de la empresa</p>
-                        <p className="text-xs text-slate-500 mt-0.5">Los cobros y pagos de este proyecto se registran en las cuentas compartidas</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white">Usar cuentas de la empresa</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Los cobros y pagos de este proyecto se registran en las cuentas compartidas</p>
                       </div>
                     </label>
 
                     <label className={cn(
                       'flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors',
-                      modoCuentas === 'especificas' ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'
+                      modoCuentas === 'especificas' ? 'border-indigo-300 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/40' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800/40'
                     )}>
                       <input
                         type="radio"
@@ -262,11 +262,11 @@ export default function NuevoProyectoModal({ constructoraId, cuentasExistentes }
                         className="mt-0.5 accent-indigo-600"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900">Cuentas específicas para este proyecto</p>
-                        <p className="text-xs text-slate-500 mt-0.5">Ideal para fideicomisos — cuentas bancarias independientes</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white">Cuentas específicas para este proyecto</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Ideal para fideicomisos — cuentas bancarias independientes</p>
 
                         {modoCuentas === 'especificas' && cuentasExistentes.length > 0 && (
-                          <div className="mt-3 border-t border-indigo-200 pt-3">
+                          <div className="mt-3 border-t border-indigo-200 dark:border-indigo-800/80 pt-3">
                             <label className="flex items-center gap-2 cursor-pointer select-none">
                               <input
                                 type="checkbox"
@@ -274,29 +274,29 @@ export default function NuevoProyectoModal({ constructoraId, cuentasExistentes }
                                 onChange={e => setReplicarCuentas(e.target.checked)}
                                 className="accent-indigo-600"
                               />
-                              <span className="text-xs font-medium text-slate-700">
+                              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                                 Copiar estructura de cuentas existentes
                               </span>
                             </label>
                             {replicarCuentas && (
                               <ul className="mt-2 space-y-1">
                                 {cuentasExistentes.map(c => (
-                                  <li key={c.id} className="flex items-center gap-2 text-xs text-slate-500">
+                                  <li key={c.id} className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
                                     <span>{c.nombre}</span>
-                                    <span className="text-slate-400">· {c.tipo} · {c.moneda}</span>
+                                    <span className="text-slate-400 dark:text-slate-500">· {c.tipo} · {c.moneda}</span>
                                   </li>
                                 ))}
                               </ul>
                             )}
                             {replicarCuentas && (
-                              <p className="text-[10px] text-slate-400 mt-2">Se crearán con saldo inicial $0</p>
+                              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2">Se crearán con saldo inicial $0</p>
                             )}
                           </div>
                         )}
 
                         {modoCuentas === 'especificas' && cuentasExistentes.length === 0 && (
-                          <p className="text-xs text-slate-400 mt-2">
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
                             Podés crear cuentas más adelante desde el panel del proyecto → Finanzas → Cuentas.
                           </p>
                         )}
@@ -306,11 +306,11 @@ export default function NuevoProyectoModal({ constructoraId, cuentasExistentes }
                 </div>
 
                 {error && (
-                  <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
-                    <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl">
+                    <svg className="w-4 h-4 text-red-500 dark:text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <p className="text-sm text-red-700">{error}</p>
+                    <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
                   </div>
                 )}
               </div>
@@ -321,8 +321,8 @@ export default function NuevoProyectoModal({ constructoraId, cuentasExistentes }
                   type="button"
                   onClick={resetAndClose}
                   disabled={loading}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm font-medium
-                             text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium
+                             text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
                 >
                   Cancelar
                 </button>

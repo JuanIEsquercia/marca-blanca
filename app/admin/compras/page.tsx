@@ -91,8 +91,8 @@ export default async function ComprasPage({ searchParams }: Props) {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Compras</h1>
-        <p className="text-slate-500 text-sm mt-1">Órdenes de compra, recepciones de proveedores y stock repartido entre obras</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Compras</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Órdenes de compra, recepciones de proveedores y stock repartido entre obras</p>
       </div>
       <ComprasManager
         ordenes={(ordenes ?? []) as any}

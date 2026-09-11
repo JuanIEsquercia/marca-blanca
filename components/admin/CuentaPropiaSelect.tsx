@@ -79,19 +79,19 @@ export default function CuentaPropiaSelect({
 
   if (creando && puedeCrear) {
     return (
-      <div className="space-y-2 border border-indigo-200 rounded-lg p-2 bg-indigo-50/40">
+      <div className="space-y-2 border border-indigo-200 dark:border-indigo-800 rounded-lg p-2 bg-indigo-50/40 dark:bg-indigo-950/40">
         <div className={cn('grid gap-2', moneda ? 'grid-cols-2' : 'grid-cols-3')}>
           <input autoFocus value={nombre} onChange={e => setNombre(e.target.value)}
             placeholder="Nombre de la cuenta"
-            className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            className="px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           <select value={tipo} onChange={e => setTipo(e.target.value as 'banco' | 'caja')}
-            className="px-2 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            className="px-2 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
             <option value="banco">Banco</option>
             <option value="caja">Caja</option>
           </select>
           {!moneda && (
             <select value={monedaNueva} onChange={e => setMonedaNueva(e.target.value as 'ARS' | 'USD')}
-              className="px-2 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              className="px-2 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
               <option value="ARS">ARS</option>
               <option value="USD">USD</option>
             </select>
@@ -99,7 +99,7 @@ export default function CuentaPropiaSelect({
           <div className={moneda ? 'col-span-2' : 'col-span-3'}>
             <input type="number" step="0.01" value={saldoInicial} onChange={e => setSaldoInicial(e.target.value)}
               placeholder="Saldo inicial"
-              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
         </div>
         <div className="flex gap-2">
@@ -108,9 +108,9 @@ export default function CuentaPropiaSelect({
             {loading ? '...' : 'Crear cuenta'}
           </button>
           <button type="button" onClick={cancelar}
-            className="px-3 py-1 border border-slate-300 rounded-lg text-xs text-slate-600">Cancelar</button>
+            className="px-3 py-1 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs">Cancelar</button>
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       </div>
     )
   }
@@ -118,7 +118,7 @@ export default function CuentaPropiaSelect({
   return (
     <select required={required} value={value}
       onChange={e => e.target.value === '__nuevo__' ? setCreando(true) : onChange(e.target.value)}
-      className={className ?? 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500'}>
+      className={className ?? 'w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500'}>
       <option value="">{emptyLabel}</option>
       {disponibles.map(c => <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>)}
       {puedeCrear && <option value="__nuevo__">+ Agregar cuenta nueva</option>}

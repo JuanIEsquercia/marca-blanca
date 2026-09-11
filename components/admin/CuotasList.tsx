@@ -66,7 +66,7 @@ export default function CuotasList({ entidad, cuotas, moneda, cuentasPropias, co
   const ordenadas = [...cuotas].sort((a, b) => a.fecha_pago.localeCompare(b.fecha_pago))
 
   return (
-    <div className="bg-slate-50 rounded-lg divide-y divide-slate-200 border border-slate-200">
+    <div className="bg-slate-50 dark:bg-slate-800/40 rounded-lg divide-y divide-slate-200 dark:divide-slate-800 border border-slate-200 dark:border-slate-800">
       {ordenadas.map(c => (
         <div key={c.id} className="px-3 py-2 flex items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 min-w-0">
@@ -74,22 +74,22 @@ export default function CuotasList({ entidad, cuotas, moneda, cuentasPropias, co
               'w-2 h-2 rounded-full shrink-0',
               c.estado === estadoLiquidado ? 'bg-emerald-500' : c.estado === 'Rechazado' ? 'bg-red-500' : 'bg-amber-400'
             )} />
-            <span className="text-slate-600 truncate">
+            <span className="text-slate-600 dark:text-slate-300 truncate">
               {formatDate(c.fecha_pago)} · {c.medio}{c.numero_cheque ? ` #${c.numero_cheque}` : ''}{c.banco ? ` (${c.banco})` : ''}
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="font-semibold text-slate-800">{formatCurrency(c.monto, moneda)}</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-100">{formatCurrency(c.monto, moneda)}</span>
             {c.estado === estadoLiquidado ? (
-              <span className="text-emerald-600">{c.estado}{c.cuentas_propias ? ` → ${c.cuentas_propias.nombre}` : ''}</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">{c.estado}{c.cuentas_propias ? ` → ${c.cuentas_propias.nombre}` : ''}</span>
             ) : c.estado === 'Rechazado' ? (
-              <span className="text-red-500 font-medium">Rechazado</span>
+              <span className="text-red-500 dark:text-red-400 font-medium">Rechazado</span>
             ) : readOnly ? (
-              <span className="text-amber-600">Pendiente</span>
+              <span className="text-amber-600 dark:text-amber-400 font-medium">Pendiente</span>
             ) : (
               <>
-                <button onClick={() => abrirLiquidar(c)} className="text-indigo-600 hover:text-indigo-800 font-medium">{verbo}</button>
-                <button onClick={() => marcarRechazada(c)} className="text-red-400 hover:text-red-600">Rechazar</button>
+                <button onClick={() => abrirLiquidar(c)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">{verbo}</button>
+                <button onClick={() => marcarRechazada(c)} className="text-red-400 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300">Rechazar</button>
               </>
             )}
           </div>
@@ -98,14 +98,14 @@ export default function CuotasList({ entidad, cuotas, moneda, cuentasPropias, co
 
       {liquidando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setLiquidando(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="p-6 border-b border-slate-200">
-              <h2 className="font-bold text-slate-900">{entidad === 'gasto' ? 'Registrar pago de cuota' : 'Registrar cobro de cuota'}</h2>
-              <p className="text-sm text-slate-500 mt-0.5">{formatCurrency(liquidando.monto, moneda)}</p>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="font-bold text-slate-900 dark:text-white">{entidad === 'gasto' ? 'Registrar pago de cuota' : 'Registrar cobro de cuota'}</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{formatCurrency(liquidando.monto, moneda)}</p>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Cuenta *</label>
                 <CuentaPropiaSelect
                   cuentas={[...cuentasPropias.filter(c => c.activa), ...cuentasNuevas]}
                   onCreated={c => setCuentasNuevas(prev => [...prev, c])}
@@ -118,18 +118,18 @@ export default function CuotasList({ entidad, cuotas, moneda, cuentasPropias, co
                   emptyLabel="Seleccionar cuenta..." />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Fecha *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Fecha *</label>
                 <input type="date" value={form.fecha_pago} onChange={e => setForm(f => ({ ...f, fecha_pago: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
+              {error && <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg text-sm">{error}</div>}
               <div className="flex gap-3 pt-1">
                 <button onClick={() => setLiquidando(null)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                   Cancelar
                 </button>
                 <button onClick={confirmarLiquidar} disabled={loading || !form.cuenta_propia_id}
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold transition-colors">
                   {loading ? 'Guardando...' : 'Confirmar'}
                 </button>
               </div>

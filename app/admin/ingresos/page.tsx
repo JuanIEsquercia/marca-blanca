@@ -23,8 +23,8 @@ export default async function IngresosPage({ searchParams }: Props) {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Ingresos</h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Ingresos</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
           Lo que los clientes deben y ya pagaron — cuotas de venta y cobros de obra, todos los proyectos
         </p>
       </div>

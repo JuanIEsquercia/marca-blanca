@@ -94,10 +94,8 @@ export default async function AsignadoPage({ params }: { params: Promise<{ obraI
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Personal, equipos y stock</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Quién, qué y cuánto material tiene {ctx.obraNombre} en este momento — solo lectura, la asignación la maneja un administrador desde Personal/Inventario/Compras.
-        </p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Personal, equipos y stock</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{ctx.obraNombre} — recursos asignados y acopios</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

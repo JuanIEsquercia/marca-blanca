@@ -52,9 +52,9 @@ export default function ItemsRubroTable({ filas, onChange, moneda, titulo = 'Ít
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <label className="block text-xs font-medium text-slate-600">{titulo}</label>
+        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">{titulo}</label>
         <button type="button" onClick={agregar}
-          className="flex items-center gap-1.5 text-xs px-2.5 py-1 border border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+          className="flex items-center gap-1.5 text-xs px-2.5 py-1 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-lg transition-colors font-medium">
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
@@ -62,10 +62,10 @@ export default function ItemsRubroTable({ filas, onChange, moneda, titulo = 'Ít
         </button>
       </div>
 
-      <div className="overflow-x-auto border border-slate-200 rounded-xl">
+      <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-xs text-slate-400 border-b border-slate-100 bg-slate-50">
+            <tr className="text-left text-xs text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
               <th className="py-2 pl-3 pr-2 font-medium w-8">#</th>
               <th className="py-2 pr-2 font-medium">Rubro</th>
               <th className="py-2 pr-2 font-medium w-28">Unidad</th>
@@ -77,36 +77,36 @@ export default function ItemsRubroTable({ filas, onChange, moneda, titulo = 'Ít
           </thead>
           <tbody>
             {filas.map((f, i) => (
-              <tr key={f.key} className="border-b border-slate-50 last:border-0">
-                <td className="py-2 pl-3 pr-2 text-slate-400 text-xs">{i + 1}</td>
+              <tr key={f.key} className="border-b border-slate-50 dark:border-slate-800/50 last:border-0">
+                <td className="py-2 pl-3 pr-2 text-slate-400 dark:text-slate-500 text-xs">{i + 1}</td>
                 <td className="py-2 pr-2">
                   <input value={f.rubro} onChange={e => actualizar(f.key, { rubro: e.target.value })}
                     list={datalistId}
                     autoComplete="off"
                     placeholder="Ej: Movimiento de suelos"
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </td>
                 <td className="py-2 pr-2">
                   <input value={f.unidad} onChange={e => actualizar(f.key, { unidad: e.target.value })}
                     placeholder="m², gl..."
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </td>
                 <td className="py-2 pr-2">
                   <input type="number" min="0.01" step="0.01" value={f.cantidad}
                     onChange={e => actualizar(f.key, { cantidad: e.target.value })}
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </td>
                 <td className="py-2 pr-2">
                   <input type="number" min="0" step="0.01" value={f.precio_unitario}
                     onChange={e => actualizar(f.key, { precio_unitario: e.target.value })}
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </td>
-                <td className="py-2 pr-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                <td className="py-2 pr-3 text-right font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
                   {formatCurrency(subtotalFilaItem(f), moneda)}
                 </td>
                 <td className="py-2 pr-2">
                   <button type="button" onClick={() => quitar(f.key)}
-                    className="text-red-400 hover:text-red-600 px-1" title="Quitar fila">✕</button>
+                    className="text-red-400 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 px-1" title="Quitar fila">✕</button>
                 </td>
               </tr>
             ))}
@@ -114,7 +114,7 @@ export default function ItemsRubroTable({ filas, onChange, moneda, titulo = 'Ít
         </table>
       </div>
 
-      <p className="text-sm font-semibold text-slate-900 text-right mt-2">Total: {formatCurrency(total, moneda)}</p>
+      <p className="text-sm font-semibold text-slate-900 dark:text-white text-right mt-2">Total: {formatCurrency(total, moneda)}</p>
 
       <datalist id={datalistId}>
         {rubros.map(r => <option key={r} value={r} />)}

@@ -62,36 +62,36 @@ export default function ProveedorSelect({
 
   if (creando && puedeCrear) {
     return (
-      <div className="space-y-2 border border-indigo-200 rounded-lg p-3 bg-indigo-50/40">
+      <div className="space-y-2 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 bg-indigo-50/40 dark:bg-indigo-950/40">
         <input autoFocus value={form.razon_social} onChange={e => setForm(f => ({ ...f, razon_social: e.target.value }))}
           placeholder="Razón social *"
-          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         <div className="grid grid-cols-2 gap-2">
           <input value={form.cuit} onChange={e => setForm(f => ({ ...f, cuit: e.target.value }))}
             placeholder="CUIT"
-            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           <input value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))}
             placeholder="Teléfono"
-            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
         <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
           placeholder="Email"
-          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         <input value={form.direccion} onChange={e => setForm(f => ({ ...f, direccion: e.target.value }))}
           placeholder="Dirección"
-          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         <textarea rows={2} value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
           placeholder="Notas"
-          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         <div className="flex gap-2">
           <button type="button" onClick={crear} disabled={loading || !form.razon_social.trim()}
             className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium disabled:opacity-50">
             {loading ? '...' : 'Crear proveedor'}
           </button>
           <button type="button" onClick={cancelar}
-            className="px-3 py-1 border border-slate-300 rounded-lg text-xs text-slate-600">Cancelar</button>
+            className="px-3 py-1 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs">Cancelar</button>
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       </div>
     )
   }
@@ -99,7 +99,7 @@ export default function ProveedorSelect({
   return (
     <select required={required} value={value}
       onChange={e => e.target.value === '__nuevo__' ? setCreando(true) : onChange(e.target.value)}
-      className={className ?? 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500'}>
+      className={className ?? 'w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500'}>
       <option value="">{emptyLabel}</option>
       {proveedores.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
       {puedeCrear && <option value="__nuevo__">+ Agregar proveedor nuevo</option>}

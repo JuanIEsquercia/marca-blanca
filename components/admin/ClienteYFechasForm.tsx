@@ -67,7 +67,7 @@ export default function ClienteYFechasForm({ form, onChange, descripcionLabel = 
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {identidad ?? (
         <div className="md:col-span-2">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Cliente *</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Cliente *</label>
           <ClienteSelect
             compradores={compradores}
             value={{
@@ -91,30 +91,30 @@ export default function ClienteYFechasForm({ form, onChange, descripcionLabel = 
         </div>
       )}
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
+        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Moneda</label>
         <select value={form.moneda} onChange={e => set('moneda', e.target.value)}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
           <option value="ARS">ARS — Pesos</option>
           <option value="USD">USD — Dólares</option>
         </select>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Fecha inicio</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Fecha inicio</label>
           <input type="date" value={form.fecha_inicio} onChange={e => set('fecha_inicio', e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Fin estimado</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Fin estimado</label>
           <input type="date" value={form.fecha_fin_estimada} onChange={e => set('fecha_fin_estimada', e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
       </div>
       <div className={form.iva_modo === 'personalizado' ? 'grid grid-cols-2 gap-4' : ''}>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Condición de IVA</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Condición de IVA</label>
           <select value={form.iva_modo} onChange={e => set('iva_modo', e.target.value as DatosGenerales['iva_modo'])}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
             <option value="0">Sin IVA</option>
             <option value="10.5">+ IVA 10.5%</option>
             <option value="21">+ IVA 21%</option>
@@ -123,17 +123,17 @@ export default function ClienteYFechasForm({ form, onChange, descripcionLabel = 
         </div>
         {form.iva_modo === 'personalizado' && (
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">% de IVA</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">% de IVA</label>
             <input type="number" min="0" step="0.01" value={form.iva_pct_personalizado}
               onChange={e => set('iva_pct_personalizado', e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
         )}
       </div>
       <div className="md:col-span-2">
-        <label className="block text-xs font-medium text-slate-600 mb-1">{descripcionLabel}</label>
+        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{descripcionLabel}</label>
         <textarea rows={2} value={form.descripcion} onChange={e => set('descripcion', e.target.value)}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
       </div>
     </div>
   )

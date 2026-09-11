@@ -22,8 +22,8 @@ export default async function AmenitiesPage({ params }: { params: Promise<{ obra
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Amenities</h1>
-        <p className="text-slate-500 text-sm mt-1">Servicios del proyecto con íconos e imágenes</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Amenities</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Espacios comunes y servicios del desarrollo</p>
       </div>
       <AmenitiesManager
         amenities={amenities ?? []}

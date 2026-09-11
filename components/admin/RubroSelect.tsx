@@ -54,27 +54,27 @@ export default function RubroSelect({
 
   if (creando) {
     return (
-      <div className="space-y-2 border border-indigo-200 rounded-lg p-3 bg-indigo-50/40">
+      <div className="space-y-2 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 bg-indigo-50/40 dark:bg-indigo-950/40">
         <input autoFocus value={nombre} onChange={e => setNombre(e.target.value)}
           placeholder="Nombre del rubro (ej. Hormigón, Instalación eléctrica)"
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); crear() } }}
-          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         <div className="flex gap-2">
           <button type="button" onClick={crear} disabled={loading || !nombre.trim()}
             className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium disabled:opacity-50">
             {loading ? '...' : 'Crear rubro'}
           </button>
           <button type="button" onClick={cancelar}
-            className="px-3 py-1 border border-slate-300 rounded-lg text-xs text-slate-600">Cancelar</button>
+            className="px-3 py-1 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs">Cancelar</button>
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       </div>
     )
   }
 
   const delContrato = rubros.filter(r => r.enContrato)
   const otros = rubros.filter(r => !r.enContrato)
-  const claseSelect = className ?? 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500'
+  const claseSelect = className ?? 'w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500'
 
   return (
     <select value={value}

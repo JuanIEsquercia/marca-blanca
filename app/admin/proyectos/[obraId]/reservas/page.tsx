@@ -28,8 +28,8 @@ export default async function ReservasPage({ params }: { params: Promise<{ obraI
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Reservas</h1>
-        <p className="text-slate-500 text-sm mt-1">Gestioná reservas vigentes — convertí a venta o liberá la unidad</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Reservas</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Señas y apartados temporales de unidades</p>
       </div>
       <ReservasManager
         reservas={reservas ?? []}

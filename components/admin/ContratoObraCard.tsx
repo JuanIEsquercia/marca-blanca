@@ -44,9 +44,9 @@ const ESTADO_CONTRATO_INFO: Record<'vigente' | 'terminado' | 'rescindido', strin
 // no hace falta duplicar ese chequeo de rol: si el trigger lo rechaza, el
 // error ya se muestra (ver retrocederEstado).
 const ESTADO_CERT: Record<EstadoCertificado, { label: string; color: string; next: EstadoCertificado | null; nextLabel: string | null; prev: EstadoCertificado | null; prevLabel: string | null }> = {
-  borrador:   { label: 'Borrador',   color: 'bg-slate-100 text-slate-600',   next: 'presentado', nextLabel: 'Marcar como presentado', prev: null,         prevLabel: null },
-  presentado: { label: 'Presentado', color: 'bg-amber-100 text-amber-700',   next: 'aprobado',   nextLabel: 'Marcar como aprobado',    prev: 'borrador',   prevLabel: 'Volver a borrador' },
-  aprobado:   { label: 'Aprobado',   color: 'bg-emerald-100 text-emerald-700', next: null,       nextLabel: null,                      prev: 'presentado', prevLabel: 'Volver a presentado' },
+  borrador:   { label: 'Borrador',   color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',   next: 'presentado', nextLabel: 'Marcar como presentado', prev: null,         prevLabel: null },
+  presentado: { label: 'Presentado', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',   next: 'aprobado',   nextLabel: 'Marcar como aprobado',    prev: 'borrador',   prevLabel: 'Volver a borrador' },
+  aprobado:   { label: 'Aprobado',   color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400', next: null,       nextLabel: null,                      prev: 'presentado', prevLabel: 'Volver a presentado' },
 }
 
 const EMPTY_CERT = { periodo: '', porcentaje_avance: '', monto_certificado: '', descripcion_avances: '', notas: '' }
@@ -483,33 +483,33 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
   const nombreParte = esCliente ? (contrato.compradores?.nombre_completo ?? 'Cliente') : (contrato.proveedores?.razon_social ?? 'Subcontratista')
 
   return (
-    <div ref={rootRef} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+    <div ref={rootRef} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
       {/* ── Encabezado del contrato ── */}
-      <div className="p-5 border-b border-slate-100">
+      <div className="p-5 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className={cn('text-xs px-2 py-0.5 rounded-full font-semibold',
-                esCliente ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700')}>
+                esCliente ? 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300' : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300')}>
                 {esCliente ? 'Contrato con el cliente' : 'Subcontratista'}
               </span>
               <span
                 title={ESTADO_CONTRATO_INFO[contrato.estado]}
                 className={cn('text-xs px-2 py-0.5 rounded font-medium capitalize',
-                  contrato.estado === 'vigente' ? 'bg-emerald-100 text-emerald-700' :
-                  contrato.estado === 'terminado' ? 'bg-slate-100 text-slate-500' : 'bg-red-100 text-red-700'
+                  contrato.estado === 'vigente' ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' :
+                  contrato.estado === 'terminado' ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400' : 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300'
                 )}>{contrato.estado}</span>
             </div>
-            <p className="text-lg font-bold text-slate-900">{nombreParte}</p>
-            <div className="flex items-center gap-3 mt-1 text-sm text-slate-500 flex-wrap">
+            <p className="text-lg font-bold text-slate-900 dark:text-white">{nombreParte}</p>
+            <div className="flex items-center gap-3 mt-1 text-sm text-slate-500 dark:text-slate-400 flex-wrap">
               <span>{formatCurrency(contrato.monto_total, contrato.moneda)}</span>
               {contrato.fecha_inicio && <span>Inicio: {formatDate(contrato.fecha_inicio)}</span>}
               {contrato.fecha_fin_estimada && <span>Fin est.: {formatDate(contrato.fecha_fin_estimada)}</span>}
               <button onClick={abrirEditarIva} disabled={readOnly}
                 title="Condición de IVA aplicada por defecto al generar un cobro/pago desde un certificado"
                 className={cn('text-xs px-2 py-0.5 rounded-full font-medium transition-colors',
-                  contrato.iva_pct ? 'bg-slate-100 text-slate-600' : 'bg-slate-50 text-slate-400',
-                  !readOnly && 'hover:bg-slate-200 cursor-pointer')}>
+                  contrato.iva_pct ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500',
+                  !readOnly && 'hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer')}>
                 {contrato.iva_pct ? `+ IVA ${contrato.iva_pct}%` : 'Sin IVA'}
               </button>
             </div>
@@ -519,7 +519,7 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
               {esCliente && (
                 <button
                   onClick={() => window.open(`/print/contrato/${contrato.id}`, '_blank')}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                   </svg>
@@ -529,38 +529,38 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
               {!readOnly && (
                 <button onClick={handleDeleteContrato}
                   title="Eliminar contrato"
-                  className="text-xs px-2 py-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                  className="text-xs px-2 py-1.5 text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors">
                   Eliminar
                 </button>
               )}
             </div>
             <div className="text-right">
-              <p className="text-xs text-slate-400 mb-1">Certificado</p>
-              <p className="text-2xl font-bold text-slate-900">{porcentajeCertificado}%</p>
-              <p className="text-xs text-slate-500">{formatCurrency(totalCertificado, contrato.moneda)} de {formatCurrency(contrato.monto_total, contrato.moneda)}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Certificado</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{porcentajeCertificado}%</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{formatCurrency(totalCertificado, contrato.moneda)} de {formatCurrency(contrato.monto_total, contrato.moneda)}</p>
             </div>
           </div>
         </div>
         {contrato.monto_total > 0 && (
-          <div className="mt-4 h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div className="mt-4 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
             <div className={cn('h-full rounded-full transition-all', esCliente ? 'bg-indigo-500' : 'bg-amber-500')} style={{ width: `${porcentajeCertificado}%` }} />
           </div>
         )}
 
         {usaItems && (
-          <div className="mt-4 border-t border-slate-100 pt-4">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Ítems contratados</p>
-            <div className="divide-y divide-slate-100">
+          <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-4">
+            <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Ítems contratados</p>
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {contratoObraItems.map(item => {
                 const acumulado = avanceAcumuladoPrevio[item.id] ?? 0
                 return (
                   <div key={item.id} className="py-2 grid grid-cols-[1fr_auto_auto] items-center gap-3 text-sm">
-                    <span className="text-slate-700 truncate min-w-0">
+                    <span className="text-slate-700 dark:text-slate-300 truncate min-w-0">
                       {item.rubro}
-                      {item.origen === 'adicional' && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 align-middle">Adicional</span>}
+                      {item.origen === 'adicional' && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 align-middle">Adicional</span>}
                     </span>
-                    <span className="text-xs text-slate-400 text-right w-24 shrink-0">{acumulado}% certificado</span>
-                    <span className="font-medium text-slate-900 text-right w-28 shrink-0">{formatCurrency(item.monto_contratado, contrato.moneda)}</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500 text-right w-24 shrink-0">{acumulado}% certificado</span>
+                    <span className="font-medium text-slate-900 dark:text-white text-right w-28 shrink-0">{formatCurrency(item.monto_contratado, contrato.moneda)}</span>
                   </div>
                 )
               })}
@@ -570,15 +570,15 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
       </div>
 
       {/* ── Certificados ── */}
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-slate-800 text-sm">Certificados de avance</h3>
-          <p className="text-xs text-slate-400 mt-0.5">{certificados.length} certificado{certificados.length !== 1 ? 's' : ''}</p>
+          <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Certificados de avance</h3>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{certificados.length} certificado{certificados.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2">
           {!readOnly && usaItems && (
             <button onClick={() => { setShowAdicionalForm(true); setAdicionalFilas([nuevaFilaItem()]); setError(null) }}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors">
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium rounded-lg transition-colors">
               + Adicional
             </button>
           )}
@@ -595,17 +595,17 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
       </div>
 
       {estadoError && (
-        <div className="mx-5 mt-3 flex items-center justify-between gap-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-          <p className="text-xs text-red-700">{estadoError}</p>
-          <button onClick={() => setEstadoError(null)} className="text-red-400 hover:text-red-600 shrink-0">✕</button>
+        <div className="mx-5 mt-3 flex items-center justify-between gap-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+          <p className="text-xs text-red-700 dark:text-red-400">{estadoError}</p>
+          <button onClick={() => setEstadoError(null)} className="text-red-400 hover:text-red-600 dark:hover:text-red-300 shrink-0">✕</button>
         </div>
       )}
 
       {!readOnly && seleccionados.size > 0 && (
-        <div className="mx-5 mt-3 flex items-center justify-between gap-3 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
-          <p className="text-xs text-indigo-700">{seleccionados.size} certificado{seleccionados.size !== 1 ? 's' : ''} seleccionado{seleccionados.size !== 1 ? 's' : ''}</p>
+        <div className="mx-5 mt-3 flex items-center justify-between gap-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg px-3 py-2">
+          <p className="text-xs text-indigo-700 dark:text-indigo-300">{seleccionados.size} certificado{seleccionados.size !== 1 ? 's' : ''} seleccionado{seleccionados.size !== 1 ? 's' : ''}</p>
           <div className="flex items-center gap-2">
-            <button onClick={() => setSeleccionados(new Set())} className="text-xs text-indigo-600 hover:text-indigo-800">Cancelar</button>
+            <button onClick={() => setSeleccionados(new Set())} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">Cancelar</button>
             <button onClick={marcarSeleccionadosPresentados} disabled={marcandoLote}
               className="text-xs px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg transition-colors">
               {marcandoLote ? 'Marcando...' : 'Marcar como presentados'}
@@ -615,11 +615,11 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
       )}
 
       {certificados.length === 0 ? (
-        <div className="px-5 py-12 text-center text-slate-400">
+        <div className="px-5 py-12 text-center text-slate-400 dark:text-slate-500">
           <p className="text-sm">Sin certificados todavía.</p>
         </div>
       ) : (
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
           {certificados.map(cert => {
             const estadoInfo = ESTADO_CERT[cert.estado]
             const cobros = cert.cobros_proyecto ?? []
@@ -633,7 +633,7 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
             return (
               <div key={cert.id}>
                 <div
-                  className={cn('px-5 py-4 flex items-center gap-4 cursor-pointer hover:bg-slate-50 transition-colors', isExpanded && 'bg-slate-50')}
+                  className={cn('px-5 py-4 flex items-center gap-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors', isExpanded && 'bg-slate-50/80 dark:bg-slate-800/60')}
                   onClick={() => setExpanded(isExpanded ? null : cert.id)}
                 >
                   {!readOnly && cert.estado === 'borrador' && (
@@ -642,20 +642,20 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                       onClick={e => e.stopPropagation()}
                       className="w-4 h-4 shrink-0 accent-indigo-600" />
                   )}
-                  <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-bold text-indigo-600">#{cert.numero}</span>
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center shrink-0">
+                    <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">#{cert.numero}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-slate-900">{cert.periodo}</p>
+                      <p className="font-semibold text-slate-900 dark:text-white">{cert.periodo}</p>
                       <span className={cn('text-xs px-2 py-0.5 rounded font-medium', estadoInfo.color)}>{estadoInfo.label}</span>
                       {(hayVencidosCobro || hayVencidosPago) && (
-                        <span className="text-xs px-2 py-0.5 rounded font-medium bg-red-100 text-red-700">
+                        <span className="text-xs px-2 py-0.5 rounded font-medium bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300">
                           {esCliente ? 'Cobro vencido' : 'Pago vencido'}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
+                    <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                       <span>{cert.porcentaje_avance}% avance</span>
                       <span>Certificado: {formatCurrency(cert.monto_certificado, contrato.moneda)}</span>
                       {esCliente && cobros.length > 0 && (
@@ -670,25 +670,25 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                     {!readOnly && estadoInfo.prev && (
                       <button onClick={() => retrocederEstado(cert)}
                         title={cert.estado === 'aprobado' ? 'Un certificado aprobado solo lo puede retroceder un administrador' : undefined}
-                        className="text-xs px-2 py-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors">
+                        className="text-xs px-2 py-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-colors">
                         {estadoInfo.prevLabel}
                       </button>
                     )}
                     {!readOnly && estadoInfo.next && (
                       <button onClick={() => avanzarEstado(cert)}
-                        className="text-xs px-2.5 py-1.5 border border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                        className="text-xs px-2.5 py-1.5 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 rounded-lg transition-colors font-medium">
                         {estadoInfo.nextLabel}
                       </button>
                     )}
                     {!readOnly && esCliente && (
                       <button onClick={() => { setCobroParaCert(cert.id); setCobroForm({ ...EMPTY_COBRO, moneda: contrato.moneda, ...montosIniciales(cert.monto_certificado) }); setError(null) }}
-                        className="text-xs px-2.5 py-1.5 border border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors">
+                        className="text-xs px-2.5 py-1.5 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors font-medium">
                         + Agregar cobro
                       </button>
                     )}
                     {!readOnly && !esCliente && (
                       <button onClick={() => { setPagoParaCert(cert.id); setPagoSubcForm({ ...EMPTY_PAGO_SUBC, moneda: contrato.moneda, ...montosIniciales(cert.monto_certificado) }); setError(null) }}
-                        className="text-xs px-2.5 py-1.5 border border-amber-200 text-amber-700 hover:bg-amber-50 rounded-lg transition-colors">
+                        className="text-xs px-2.5 py-1.5 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded-lg transition-colors font-medium">
                         + Agregar pago
                       </button>
                     )}
@@ -696,7 +696,7 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                       <button
                         onClick={() => window.open(`/print/certificado/${cert.id}`, '_blank')}
                         title="Imprimir certificado"
-                        className="text-slate-400 hover:text-slate-600 px-1 transition-colors">
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 px-1 transition-colors">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                         </svg>
@@ -704,7 +704,7 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                     )}
                     {!readOnly && (
                       <button onClick={() => handleDeleteCert(cert)}
-                        className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>
+                        className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 px-1 transition-colors">✕</button>
                     )}
                     <svg className={cn('w-4 h-4 text-slate-400 transition-transform', isExpanded && 'rotate-180')} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -713,18 +713,18 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                 </div>
 
                 {isExpanded && (
-                  <div className="bg-slate-50 border-t border-slate-100 px-5 py-4 space-y-3">
-                    {cert.descripcion_avances && <p className="text-xs text-slate-500 italic">{cert.descripcion_avances}</p>}
+                  <div className="bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 px-5 py-4 space-y-3">
+                    {cert.descripcion_avances && <p className="text-xs text-slate-500 dark:text-slate-400 italic">{cert.descripcion_avances}</p>}
 
                     {(cert.certificado_items?.length ?? 0) > 0 && (
-                      <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+                      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
                         {cert.certificado_items!.map(ci => {
                           const item = contratoObraItems.find(i => i.id === ci.contrato_obra_item_id)
                           return (
                             <div key={ci.id} className="px-4 py-2 grid grid-cols-[1fr_auto_auto] items-center gap-3 text-sm">
-                              <span className="text-slate-700 truncate min-w-0">{item?.rubro ?? 'Ítem'}</span>
-                              <span className="text-xs text-slate-400 text-right w-20 shrink-0">{ci.pct_avance_acumulado}% acum.</span>
-                              <span className="font-medium text-slate-900 text-right w-28 shrink-0">{formatCurrency(ci.monto_certificado, contrato.moneda)}</span>
+                              <span className="text-slate-700 dark:text-slate-300 truncate min-w-0">{item?.rubro ?? 'Ítem'}</span>
+                              <span className="text-xs text-slate-400 dark:text-slate-500 text-right w-20 shrink-0">{ci.pct_avance_acumulado}% acum.</span>
+                              <span className="font-medium text-slate-900 dark:text-white text-right w-28 shrink-0">{formatCurrency(ci.monto_certificado, contrato.moneda)}</span>
                             </div>
                           )
                         })}
@@ -736,20 +736,20 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                         {cobros.map(cobro => {
                           const vencido = estaVencido(cobro.fecha_vencimiento, cobro.estado, 'Pendiente')
                           return (
-                            <div key={cobro.id} className={cn('bg-white border rounded-xl px-4 py-3 flex items-center gap-3', vencido ? 'border-red-200' : 'border-slate-200')}>
+                            <div key={cobro.id} className={cn('bg-white dark:bg-slate-900 border rounded-xl px-4 py-3 flex items-center gap-3', vencido ? 'border-red-200 dark:border-red-800/60' : 'border-slate-200 dark:border-slate-800')}>
                               <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0',
-                                cobro.estado === 'Cobrado' ? 'bg-emerald-100 text-emerald-700' : vencido ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700')}>
+                                cobro.estado === 'Cobrado' ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : vencido ? 'bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400' : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400')}>
                                 {cobro.numero ?? '—'}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <p className="text-sm font-semibold text-slate-900">{formatCurrency(cobro.monto, cobro.moneda)}</p>
+                                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(cobro.monto, cobro.moneda)}</p>
                                   <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium',
-                                    cobro.estado === 'Cobrado' ? 'bg-emerald-100 text-emerald-700' : vencido ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700')}>
+                                    cobro.estado === 'Cobrado' ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : vencido ? 'bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400' : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400')}>
                                     {cobro.estado === 'Cobrado' ? 'Cobrado' : vencido ? 'Vencido' : 'Pendiente'}
                                   </span>
                                 </div>
-                                <p className="text-xs text-slate-400 mt-0.5">
+                                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                                   {cobro.estado === 'Cobrado' && cobro.fecha_pago ? `Pagado el ${formatDate(cobro.fecha_pago)}` : cobro.fecha_vencimiento ? `Vence: ${formatDate(cobro.fecha_vencimiento)}` : ''}
                                   {cobro.notas ? ` · ${cobro.notas}` : ''}
                                 </p>
@@ -757,27 +757,27 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                               <div className="flex items-center gap-2 shrink-0">
                                 {!readOnly && cobro.estado === 'Pendiente' && (cobro.cobro_pagos?.length ?? 0) === 0 && (
                                   <button onClick={() => { setPagoCobroTarget(cobro); setRegistrarPagoForm({ ...EMPTY_REGISTRAR_PAGO }) }}
-                                    className="text-xs px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors">
+                                    className="text-xs px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-medium">
                                     Registrar pago
                                   </button>
                                 )}
                                 {(cobro.cobro_pagos?.length ?? 0) > 0 && (
                                   <span
                                     title="Este cobro tiene un plan de pago (cuotas/cheques) — gestionalo desde Cobros de obra"
-                                    className="text-xs px-2 py-1 rounded-lg bg-slate-100 text-slate-500">
+                                    className="text-xs px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
                                     Plan: {cobro.cobro_pagos!.filter(c => c.estado === 'Cobrado').length}/{cobro.cobro_pagos!.length}
                                   </span>
                                 )}
                                 {cobro.estado === 'Cobrado' && (
                                   <button onClick={() => window.open(`/print/cobro/${cobro.id}`, '_blank')} title="Imprimir recibo"
-                                    className="text-slate-400 hover:text-slate-600 px-1 transition-colors">
+                                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 px-1 transition-colors">
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                     </svg>
                                   </button>
                                 )}
                                 {!readOnly && (
-                                  <button onClick={() => handleDeleteCobro(cobro)} className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>
+                                  <button onClick={() => handleDeleteCobro(cobro)} className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 px-1 transition-colors">✕</button>
                                 )}
                               </div>
                             </div>
@@ -786,9 +786,9 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
 
                         <div className="flex gap-4 text-xs pt-1">
                           {cobros.some(c => c.estado === 'Pendiente') && (
-                            <span className="text-amber-700">Pendiente: {formatCurrency(cobros.filter(c => c.estado === 'Pendiente').reduce((s, c) => s + c.monto, 0), cobros[0]?.moneda ?? contrato.moneda)}</span>
+                            <span className="text-amber-700 dark:text-amber-400">Pendiente: {formatCurrency(cobros.filter(c => c.estado === 'Pendiente').reduce((s, c) => s + c.monto, 0), cobros[0]?.moneda ?? contrato.moneda)}</span>
                           )}
-                          {cobradoTotal > 0 && <span className="text-emerald-700">Cobrado: {formatCurrency(cobradoTotal, cobros[0]?.moneda ?? contrato.moneda)}</span>}
+                          {cobradoTotal > 0 && <span className="text-emerald-700 dark:text-emerald-400">Cobrado: {formatCurrency(cobradoTotal, cobros[0]?.moneda ?? contrato.moneda)}</span>}
                         </div>
                       </div>
                     ) : (
@@ -796,23 +796,23 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                         {pagos.map(pago => {
                           const vencido = estaVencido(pago.fecha_vencimiento, pago.estado, 'Pendiente')
                           return (
-                            <div key={pago.id} className={cn('bg-white border rounded-xl px-4 py-3 flex items-center gap-3', vencido ? 'border-red-200' : 'border-slate-200')}>
+                            <div key={pago.id} className={cn('bg-white dark:bg-slate-900 border rounded-xl px-4 py-3 flex items-center gap-3', vencido ? 'border-red-200 dark:border-red-800/60' : 'border-slate-200 dark:border-slate-800')}>
                               <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0',
-                                pago.estado === 'Pagado' ? 'bg-emerald-100' : vencido ? 'bg-red-100' : 'bg-amber-100')}>
-                                <svg className={cn('w-3.5 h-3.5', pago.estado === 'Pagado' ? 'text-emerald-700' : vencido ? 'text-red-600' : 'text-amber-700')}
+                                pago.estado === 'Pagado' ? 'bg-emerald-100 dark:bg-emerald-950/60' : vencido ? 'bg-red-100 dark:bg-red-950/60' : 'bg-amber-100 dark:bg-amber-950/60')}>
+                                <svg className={cn('w-3.5 h-3.5', pago.estado === 'Pagado' ? 'text-emerald-700 dark:text-emerald-300' : vencido ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-400')}
                                   fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                                 </svg>
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <p className="text-sm font-semibold text-slate-900">{formatCurrency(pago.monto, pago.moneda)}</p>
+                                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(pago.monto, pago.moneda)}</p>
                                   <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium',
-                                    pago.estado === 'Pagado' ? 'bg-emerald-100 text-emerald-700' : vencido ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700')}>
+                                    pago.estado === 'Pagado' ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : vencido ? 'bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400' : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400')}>
                                     {pago.estado === 'Pagado' ? 'Pagado' : vencido ? 'Vencido' : 'Pendiente'}
                                   </span>
                                 </div>
-                                <p className="text-xs text-slate-400 mt-0.5 truncate">
+                                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 truncate">
                                   {pago.descripcion}
                                   {pago.estado === 'Pagado' && pago.fecha_pago ? ` · Pagado el ${formatDate(pago.fecha_pago)}` : pago.fecha_vencimiento ? ` · Vence: ${formatDate(pago.fecha_vencimiento)}` : ''}
                                 </p>
@@ -820,19 +820,19 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                               <div className="flex items-center gap-2 shrink-0">
                                 {!readOnly && pago.estado === 'Pendiente' && (pago.gasto_pagos?.length ?? 0) === 0 && (
                                   <button onClick={() => { setPagarGastoTarget(pago); setRegistrarPagoForm({ ...EMPTY_REGISTRAR_PAGO }) }}
-                                    className="text-xs px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors">
+                                    className="text-xs px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-medium">
                                     Registrar pago
                                   </button>
                                 )}
                                 {(pago.gasto_pagos?.length ?? 0) > 0 && (
                                   <span
                                     title="Este pago tiene un plan de pago (cuotas/cheques) — gestionalo desde Gastos"
-                                    className="text-xs px-2 py-1 rounded-lg bg-slate-100 text-slate-500">
+                                    className="text-xs px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
                                     Plan: {pago.gasto_pagos!.filter(c => c.estado === 'Pagado').length}/{pago.gasto_pagos!.length}
                                   </span>
                                 )}
                                 {!readOnly && (
-                                  <button onClick={() => handleDeleteGasto(pago)} className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>
+                                  <button onClick={() => handleDeleteGasto(pago)} className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 px-1 transition-colors">✕</button>
                                 )}
                               </div>
                             </div>
@@ -841,9 +841,9 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
 
                         <div className="flex gap-4 text-xs pt-1">
                           {pagos.some(p => p.estado === 'Pendiente') && (
-                            <span className="text-amber-700">Pendiente: {formatCurrency(pagos.filter(p => p.estado === 'Pendiente').reduce((s, p) => s + p.monto, 0), pagos[0]?.moneda ?? contrato.moneda)}</span>
+                            <span className="text-amber-700 dark:text-amber-400">Pendiente: {formatCurrency(pagos.filter(p => p.estado === 'Pendiente').reduce((s, p) => s + p.monto, 0), pagos[0]?.moneda ?? contrato.moneda)}</span>
                           )}
-                          {pagadoTotal > 0 && <span className="text-emerald-700">Pagado: {formatCurrency(pagadoTotal, pagos[0]?.moneda ?? contrato.moneda)}</span>}
+                          {pagadoTotal > 0 && <span className="text-emerald-700 dark:text-emerald-400">Pagado: {formatCurrency(pagadoTotal, pagos[0]?.moneda ?? contrato.moneda)}</span>}
                         </div>
                       </div>
                     )}
@@ -857,82 +857,82 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
 
       {/* ── MODAL: Nuevo certificado ── */}
       {showCertForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className={cn('bg-white rounded-2xl shadow-2xl w-full', usaItems ? 'max-w-lg' : 'max-w-md')} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">Nuevo certificado</h2>
-              <button onClick={() => setShowCertForm(false)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className={cn('bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full', usaItems ? 'max-w-lg' : 'max-w-md')} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Nuevo certificado</h2>
+              <button onClick={() => setShowCertForm(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <form onSubmit={handleCertSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Período *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Período *</label>
                 <input required value={certForm.periodo}
                   onChange={e => setCertForm(f => ({ ...f, periodo: e.target.value }))}
                   placeholder="Ej: Enero 2025, Mes 3, Etapa 1..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
 
               {usaItems ? (
                 <div className="space-y-2">
-                  <label className="block text-xs font-medium text-slate-600">Avance acumulado por ítem *</label>
-                  <div className="border border-slate-200 rounded-xl divide-y divide-slate-100">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Avance acumulado por ítem *</label>
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
                     {contratoObraItems.map(item => {
                       const previo = avanceAcumuladoPrevio[item.id] ?? 0
                       return (
                         <div key={item.id} className="px-3 py-2.5 space-y-1.5">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm text-slate-800 truncate">
+                            <span className="text-sm text-slate-800 dark:text-slate-200 truncate">
                               {item.rubro}
-                              {item.origen === 'adicional' && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 align-middle">Adicional</span>}
+                              {item.origen === 'adicional' && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 align-middle">Adicional</span>}
                             </span>
-                            <span className="text-xs text-slate-400 shrink-0">{formatCurrency(item.monto_contratado, contrato.moneda)}</span>
+                            <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">{formatCurrency(item.monto_contratado, contrato.moneda)}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-slate-400 shrink-0">Previo: {previo}%</span>
+                            <span className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0">Previo: {previo}%</span>
                             <input type="number" min={previo} max="100" step="0.01"
                               value={itemPcts[item.id] ?? String(previo)}
                               onChange={e => setItemPcts(p => ({ ...p, [item.id]: e.target.value }))}
-                              className="w-20 px-2 py-1 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                            <span className="text-xs text-slate-400">% acum.</span>
-                            <span className="ml-auto text-xs font-medium text-slate-700">{formatCurrency(totalCertificarEsteItem(item), contrato.moneda)}</span>
+                              className="w-20 px-2 py-1 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            <span className="text-xs text-slate-400 dark:text-slate-500">% acum.</span>
+                            <span className="ml-auto text-xs font-medium text-slate-700 dark:text-slate-300">{formatCurrency(totalCertificarEsteItem(item), contrato.moneda)}</span>
                           </div>
                         </div>
                       )
                     })}
                   </div>
-                  <p className="text-sm font-semibold text-slate-900 text-right">Total a certificar: {formatCurrency(totalCertificarNuevo, contrato.moneda)}</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white text-right">Total a certificar: {formatCurrency(totalCertificarNuevo, contrato.moneda)}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">% Avance *</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">% Avance *</label>
                     <input required type="number" min="0" max="100" step="0.01" value={certForm.porcentaje_avance}
                       onChange={e => setCertForm(f => ({ ...f, porcentaje_avance: e.target.value }))}
                       placeholder="Ej: 25"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Monto a certificar *</label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Monto a certificar *</label>
                     <input required type="number" min="0" step="0.01" value={certForm.monto_certificado}
                       onChange={e => setCertForm(f => ({ ...f, monto_certificado: e.target.value }))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Descripción de los avances</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Descripción de los avances</label>
                 <textarea rows={3} value={certForm.descripcion_avances}
                   onChange={e => setCertForm(f => ({ ...f, descripcion_avances: e.target.value }))}
                   placeholder="Detalle de los trabajos ejecutados en el período..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+              {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setShowCertForm(false)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">Cancelar</button>
                 <button type="submit" disabled={loading || (usaItems && totalCertificarNuevo <= 0)}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                   {loading ? 'Guardando...' : 'Crear certificado'}
@@ -945,23 +945,23 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
 
       {/* ── MODAL: Adicional de obra ── */}
       {showAdicionalForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Adicional de obra</h2>
-                <p className="text-xs text-slate-400 mt-0.5">Trabajo extra no incluido en el contrato original</p>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Adicional de obra</h2>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Trabajo extra no incluido en el contrato original</p>
               </div>
-              <button onClick={() => setShowAdicionalForm(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowAdicionalForm(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <form onSubmit={handleAdicionalSubmit} className="p-6 space-y-4">
               <ItemsRubroTable filas={adicionalFilas} onChange={setAdicionalFilas} moneda={contrato.moneda} titulo="Ítems adicionales" rubros={rubros} />
-              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+              {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setShowAdicionalForm(false)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">Cancelar</button>
                 <button type="submit" disabled={loading}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                   {loading ? 'Guardando...' : 'Agregar'}
@@ -974,19 +974,19 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
 
       {/* ── MODAL: Nuevo cobro ── */}
       {cobroParaCert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">Agregar cobro</h2>
-              <button onClick={() => setCobroParaCert(null)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Agregar cobro</h2>
+              <button onClick={() => setCobroParaCert(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <form onSubmit={handleCobroSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Moneda *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Moneda *</label>
                 <select value={cobroForm.moneda} onChange={e => setCobroForm(f => ({ ...f, moneda: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="ARS">ARS — Pesos</option>
                   <option value="USD">USD — Dólares</option>
                 </select>
@@ -999,32 +999,32 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                 pctInicial={contrato.iva_pct}
               />
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Percepciones</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Percepciones</label>
                 <input type="number" min="0" step="0.01" value={cobroForm.percepciones}
                   onChange={e => setCobroForm(f => ({ ...f, percepciones: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de vencimiento *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Fecha de vencimiento *</label>
                 <input required type="date" value={cobroForm.fecha_vencimiento}
                   onChange={e => setCobroForm(f => ({ ...f, fecha_vencimiento: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">N° comprobante</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">N° comprobante</label>
                 <input value={cobroForm.numero_comprobante} onChange={e => setCobroForm(f => ({ ...f, numero_comprobante: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Notas</label>
                 <input value={cobroForm.notas} onChange={e => setCobroForm(f => ({ ...f, notas: e.target.value }))}
                   placeholder="Ej: 50% del certificado, cuota 1/2..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+              {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setCobroParaCert(null)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">Cancelar</button>
                 <button type="submit" disabled={loading}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                   {loading ? 'Guardando...' : 'Agregar'}
@@ -1037,25 +1037,25 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
 
       {/* ── MODAL: Nuevo pago a proveedor ── */}
       {pagoParaCert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">Agregar pago</h2>
-              <button onClick={() => setPagoParaCert(null)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Agregar pago</h2>
+              <button onClick={() => setPagoParaCert(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <form onSubmit={handlePagoSubcSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Descripción</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Descripción</label>
                 <input value={pagoSubcForm.descripcion} onChange={e => setPagoSubcForm(f => ({ ...f, descripcion: e.target.value }))}
                   placeholder="Se completa solo si lo dejás vacío"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Moneda *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Moneda *</label>
                 <select value={pagoSubcForm.moneda} onChange={e => setPagoSubcForm(f => ({ ...f, moneda: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="ARS">ARS — Pesos</option>
                   <option value="USD">USD — Dólares</option>
                 </select>
@@ -1068,26 +1068,26 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                 pctInicial={contrato.iva_pct}
               />
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Percepciones</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Percepciones</label>
                 <input type="number" min="0" step="0.01" value={pagoSubcForm.percepciones}
                   onChange={e => setPagoSubcForm(f => ({ ...f, percepciones: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de vencimiento *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Fecha de vencimiento *</label>
                 <input required type="date" value={pagoSubcForm.fecha_vencimiento}
                   onChange={e => setPagoSubcForm(f => ({ ...f, fecha_vencimiento: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">N° comprobante</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">N° comprobante</label>
                 <input value={pagoSubcForm.numero_comprobante} onChange={e => setPagoSubcForm(f => ({ ...f, numero_comprobante: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+              {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setPagoParaCert(null)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">Cancelar</button>
                 <button type="submit" disabled={loading}
                   className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                   {loading ? 'Guardando...' : 'Agregar'}
@@ -1100,28 +1100,28 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
 
       {/* ── MODAL: Registrar pago (cobro o gasto) ── */}
       {(pagoCobroTarget || pagarGastoTarget) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Registrar pago</h2>
-                <p className="text-sm text-slate-500 mt-0.5">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Registrar pago</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                   {formatCurrency((pagoCobroTarget ?? pagarGastoTarget)!.monto, (pagoCobroTarget ?? pagarGastoTarget)!.moneda)}
                 </p>
               </div>
-              <button onClick={() => { setPagoCobroTarget(null); setPagarGastoTarget(null) }} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => { setPagoCobroTarget(null); setPagarGastoTarget(null) }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <form onSubmit={pagoCobroTarget ? handleRegistrarCobroSubmit : handleRegistrarPagoSubcSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de pago *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Fecha de pago *</label>
                 <input required type="date" value={registrarPagoForm.fecha_pago}
                   onChange={e => setRegistrarPagoForm(f => ({ ...f, fecha_pago: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">{pagoCobroTarget ? 'Acreditado en' : 'Pagado desde'}</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{pagoCobroTarget ? 'Acreditado en' : 'Pagado desde'}</label>
                 <CuentaPropiaSelect
                   cuentas={[...cuentasPropias, ...cuentasNuevas]}
                   onCreated={c => setCuentasNuevas(prev => [...prev, c])}
@@ -1132,10 +1132,10 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
                   puedeCrear={puedeCrearCuenta}
                   emptyLabel="— Sin cuenta asignada —" />
               </div>
-              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+              {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => { setPagoCobroTarget(null); setPagarGastoTarget(null) }}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">Cancelar</button>
                 <button type="submit" disabled={loading}
                   className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                   {loading ? 'Guardando...' : 'Confirmar pago'}
@@ -1148,22 +1148,22 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
 
       {/* ── MODAL: Condición de IVA del contrato ── */}
       {editandoIva && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">Condición de IVA</h2>
-              <button onClick={() => setEditandoIva(false)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Condición de IVA</h2>
+              <button onClick={() => setEditandoIva(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Se usa como default al generar un {esCliente ? 'cobro' : 'pago'} desde un certificado de este contrato — siempre se puede ajustar caso a caso ahí.
               </p>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">IVA</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">IVA</label>
                 <select value={ivaEditForm.modo} onChange={e => setIvaEditForm(f => ({ ...f, modo: e.target.value as ModoIva }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="0">Sin IVA</option>
                   <option value="10.5">+ IVA 10.5%</option>
                   <option value="21">+ IVA 21%</option>
@@ -1172,16 +1172,16 @@ export default function ContratoObraCard({ contrato, certificados, contratoObraI
               </div>
               {ivaEditForm.modo === 'personalizado' && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">% de IVA</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">% de IVA</label>
                   <input type="number" min="0" step="0.01" value={ivaEditForm.pct}
                     onChange={e => setIvaEditForm(f => ({ ...f, pct: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
               )}
-              {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+              {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setEditandoIva(false)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">Cancelar</button>
                 <button type="button" onClick={handleGuardarIva} disabled={loading}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
                   {loading ? 'Guardando...' : 'Guardar'}

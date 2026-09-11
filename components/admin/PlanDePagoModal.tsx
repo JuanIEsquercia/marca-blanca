@@ -159,14 +159,14 @@ export default function PlanDePagoModal({ entidad, id, montoTotal, moneda, cuota
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-slate-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Plan de {verbo}</h2>
-            <p className="text-sm text-slate-500 mt-0.5">Total <strong>{formatCurrency(montoTotal, moneda)}</strong></p>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Plan de {verbo}</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Total <strong>{formatCurrency(montoTotal, moneda)}</strong></p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -175,96 +175,96 @@ export default function PlanDePagoModal({ entidad, id, montoTotal, moneda, cuota
 
         <div className="p-6 space-y-4">
           {bloqueadas.length > 0 && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-1.5">
-              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+            <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 space-y-1.5">
+              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wide">
                 Cuotas ya {estadoLiquidado === 'Pagado' ? 'pagadas' : 'cobradas'} (no se pueden editar)
               </p>
               {bloqueadas.map(c => (
                 <div key={c.id} className="flex items-center justify-between text-xs">
-                  <span className="text-emerald-700">
+                  <span className="text-emerald-700 dark:text-emerald-300">
                     {formatDate(c.fecha_pago)} · {c.medio}{c.numero_cheque ? ` #${c.numero_cheque}` : ''}
                   </span>
-                  <span className="font-medium text-emerald-800">{formatCurrency(c.monto, moneda)}</span>
+                  <span className="font-medium text-emerald-800 dark:text-emerald-200">{formatCurrency(c.monto, moneda)}</span>
                 </div>
               ))}
             </div>
           )}
 
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Cuotas a cargar</p>
-            <button type="button" onClick={() => setShowDividir(v => !v)} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Cuotas a cargar</p>
+            <button type="button" onClick={() => setShowDividir(v => !v)} className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">
               Dividir en cuotas...
             </button>
           </div>
 
           {showDividir && (
-            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 flex items-end gap-3 flex-wrap">
+            <div className="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 flex items-end gap-3 flex-wrap">
               <div>
-                <label className="block text-[11px] text-indigo-700 mb-1">Cantidad</label>
+                <label className="block text-[11px] text-indigo-700 dark:text-indigo-300 mb-1">Cantidad</label>
                 <input type="number" min="1" value={dividirForm.cantidad}
                   onChange={e => setDividirForm(f => ({ ...f, cantidad: e.target.value }))}
-                  className="w-20 px-2 py-1.5 border border-indigo-300 rounded-lg text-sm" />
+                  className="w-20 px-2 py-1.5 border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm" />
               </div>
               <div>
-                <label className="block text-[11px] text-indigo-700 mb-1">Cada (días)</label>
+                <label className="block text-[11px] text-indigo-700 dark:text-indigo-300 mb-1">Cada (días)</label>
                 <input type="number" min="1" value={dividirForm.intervaloDias}
                   onChange={e => setDividirForm(f => ({ ...f, intervaloDias: e.target.value }))}
-                  className="w-20 px-2 py-1.5 border border-indigo-300 rounded-lg text-sm" />
+                  className="w-20 px-2 py-1.5 border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm" />
               </div>
               <button type="button" onClick={aplicarDividir}
                 className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg">
                 Generar
               </button>
-              <p className="text-[11px] text-indigo-500 w-full">Punto de partida — los montos y fechas se pueden ajustar cuota por cuota después.</p>
+              <p className="text-[11px] text-indigo-500 dark:text-indigo-400 w-full">Punto de partida — los montos y fechas se pueden ajustar cuota por cuota después.</p>
             </div>
           )}
 
           <div className="space-y-3">
             {filas.map((f, i) => (
-              <div key={i} className="border border-slate-200 rounded-lg p-3 space-y-2">
+              <div key={i} className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 rounded-lg p-3 space-y-2">
                 {f.eraRechazada && (
-                  <p className="text-[11px] text-amber-600 font-medium">⚠ Este cheque había sido rechazado — cargá el reemplazo.</p>
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">⚠ Este cheque había sido rechazado — cargá el reemplazo.</p>
                 )}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">Monto *</label>
+                    <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Monto *</label>
                     <input type="number" min="0" step="0.01" value={f.monto}
                       onChange={e => actualizarFila(i, { monto: e.target.value })}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">Fecha de pago *</label>
+                    <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Fecha de pago *</label>
                     <input type="date" value={f.fecha_pago}
                       onChange={e => actualizarFila(i, { fecha_pago: e.target.value })}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">Medio</label>
+                    <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Medio</label>
                     <select value={f.medio} onChange={e => actualizarFila(i, { medio: e.target.value as MedioPago })}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                       {MEDIOS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                     </select>
                   </div>
                   {f.medio === 'cheque' && (
                     <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">N° cheque</label>
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">N° cheque</label>
                       <input value={f.numero_cheque} onChange={e => actualizarFila(i, { numero_cheque: e.target.value })}
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                        className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                     </div>
                   )}
                 </div>
                 {f.medio === 'cheque' && entidad === 'cobro' && (
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">Banco</label>
+                    <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Banco</label>
                     <input value={f.banco} onChange={e => actualizarFila(i, { banco: e.target.value })}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 )}
                 {entidad === 'gasto' && (
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">Sale de la cuenta</label>
+                    <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Sale de la cuenta</label>
                     <CuentaPropiaSelect
                       cuentas={[...cuentasPropias.filter(c => c.activa), ...cuentasNuevas]}
                       onCreated={c => setCuentasNuevas(prev => [...prev, c])}
@@ -275,11 +275,11 @@ export default function PlanDePagoModal({ entidad, id, montoTotal, moneda, cuota
                       puedeCrear={puedeCrearCuenta}
                       moneda={moneda}
                       emptyLabel="Sin definir todavía"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                   </div>
                 )}
                 <div className="flex justify-end">
-                  <button type="button" onClick={() => quitarFila(i)} className="text-[11px] text-red-400 hover:text-red-600">
+                  <button type="button" onClick={() => quitarFila(i)} className="text-[11px] text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors">
                     Quitar cuota
                   </button>
                 </div>
@@ -288,27 +288,27 @@ export default function PlanDePagoModal({ entidad, id, montoTotal, moneda, cuota
           </div>
 
           <button type="button" onClick={agregarFila}
-            className="w-full py-2 border-2 border-dashed border-slate-300 rounded-lg text-xs text-slate-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors">
+            className="w-full py-2 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-400 dark:text-slate-500 hover:border-indigo-400 dark:hover:border-indigo-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">
             + Agregar cuota
           </button>
 
           <div className={cn(
             'rounded-lg p-3 text-sm flex items-center justify-between gap-2 flex-wrap',
-            cierra ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+            cierra ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
           )}>
             <span>Cargado: {formatCurrency(totalCargado, moneda)} de {formatCurrency(montoTotal, moneda)}</span>
             {!cierra && <span className="font-semibold">{diferencia > 0 ? 'Falta' : 'Sobra'} {formatCurrency(Math.abs(diferencia), moneda)}</span>}
           </div>
 
-          {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
+          {error && <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg text-sm">{error}</div>}
 
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+              className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
               Cancelar
             </button>
             <button type="button" onClick={guardar} disabled={loading || !cierra}
-              className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
+              className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors">
               {loading ? 'Guardando...' : 'Guardar plan'}
             </button>
           </div>

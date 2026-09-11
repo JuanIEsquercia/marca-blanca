@@ -44,8 +44,8 @@ export default async function PresupuestosPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Presupuestos</h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Presupuestos</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
           Cotizá un trabajo por ítems — si se acepta, se convierte en el contrato de un proyecto nuevo o existente
         </p>
       </div>

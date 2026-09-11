@@ -219,20 +219,18 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
             placeholder="Buscar por razón social o CUIT..."
-            className="w-full sm:w-64 px-3 py-2 border border-slate-300 rounded-lg text-sm
-                       focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full sm:w-64 px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
-          <p className="text-slate-500 text-sm whitespace-nowrap">{proveedoresFiltrados.length} de {proveedores.length} proveedor(es)</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm whitespace-nowrap">{proveedoresFiltrados.length} de {proveedores.length} proveedor(es)</p>
           {puedeVerGastos && (
-            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+            <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
               <input type="checkbox" checked={soloConDeuda} onChange={e => setSoloConDeuda(e.target.checked)} />
               Solo con saldo pendiente
             </label>
           )}
         </div>
         <button onClick={openNewProv}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                     text-white rounded-lg text-sm font-medium transition-colors">
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
@@ -241,7 +239,7 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
       </div>
 
       {!puedeVerGastos && (
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+        <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 mb-4">
           No tenés el módulo Gastos habilitado en ningún proyecto — la cuenta corriente (pendiente/pagado) no se puede calcular sin eso.
         </p>
       )}
@@ -257,7 +255,7 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
 
           return (
           <div key={p.id} className={cn(
-            'bg-white border border-slate-200 rounded-xl overflow-hidden',
+            'bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs transition-all',
             !p.activo && 'opacity-60'
           )}>
             {/* Fila principal */}
@@ -267,37 +265,35 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
                 className="flex-1 text-left min-w-0"
               >
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-semibold text-slate-900">{p.razon_social}</p>
+                  <p className="font-bold text-slate-900 dark:text-white">{p.razon_social}</p>
                   {!p.activo && (
-                    <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactivo</span>
+                    <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full">Inactivo</span>
                   )}
                   {puedeVerGastos && tieneDeuda && (
-                    <span className="text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-medium bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full">
                       Debe <MontosPorMoneda montos={totalPendiente} vacio="" />
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   {[p.cuit, p.email, p.telefono].filter(Boolean).join(' · ') || 'Sin datos de contacto'}
                 </p>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                   {p.cuentas_proveedor?.length ?? 0} cuenta(s) de cobro
                 </p>
               </button>
 
               <div className="flex items-center gap-2 shrink-0">
                 <button onClick={() => openEditProv(p)}
-                  className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600
-                             hover:border-indigo-300 hover:text-indigo-600 transition-colors">
+                  className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:border-indigo-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                   Editar
                 </button>
                 <button onClick={() => handleToggleActivo(p)}
-                  className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600
-                             hover:border-slate-300 transition-colors">
+                  className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:border-slate-300 transition-colors">
                   {p.activo ? 'Desactivar' : 'Activar'}
                 </button>
                 <button onClick={() => handleDeleteProv(p)}
-                  className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>
+                  className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 px-1 transition-colors">✕</button>
                 <svg
                   className={cn('w-4 h-4 text-slate-400 transition-transform', expanded === p.id && 'rotate-180')}
                   fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -308,39 +304,39 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
 
             {/* Cuenta corriente + cuentas de cobro (expandible) */}
             {expanded === p.id && (
-              <div className="border-t border-slate-100 bg-slate-50 px-5 py-4 space-y-5">
+              <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-5 py-4 space-y-5">
                 {puedeVerGastos && (
                   <div>
-                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Cuenta corriente</p>
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide mb-3">Cuenta corriente</p>
                     <div className="flex flex-wrap gap-4 mb-3">
-                      <div className="bg-white border border-slate-200 rounded-lg px-4 py-2.5">
-                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">Pendiente</p>
-                        <MontosPorMoneda montos={totalPendiente} vacio="$0" className="text-sm font-bold text-amber-700" />
+                      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5">
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wide">Pendiente</p>
+                        <MontosPorMoneda montos={totalPendiente} vacio="$0" className="text-sm font-bold text-amber-700 dark:text-amber-400" />
                       </div>
-                      <div className="bg-white border border-slate-200 rounded-lg px-4 py-2.5">
-                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">
+                      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5">
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wide">
                           Pagado{historialAcotado ? ' (últimos 12 meses)' : ''}
                         </p>
-                        <MontosPorMoneda montos={totalPagado} vacio="$0" className="text-sm font-bold text-slate-700" />
+                        <MontosPorMoneda montos={totalPagado} vacio="$0" className="text-sm font-bold text-slate-700 dark:text-slate-300" />
                       </div>
                     </div>
 
                     {pendientes.length === 0 && pagados.length === 0 ? (
-                      <p className="text-xs text-slate-400">Sin gastos registrados a este proveedor.</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">Sin gastos registrados a este proveedor.</p>
                     ) : (
                       <div className="space-y-1.5">
                         {pendientes.length === 0 && (
-                          <p className="text-xs text-slate-400">Sin pendientes.</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500">Sin pendientes.</p>
                         )}
                         {pendientes.map(g => (
-                          <div key={g.id} className="flex items-center justify-between bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs">
+                          <div key={g.id} className="flex items-center justify-between bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 rounded-lg px-3 py-2 text-xs">
                             <div className="min-w-0">
-                              <p className="text-slate-700 truncate">{g.descripcion}</p>
-                              <p className="text-slate-400">
+                              <p className="text-slate-700 dark:text-slate-200 truncate">{g.descripcion}</p>
+                              <p className="text-slate-400 dark:text-slate-500">
                                 Vence {formatDate(g.fecha_vencimiento)} {g.obras ? `· ${g.obras.nombre}` : '· Empresa'}
                               </p>
                             </div>
-                            <span className="font-semibold text-amber-700 shrink-0 ml-3">{formatCurrency(g.monto, g.moneda)}</span>
+                            <span className="font-semibold text-amber-700 dark:text-amber-400 shrink-0 ml-3">{formatCurrency(g.monto, g.moneda)}</span>
                           </div>
                         ))}
 
@@ -348,24 +344,24 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
                           verPagadosDe === p.id ? (
                             <>
                               {pagados.map(g => (
-                                <div key={g.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs opacity-70">
+                                <div key={g.id} className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs opacity-70">
                                   <div className="min-w-0">
-                                    <p className="text-slate-700 truncate">{g.descripcion}</p>
-                                    <p className="text-slate-400">
+                                    <p className="text-slate-700 dark:text-slate-300 truncate">{g.descripcion}</p>
+                                    <p className="text-slate-400 dark:text-slate-500">
                                       Pagado {g.fecha_pago ? formatDate(g.fecha_pago) : '—'} {g.obras ? `· ${g.obras.nombre}` : '· Empresa'}
                                     </p>
                                   </div>
-                                  <span className="font-medium text-slate-500 shrink-0 ml-3">{formatCurrency(g.monto, g.moneda)}</span>
+                                  <span className="font-medium text-slate-500 dark:text-slate-400 shrink-0 ml-3">{formatCurrency(g.monto, g.moneda)}</span>
                                 </div>
                               ))}
                               {historialAcotado && (
-                                <Link href="/admin/proveedores?historial=todo" className="text-xs text-indigo-500 hover:underline block pt-1">
+                                <Link href="/admin/proveedores?historial=todo" className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline block pt-1 font-medium">
                                   Ver historial de pagos completo
                                 </Link>
                               )}
                             </>
                           ) : (
-                            <button onClick={() => setVerPagadosDe(p.id)} className="text-xs text-indigo-500 hover:underline pt-1">
+                            <button onClick={() => setVerPagadosDe(p.id)} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline pt-1 font-medium">
                               Ver {pagados.length} pagado(s){historialAcotado ? ' (últimos 12 meses)' : ''}
                             </button>
                           )
@@ -376,9 +372,9 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
                 )}
 
                 <div className="flex justify-between items-center mb-3">
-                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Cuentas de cobro</p>
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide">Cuentas de cobro</p>
                   <button onClick={() => openNewCta(p.id)}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">
                     + Agregar cuenta
                   </button>
                 </div>
@@ -387,37 +383,35 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
                   <div className="space-y-2">
                     {p.cuentas_proveedor.map(cta => (
                       <div key={cta.id}
-                        className="flex items-center justify-between bg-white border border-slate-200
-                                   rounded-lg px-4 py-3">
+                        className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-3">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-indigo-600 bg-indigo-50
-                                            px-2 py-0.5 rounded-full">
+                            <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full">
                               {cta.tipo}
                             </span>
-                            <span className="text-xs text-slate-500">{cta.moneda}</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">{cta.moneda}</span>
                             {cta.denominacion && (
-                              <span className="text-sm text-slate-700">{cta.denominacion}</span>
+                              <span className="text-sm text-slate-700 dark:text-slate-200">{cta.denominacion}</span>
                             )}
                           </div>
                           {cta.numero && (
-                            <p className="text-xs text-slate-500 mt-1 font-mono">{cta.numero}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono">{cta.numero}</p>
                           )}
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => openEditCta(cta)}
-                            className="text-xs text-slate-500 hover:text-indigo-600 transition-colors">
+                            className="text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                             Editar
                           </button>
                           <button onClick={() => handleDeleteCta(cta.id)}
-                            className="text-xs text-red-400 hover:text-red-600 transition-colors">✕</button>
+                            className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors">✕</button>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-400 text-center py-4">
-                    Sin cuentas. <button onClick={() => openNewCta(p.id)} className="text-indigo-500 hover:underline">Agregar una</button>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-4">
+                    Sin cuentas. <button onClick={() => openNewCta(p.id)} className="text-indigo-600 dark:text-indigo-400 hover:underline">Agregar una</button>
                   </p>
                 )}
               </div>
@@ -428,27 +422,27 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
       </div>
 
       {proveedores.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
+        <div className="text-center py-16 text-slate-400 dark:text-slate-500">
           <p className="mb-2">No hay proveedores cargados aún.</p>
-          <button onClick={openNewProv} className="text-indigo-500 text-sm hover:text-indigo-700">
+          <button onClick={openNewProv} className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline font-medium">
             Crear el primero
           </button>
         </div>
       ) : proveedoresFiltrados.length === 0 && (
-        <div className="text-center py-16 text-slate-400">
+        <div className="text-center py-16 text-slate-400 dark:text-slate-500">
           <p>Ningún proveedor tiene saldo pendiente ahora mismo.</p>
         </div>
       )}
 
       {/* Modal Proveedor */}
       {showProv && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 {editingProv ? 'Editar proveedor' : 'Nuevo proveedor'}
               </h2>
-              <button onClick={() => setShowProv(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowProv(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -457,50 +451,50 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
 
             <form onSubmit={handleSubmitProv} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Razón social *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Razón social *</label>
                 <input required value={formProv.razon_social}
                   onChange={e => setFormProv(f => ({ ...f, razon_social: e.target.value }))}
                   placeholder="Nombre o empresa..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">CUIT</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">CUIT</label>
                   <input value={formProv.cuit} onChange={e => setFormProv(f => ({ ...f, cuit: e.target.value }))}
                     placeholder="20-12345678-9"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Teléfono</label>
                   <input value={formProv.telefono} onChange={e => setFormProv(f => ({ ...f, telefono: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Email</label>
                 <input type="email" value={formProv.email}
                   onChange={e => setFormProv(f => ({ ...f, email: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Dirección</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Dirección</label>
                 <input value={formProv.direccion} onChange={e => setFormProv(f => ({ ...f, direccion: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Notas</label>
                 <textarea rows={2} value={formProv.notas}
                   onChange={e => setFormProv(f => ({ ...f, notas: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               </div>
 
               {errorProv && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{errorProv}</div>
+                <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">{errorProv}</div>
               )}
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowProv(false)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                   Cancelar
                 </button>
                 <button type="submit" disabled={loadingProv}
@@ -515,14 +509,14 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
 
       {/* Modal Cuenta Proveedor */}
       {showCta && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 {editingCta ? 'Editar cuenta' : 'Nueva cuenta de cobro'}
               </h2>
               <button onClick={() => { setShowCta(null); setEditingCta(null) }}
-                className="text-slate-400 hover:text-slate-600">
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -532,41 +526,41 @@ export default function ProveedoresManager({ proveedores, gastos, constructoraId
             <form onSubmit={handleSubmitCta} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Tipo *</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Tipo *</label>
                   <select value={formCta.tipo} onChange={e => setFormCta(f => ({ ...f, tipo: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     {TIPOS_CTA.map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Moneda</label>
                   <select value={formCta.moneda} onChange={e => setFormCta(f => ({ ...f, moneda: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option>ARS</option>
                     <option>USD</option>
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Denominación</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Denominación</label>
                 <input value={formCta.denominacion}
                   onChange={e => setFormCta(f => ({ ...f, denominacion: e.target.value }))}
                   placeholder="Ej: Banco Galicia cta. cte."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
                   {formCta.tipo === 'CBU' ? 'CBU' : formCta.tipo === 'Alias' ? 'Alias' : 'Número / referencia'}
                 </label>
                 <input value={formCta.numero}
                   onChange={e => setFormCta(f => ({ ...f, numero: e.target.value }))}
                   placeholder={formCta.tipo === 'CBU' ? '22 dígitos...' : formCta.tipo === 'Alias' ? 'alias.banco.mp' : ''}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => { setShowCta(null); setEditingCta(null) }}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                   Cancelar
                 </button>
                 <button type="submit" disabled={loadingCta}

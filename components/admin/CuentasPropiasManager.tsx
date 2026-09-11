@@ -165,11 +165,11 @@ export default function CuentasPropiasManager({ cuentas, saldos, constructoraId,
   return (
     <div>
       <div className="flex justify-between items-center mb-5">
-        <p className="text-slate-500 text-sm">{cuentas.length} cuenta(s) configurada(s)</p>
+        <p className="text-slate-500 dark:text-slate-400 text-sm">{cuentas.length} cuenta(s) configurada(s)</p>
         {!readOnly && (
           <button onClick={openNew}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500
-                       text-white rounded-lg text-sm font-medium transition-colors">
+                       text-white rounded-xl text-sm font-medium transition-colors shadow-xs">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -178,25 +178,25 @@ export default function CuentasPropiasManager({ cuentas, saldos, constructoraId,
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {cuentas.map(c => (
           <div key={c.id} className={cn(
-            'bg-white border border-slate-200 rounded-xl px-5 py-4 flex items-center gap-4',
+            'bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl px-5 py-4 flex items-center gap-4 shadow-xs transition-all',
             !esActiva(c) && 'opacity-60'
           )}>
             {/* Ícono tipo cuenta */}
             <div className={cn(
-              'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
-              c.moneda === 'USD' ? 'bg-blue-100' : 'bg-emerald-100'
+              'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
+              c.moneda === 'USD' ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-emerald-100 dark:bg-emerald-900/40'
             )}>
               {c.tipo === 'banco' ? (
-                <svg className={cn('w-5 h-5', c.moneda === 'USD' ? 'text-blue-600' : 'text-emerald-600')}
+                <svg className={cn('w-5 h-5', c.moneda === 'USD' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400')}
                   fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                     d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
                 </svg>
               ) : (
-                <svg className={cn('w-5 h-5', c.moneda === 'USD' ? 'text-blue-600' : 'text-emerald-600')}
+                <svg className={cn('w-5 h-5', c.moneda === 'USD' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400')}
                   fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                     d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -206,49 +206,49 @@ export default function CuentasPropiasManager({ cuentas, saldos, constructoraId,
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <p className="font-semibold text-slate-900">{c.nombre}</p>
+                <p className="font-bold text-slate-900 dark:text-white">{c.nombre}</p>
                 <span className={cn(
-                  'text-xs px-2 py-0.5 rounded-full font-medium',
-                  c.moneda === 'USD' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+                  'text-xs px-2 py-0.5 rounded-full font-semibold',
+                  c.moneda === 'USD' ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300' : 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300'
                 )}>{c.moneda}</span>
-                <span className="text-xs text-slate-400 capitalize">{c.tipo}</span>
-                {!esActiva(c) && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactiva</span>}
+                <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">{c.tipo}</span>
+                {!esActiva(c) && <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full">Inactiva</span>}
                 {c.obra_nombre !== undefined && (
                   c.obra_nombre ? (
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-50 text-indigo-600">{c.obra_nombre}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300">{c.obra_nombre}</span>
                   ) : (
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-500">Empresa</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">Empresa</span>
                   )
                 )}
               </div>
-              <p className="text-sm text-slate-500 mt-0.5">
-                Saldo inicial: <span className="font-medium text-slate-700">{fmtSaldoInicial(c)}</span>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                Saldo inicial: <span className="font-medium text-slate-700 dark:text-slate-300">{fmtSaldoInicial(c)}</span>
               </p>
             </div>
 
             <div className="text-right shrink-0">
-              <p className="text-xs text-slate-400">Saldo actual</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">Saldo actual</p>
               <p className={cn(
-                'text-lg font-bold',
-                saldoActual(c) >= 0 ? 'text-slate-900' : 'text-red-600'
+                'text-lg font-bold tabular-nums',
+                saldoActual(c) >= 0 ? 'text-slate-900 dark:text-white' : 'text-red-600 dark:text-red-400'
               )}>{fmtSaldoActual(c)}</p>
             </div>
 
             {!readOnly && (
               <div className="flex items-center gap-2 shrink-0">
                 <button onClick={() => openEdit(c)}
-                  className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600
-                             hover:border-indigo-300 hover:text-indigo-600 transition-colors">
+                  className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300
+                             hover:border-indigo-300 dark:hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                   Editar
                 </button>
                 <button onClick={() => handleToggle(c)}
                   disabled={togglingId === c.id}
-                  className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600
-                             hover:border-slate-300 transition-colors disabled:opacity-50 disabled:cursor-wait">
+                  className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300
+                             hover:border-slate-300 dark:hover:border-slate-600 transition-colors disabled:opacity-50 disabled:cursor-wait">
                   {togglingId === c.id ? '...' : esActiva(c) ? 'Desactivar' : 'Activar'}
                 </button>
                 <button onClick={() => handleDelete(c)}
-                  className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>
+                  className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 px-1 transition-colors">✕</button>
               </div>
             )}
           </div>
@@ -256,13 +256,13 @@ export default function CuentasPropiasManager({ cuentas, saldos, constructoraId,
       </div>
 
       {cuentas.length === 0 && (
-        <div className="text-center py-16 text-slate-400">
-          <p className="mb-2 text-sm">No hay cuentas configuradas.</p>
-          <p className="text-xs mb-4 text-slate-300">
+        <div className="text-center py-16 text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+          <p className="mb-2 text-sm font-medium">No hay cuentas configuradas.</p>
+          <p className="text-xs mb-4 text-slate-400">
             Creá tus cuentas bancarias y cajas para poder asignar cobros y pagos.
           </p>
           {!readOnly && (
-            <button onClick={openNew} className="text-indigo-500 text-sm hover:text-indigo-700">
+            <button onClick={openNew} className="text-indigo-600 dark:text-indigo-400 text-sm font-semibold hover:underline">
               Crear primera cuenta
             </button>
           )}
@@ -271,13 +271,13 @@ export default function CuentasPropiasManager({ cuentas, saldos, constructoraId,
 
       {/* Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 {editing ? 'Editar cuenta' : 'Nueva cuenta propia'}
               </h2>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -286,31 +286,31 @@ export default function CuentasPropiasManager({ cuentas, saldos, constructoraId,
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Nombre de la cuenta *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Nombre de la cuenta *</label>
                 <input required value={form.nombre}
                   onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
                   placeholder="Ej: Cta. Cte. Galicia, Caja USD, Cuenta dólares..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Tipo</label>
                   <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="banco">Banco</option>
                     <option value="caja">Caja / Efectivo</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Moneda</label>
                   {editing ? (
-                    <div className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-500">
+                    <div className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm text-slate-500 dark:text-slate-400">
                       {form.moneda}
                     </div>
                   ) : (
                     <select value={form.moneda} onChange={e => setForm(f => ({ ...f, moneda: e.target.value }))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                       <option>USD</option>
                       <option>ARS</option>
                     </select>
@@ -319,24 +319,24 @@ export default function CuentasPropiasManager({ cuentas, saldos, constructoraId,
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
                   Saldo inicial ({form.moneda})
                 </label>
                 <input type="number" min="0" step="0.01" value={form.saldo_inicial}
                   onChange={e => setForm(f => ({ ...f, saldo_inicial: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                <p className="text-xs text-slate-400 mt-1">
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                   El saldo desde el que parte la cuenta al momento de crearla en el sistema.
                 </p>
               </div>
 
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
+                <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">{error}</div>
               )}
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowForm(false)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                   Cancelar
                 </button>
                 <button type="submit" disabled={loading}

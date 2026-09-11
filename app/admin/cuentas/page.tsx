@@ -34,8 +34,8 @@ export default async function CuentasPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Cuentas propias</h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Cuentas propias</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
           Cuentas bancarias y cajas de la constructora — compartidas entre proyectos o específicas de uno
         </p>
       </div>

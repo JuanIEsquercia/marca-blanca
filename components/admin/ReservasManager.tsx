@@ -26,9 +26,9 @@ interface Props {
 }
 
 const ESTADO_COLORS: Record<EstadoReserva, string> = {
-  Vigente:    'bg-amber-50 text-amber-700 border-amber-200',
-  Convertida: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'Caída':    'bg-slate-100 text-slate-500 border-slate-200',
+  Vigente:    'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+  Convertida: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+  'Caída':    'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700',
 }
 
 const FILTROS: (EstadoReserva | 'Todas')[] = ['Todas', 'Vigente', 'Convertida', 'Caída']
@@ -75,11 +75,11 @@ export default function ReservasManager({ reservas, cuentasPropias, constructora
     <>
       {/* Alerta reservas por vencer */}
       {porVencer.length > 0 && (
-        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3">
+        <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-3">
           <svg className="w-5 h-5 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <p className="text-sm text-amber-800">
+          <p className="text-sm text-amber-800 dark:text-amber-300">
             <strong>{porVencer.length} reserva{porVencer.length > 1 ? 's' : ''}</strong> vence{porVencer.length > 1 ? 'n' : ''} en los próximos 7 días.
           </p>
         </div>
@@ -93,7 +93,7 @@ export default function ReservasManager({ reservas, cuentasPropias, constructora
               'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
               filtro === f
                 ? 'bg-indigo-600 text-white border-indigo-600'
-                : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
             )}>
             {f}
             <span className="ml-1.5 text-xs opacity-70">
@@ -104,49 +104,49 @@ export default function ReservasManager({ reservas, cuentasPropias, constructora
       </div>
 
       {/* Tabla */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Interesado</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Unidad</th>
-                <th className="text-right px-4 py-3 font-semibold text-slate-600">Seña</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Reservado</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Vencimiento</th>
-                <th className="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
+              <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-400">Interesado</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-400">Unidad</th>
+                <th className="text-right px-4 py-3 font-semibold text-slate-600 dark:text-slate-400">Seña</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-400">Reservado</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-400">Vencimiento</th>
+                <th className="text-center px-4 py-3 font-semibold text-slate-600 dark:text-slate-400">Estado</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
               {filtradas.map(r => {
                 const diasRestantes = Math.round(
                   (new Date(r.fecha_vencimiento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
                 )
                 const vencida = estaVencido(r.fecha_vencimiento, r.estado, 'Vigente')
                 return (
-                  <tr key={r.id} className={cn('hover:bg-slate-50 transition-colors', vencida && 'bg-red-50/50')}>
+                  <tr key={r.id} className={cn('hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors', vencida && 'bg-red-50/50 dark:bg-red-950/20')}>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-slate-900">{r.compradores.nombre_completo}</p>
-                      <p className="text-xs text-slate-400 font-mono">{r.compradores.dni_cuit}</p>
+                      <p className="font-medium text-slate-900 dark:text-white">{r.compradores.nombre_completo}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">{r.compradores.dni_cuit}</p>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                       P{r.unidades.piso} - {r.unidades.numero}{r.unidades.letra ?? ''}
-                      <p className="text-xs text-slate-400">{r.unidades.tipologias.nombre}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{r.unidades.tipologias.nombre}</p>
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-600">
-                      {r.monto_sena ? formatCurrency(r.monto_sena) : <span className="text-slate-300">—</span>}
+                    <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">
+                      {r.monto_sena ? formatCurrency(r.monto_sena) : <span className="text-slate-300 dark:text-slate-600">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-slate-500">{formatDate(r.fecha_reserva)}</td>
+                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{formatDate(r.fecha_reserva)}</td>
                     <td className="px-4 py-3">
-                      <p className={cn('text-sm', vencida ? 'text-red-600 font-semibold' : 'text-slate-600')}>
+                      <p className={cn('text-sm', vencida ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-slate-600 dark:text-slate-300')}>
                         {formatDate(r.fecha_vencimiento)}
                       </p>
                       {r.estado === 'Vigente' && !vencida && (
-                        <p className="text-xs text-slate-400">{diasRestantes} días</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">{diasRestantes} días</p>
                       )}
                       {vencida && (
-                        <p className="text-xs text-red-500">Vencida</p>
+                        <p className="text-xs text-red-500 dark:text-red-400">Vencida</p>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -162,14 +162,14 @@ export default function ReservasManager({ reservas, cuentasPropias, constructora
                         <div className="flex items-center justify-end gap-3">
                           <button
                             onClick={() => setSaleReserva(r)}
-                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                            className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
                           >
                             Convertir a venta
                           </button>
                           <button
                             onClick={() => marcarCaida(r)}
                             disabled={loadingId === r.id}
-                            className="text-xs text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                            className="text-xs text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-colors disabled:opacity-50"
                           >
                             Marcar caída
                           </button>
@@ -184,7 +184,7 @@ export default function ReservasManager({ reservas, cuentasPropias, constructora
         </div>
 
         {filtradas.length === 0 && (
-          <div className="text-center py-12 text-slate-400 text-sm">
+          <div className="text-center py-12 text-slate-400 dark:text-slate-500 text-sm">
             No hay reservas con este filtro.
           </div>
         )}

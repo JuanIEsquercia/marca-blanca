@@ -107,8 +107,8 @@ export default async function CertificadosPage({ params, searchParams }: Props) 
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Contratos</h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Contratos</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
           {ctx.obraNombre} — contratos, certificados de avance, cobros y pagos a subcontratistas
         </p>
       </div>

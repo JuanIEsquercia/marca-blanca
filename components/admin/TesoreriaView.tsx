@@ -247,7 +247,7 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
       {/* Saldos por cuenta */}
       {cuentasUSD.length > 0 && (
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Cuentas USD</p>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Cuentas USD</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {cuentasUSD.map(c => (
               <CuentaCard key={c.id} cuenta={c} />
@@ -258,7 +258,7 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
 
       {cuentasARS.length > 0 && (
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Cuentas ARS</p>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Cuentas ARS</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {cuentasARS.map(c => (
               <CuentaCard key={c.id} cuenta={c} />
@@ -268,7 +268,7 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
       )}
 
       {cuentas.length === 0 && (
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center text-slate-400">
+        <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8 text-center text-slate-400 dark:text-slate-500">
           <p className="text-sm">No hay cuentas propias configuradas.</p>
           <p className="text-xs mt-1">Creá tus cuentas en <strong>Configuración → Cuentas</strong> para ver los saldos.</p>
         </div>
@@ -276,12 +276,12 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
 
       {/* IVA — referencia parcial, no una posición fiscal completa (ver ResumenIva) */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">IVA (referencia)</p>
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">IVA (referencia)</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <TarjetaIva titulo="IVA en gastos" resumen={resumenIvaGastos} bg="bg-red-50 border-red-200" text="text-red-600" />
-          <TarjetaIva titulo="IVA en cobros" resumen={resumenIvaCobros} bg="bg-blue-50 border-blue-200" text="text-blue-600" />
+          <TarjetaIva titulo="IVA en gastos" resumen={resumenIvaGastos} bg="bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900/60" text="text-red-600 dark:text-red-400" />
+          <TarjetaIva titulo="IVA en cobros" resumen={resumenIvaCobros} bg="bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900/60" text="text-blue-600 dark:text-blue-400" />
         </div>
-        <p className="text-[11px] text-slate-400 mt-2">
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
           Solo suma lo que ya tiene el desglose de IVA cargado — no es una posición fiscal completa. Se completa opcionalmente al registrar cada gasto/cobro.
         </p>
       </div>
@@ -289,12 +289,12 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
       {/* Tabs: Flujo mensual | Comprometido pendiente */}
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div className="flex gap-1 border-b border-slate-200 sm:border-b-0">
+          <div className="flex gap-1 border-b border-slate-200 dark:border-slate-800 sm:border-b-0">
             <button
               onClick={() => setTab('flujo')}
               className={cn(
                 'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-                tab === 'flujo' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+                tab === 'flujo' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               )}>
               Flujo mensual
             </button>
@@ -302,11 +302,11 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
               onClick={() => setTab('porCobrar')}
               className={cn(
                 'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
-                tab === 'porCobrar' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+                tab === 'porCobrar' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               )}>
               Por cobrar
               {ingresosPendientesFiltrados.length > 0 && (
-                <span className="bg-amber-100 text-amber-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+                <span className="bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 text-xs font-semibold px-1.5 py-0.5 rounded-full">
                   {ingresosPendientesFiltrados.length}
                 </span>
               )}
@@ -315,11 +315,11 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
               onClick={() => setTab('porPagar')}
               className={cn(
                 'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
-                tab === 'porPagar' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+                tab === 'porPagar' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               )}>
               Por pagar
               {gastosPendientesFiltrados.length > 0 && (
-                <span className="bg-orange-100 text-orange-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+                <span className="bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-400 text-xs font-semibold px-1.5 py-0.5 rounded-full">
                   {gastosPendientesFiltrados.length}
                 </span>
               )}
@@ -329,13 +329,13 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
           <select
             value={proyectoFiltro}
             onChange={e => { setProyectoFiltro(e.target.value); setPaginaCobrar(0) }}
-            className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white
+            className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white
                        focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-auto"
           >
-            <option value={FILTRO_TODOS}>Todos los proyectos</option>
-            <option value={FILTRO_EMPRESA}>Empresa (sin proyecto)</option>
+            <option value={FILTRO_TODOS} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Todos los proyectos</option>
+            <option value={FILTRO_EMPRESA} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Empresa (sin proyecto)</option>
             {proyectos.map(p => (
-              <option key={p.id} value={p.id}>{p.nombre}</option>
+              <option key={p.id} value={p.id} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{p.nombre}</option>
             ))}
           </select>
         </div>
@@ -343,20 +343,20 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
         {tab === 'flujo' && (
           <div className="space-y-4">
             {/* Vista: mes / trimestre / año — agrupa la misma serie, no vuelve a pedir datos */}
-            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 w-fit">
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 rounded-lg p-1 w-fit">
               {(['mes', 'trimestre', 'año'] as const).map(v => (
                 <button
                   key={v}
                   onClick={() => setVista(v)}
                   className={cn(
                     'px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors',
-                    vista === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    vista === v ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                   )}
                 >
                   {v === 'año' ? 'Año' : v === 'trimestre' ? 'Trimestre' : 'Mes'}
                 </button>
               ))}
-              <span className="px-2 text-[11px] text-slate-400 border-l border-slate-300 ml-1">
+              <span className="px-2 text-[11px] text-slate-400 dark:text-slate-500 border-l border-slate-300 dark:border-slate-700 ml-1">
                 12 atrás + 12 adelante (proyectado) desde hoy
               </span>
             </div>
@@ -389,13 +389,13 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
         {tab === 'porCobrar' && (
           <div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <p className="text-xs text-amber-600 font-medium mb-1">Total por cobrar ARS</p>
-                <p className="text-xl sm:text-2xl font-bold text-amber-700 truncate" title={formatARS(totalPorCobrarARS)}>{formatARS(totalPorCobrarARS)}</p>
+              <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-xl p-4">
+                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-1">Total por cobrar ARS</p>
+                <p className="text-xl sm:text-2xl font-bold text-amber-700 dark:text-amber-300 truncate" title={formatARS(totalPorCobrarARS)}>{formatARS(totalPorCobrarARS)}</p>
               </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                <p className="text-xs text-blue-600 font-medium mb-1">Total por cobrar USD</p>
-                <p className="text-xl sm:text-2xl font-bold text-blue-700 truncate" title={formatUSD(totalPorCobrarUSD)}>{formatUSD(totalPorCobrarUSD)}</p>
+              <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded-xl p-4">
+                <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mb-1">Total por cobrar USD</p>
+                <p className="text-xl sm:text-2xl font-bold text-blue-700 dark:text-blue-300 truncate" title={formatUSD(totalPorCobrarUSD)}>{formatUSD(totalPorCobrarUSD)}</p>
               </div>
             </div>
 
@@ -403,45 +403,45 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
               <button
                 onClick={() => setPaginaCobrar(p => Math.max(0, p - 1))}
                 disabled={paginaCobrar === 0}
-                className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                className="flex items-center gap-1 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                 ← Anterior
               </button>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                 {paginaCobrar === 0 ? 'Vencidos + próximos 12 meses' : labelVentana(inicioVentana, finVentana)}
               </p>
               <button
                 onClick={() => setPaginaCobrar(p => p + 1)}
                 disabled={!hayPaginaSiguiente}
-                className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                className="flex items-center gap-1 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                 Siguiente →
               </button>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Descripción</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Proyecto</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600">Monto</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Vencimiento</th>
+                    <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Descripción</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Proyecto</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Monto</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Vencimiento</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {ingresosPendientesVentana.map(i => (
-                      <tr key={i.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-medium text-slate-900">{i.descripcion}</td>
+                      <tr key={i.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{i.descripcion}</td>
                         <td className="px-4 py-3">
                           <span className={cn(
                             'text-xs px-2 py-0.5 rounded-full font-medium',
-                            i.obraId ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'
+                            i.obraId ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                           )}>{nombreProyecto(i.obraId)}</span>
                         </td>
-                        <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                        <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
                           {i.moneda === 'USD' ? formatUSD(i.monto) : formatARS(i.monto)}
                         </td>
-                        <td className="px-4 py-3 text-slate-600">
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                           {i.fecha_vencimiento
                             ? new Date(i.fecha_vencimiento).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
                             : '—'}
@@ -452,7 +452,7 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
                 </table>
               </div>
               {ingresosPendientesVentana.length === 0 && (
-                <div className="text-center py-12 text-slate-400 text-sm">
+                <div className="text-center py-12 text-slate-400 dark:text-slate-500 text-sm">
                   {ingresosPendientesFiltrados.length === 0 ? 'No hay cobros pendientes.' : 'Nada en esta ventana de 12 meses.'}
                 </div>
               )}
@@ -464,52 +464,52 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
           <div>
             {/* Totales */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-                <p className="text-xs text-orange-600 font-medium mb-1">Total pendiente ARS</p>
-                <p className="text-xl sm:text-2xl font-bold text-orange-700 truncate" title={formatARS(totalPendienteARS)}>{formatARS(totalPendienteARS)}</p>
+              <div className="bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-900/60 rounded-xl p-4">
+                <p className="text-xs text-orange-600 dark:text-orange-400 font-medium mb-1">Total pendiente ARS</p>
+                <p className="text-xl sm:text-2xl font-bold text-orange-700 dark:text-orange-300 truncate" title={formatARS(totalPendienteARS)}>{formatARS(totalPendienteARS)}</p>
               </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                <p className="text-xs text-blue-600 font-medium mb-1">Total pendiente USD</p>
-                <p className="text-xl sm:text-2xl font-bold text-blue-700 truncate" title={formatUSD(totalPendienteUSD)}>{formatUSD(totalPendienteUSD)}</p>
+              <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded-xl p-4">
+                <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mb-1">Total pendiente USD</p>
+                <p className="text-xl sm:text-2xl font-bold text-blue-700 dark:text-blue-300 truncate" title={formatUSD(totalPendienteUSD)}>{formatUSD(totalPendienteUSD)}</p>
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Descripción</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Proyecto</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Proveedor</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Categoría</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600">Monto</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Vencimiento</th>
+                    <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Descripción</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Proyecto</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Proveedor</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Categoría</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Monto</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Vencimiento</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {gastosPendientesFiltrados.map(g => (
-                      <tr key={g.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-medium text-slate-900">{g.descripcion}</td>
+                      <tr key={g.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{g.descripcion}</td>
                         <td className="px-4 py-3">
                           <span className={cn(
                             'text-xs px-2 py-0.5 rounded-full font-medium',
-                            g.obraId ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'
+                            g.obraId ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                           )}>{nombreProyecto(g.obraId)}</span>
                         </td>
-                        <td className="px-4 py-3 text-slate-500">{g.proveedor ?? '—'}</td>
+                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{g.proveedor ?? '—'}</td>
                         <td className="px-4 py-3">
                           {g.categoria ? (
-                            <span className="inline-flex items-center gap-1.5 text-xs">
+                            <span className="inline-flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
                               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.categoria_color ?? '#ccc' }} />
                               {g.categoria}
                             </span>
-                          ) : <span className="text-slate-300 text-xs">—</span>}
+                          ) : <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>}
                         </td>
-                        <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                        <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
                           {g.moneda === 'USD' ? formatUSD(g.monto) : formatARS(g.monto)}
                         </td>
-                        <td className="px-4 py-3 text-slate-600">
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                           {new Date(g.fecha_vencimiento).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </td>
                       </tr>
@@ -518,7 +518,7 @@ export default function TesoreriaView({ cuentas, movimientos, meses, proyectos, 
                 </table>
               </div>
               {gastosPendientesFiltrados.length === 0 && (
-                <div className="text-center py-12 text-slate-400 text-sm">No hay gastos pendientes.</div>
+                <div className="text-center py-12 text-slate-400 dark:text-slate-500 text-sm">No hay gastos pendientes.</div>
               )}
             </div>
           </div>
@@ -545,12 +545,12 @@ interface PuntoChartFlujo {
 function FlujoChart({ titulo, moneda, datos, formatear }: { titulo: string; moneda: string; datos: PuntoChartFlujo[]; formatear: (n: number) => string }) {
   const muchosPuntos = datos.length > 8
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Flujo {titulo}</p>
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-xs">
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Flujo {titulo}</p>
       <div className={muchosPuntos ? 'h-80' : 'h-72'}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={datos} margin={{ top: 8, right: 12, left: 4, bottom: muchosPuntos ? 24 : 4 }} barGap={4} barCategoryGap={muchosPuntos ? '20%' : '30%'}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" className="dark:opacity-10" vertical={false} />
             <XAxis
               dataKey="label"
               tick={{ fontSize: 11, fill: '#64748b' }}
@@ -561,9 +561,9 @@ function FlujoChart({ titulo, moneda, datos, formatear }: { titulo: string; mone
             <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={n => formatCompacto(n, moneda)} width={64} />
             <Tooltip
               formatter={(value: number | string | readonly (number | string)[] | undefined) => formatear(typeof value === 'number' ? value : 0)}
-              contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
-              labelStyle={{ fontWeight: 600, marginBottom: 4 }}
-              cursor={{ fill: '#f8fafc' }}
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #334155', backgroundColor: '#0f172a', color: '#f8fafc' }}
+              labelStyle={{ fontWeight: 600, marginBottom: 4, color: '#f8fafc' }}
+              cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
             />
             <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" iconSize={8} />
             <Bar dataKey="Ingresos" stackId="ing" fill="#2563eb" radius={[0, 0, 0, 0]} maxBarSize={48} />
@@ -597,17 +597,17 @@ function TablaFlujoMoneda({
   egresosProyectados: (p: MesFlujo) => number
 }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
       <table className="w-full text-sm">
         <thead>
-          <tr className="bg-slate-50 border-b border-slate-200">
-            <th className="text-left px-4 py-3 font-semibold text-slate-600">{periodoLabel}</th>
-            <th className="text-right px-4 py-3 font-semibold text-blue-700">Ingresos</th>
-            <th className="text-right px-4 py-3 font-semibold text-red-700">Egresos</th>
-            <th className="text-right px-4 py-3 font-semibold text-slate-600">Saldo</th>
+          <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
+            <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">{periodoLabel}</th>
+            <th className="text-right px-4 py-3 font-semibold text-blue-700 dark:text-blue-400">Ingresos</th>
+            <th className="text-right px-4 py-3 font-semibold text-red-700 dark:text-red-400">Egresos</th>
+            <th className="text-right px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Saldo</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
           {periodos.map(p => {
             const ing = ingresos(p)
             const ingProy = ingresosProyectados(p)
@@ -615,19 +615,19 @@ function TablaFlujoMoneda({
             const egrProy = egresosProyectados(p)
             const saldo = ing - egr
             return (
-              <tr key={p.label} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-medium text-slate-700">{p.label}</td>
+              <tr key={p.label} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">{p.label}</td>
                 <td className="px-4 py-3 text-right">
-                  {ing > 0 ? <span className="text-blue-700 font-medium">{formatear(ing)}</span> : <span className="text-slate-300">—</span>}
-                  {ingProy > 0 && <span className="block text-[11px] text-blue-400">+ {formatear(ingProy)} proyectado</span>}
+                  {ing > 0 ? <span className="text-blue-700 dark:text-blue-400 font-medium">{formatear(ing)}</span> : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                  {ingProy > 0 && <span className="block text-[11px] text-blue-400 dark:text-blue-300">+ {formatear(ingProy)} proyectado</span>}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {egr > 0 ? <span className="text-red-600 font-medium">{formatear(egr)}</span> : <span className="text-slate-300">—</span>}
-                  {egrProy > 0 && <span className="block text-[11px] text-red-400">+ {formatear(egrProy)} comprometido</span>}
+                  {egr > 0 ? <span className="text-red-600 dark:text-red-400 font-medium">{formatear(egr)}</span> : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                  {egrProy > 0 && <span className="block text-[11px] text-red-400 dark:text-red-300">+ {formatear(egrProy)} comprometido</span>}
                 </td>
                 <td className={cn(
                   'px-4 py-3 text-right font-semibold',
-                  saldo > 0 ? 'text-green-600' : saldo < 0 ? 'text-red-600' : 'text-slate-400'
+                  saldo > 0 ? 'text-green-600 dark:text-green-400' : saldo < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-400 dark:text-slate-500'
                 )}>
                   {saldo !== 0 ? formatear(saldo) : '—'}
                 </td>
@@ -637,7 +637,7 @@ function TablaFlujoMoneda({
         </tbody>
       </table>
       {periodos.length === 0 && (
-        <div className="text-center py-12 text-slate-400 text-sm">No hay movimientos en {moneda}.</div>
+        <div className="text-center py-12 text-slate-400 dark:text-slate-500 text-sm">No hay movimientos en {moneda}.</div>
       )}
     </div>
   )
@@ -649,7 +649,7 @@ function TarjetaIva({ titulo, resumen, bg, text }: { titulo: string; resumen: Re
     <div className={cn('border rounded-xl p-4', bg)}>
       <p className={cn('text-xs font-medium mb-1', text)}>{titulo}</p>
       {monedas.length === 0 ? (
-        <p className="text-lg font-semibold text-slate-300">—</p>
+        <p className="text-lg font-semibold text-slate-300 dark:text-slate-600">—</p>
       ) : (
         <div className="space-y-0.5">
           {monedas.map(m => (
@@ -659,7 +659,7 @@ function TarjetaIva({ titulo, resumen, bg, text }: { titulo: string; resumen: Re
           ))}
         </div>
       )}
-      <p className="text-[11px] text-slate-400 mt-1">
+      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
         {resumen.cantidadConDesglose} de {resumen.cantidadTotal} con desglose de IVA
       </p>
     </div>
@@ -671,41 +671,41 @@ function CuentaCard({ cuenta }: { cuenta: CuentaConSaldo }) {
   const fmt = (n: number) => cuenta.moneda === 'USD' ? formatUSD(n) : formatARS(n)
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col justify-between shadow-xs">
       <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-slate-900 text-sm truncate" title={cuenta.nombre}>{cuenta.nombre}</p>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="font-semibold text-slate-900 dark:text-white text-sm truncate" title={cuenta.nombre}>{cuenta.nombre}</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
             {cuenta.tipo === 'banco' ? 'Banco' : 'Caja'} · {cuenta.moneda}
           </p>
           <p className="text-xs mt-1">
             {cuenta.obra_nombre ? (
-              <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium truncate max-w-full" title={cuenta.obra_nombre}>{cuenta.obra_nombre}</span>
+              <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 font-medium truncate max-w-full" title={cuenta.obra_nombre}>{cuenta.obra_nombre}</span>
             ) : (
-              <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">Empresa</span>
+              <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-medium">Empresa</span>
             )}
           </p>
         </div>
         <span
           className={cn(
             'text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap truncate max-w-full',
-            esPositivo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+            esPositivo ? 'bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400' : 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400'
           )}
           title={`${esPositivo ? '+' : ''}${fmt(cuenta.saldo_actual)}`}
         >
           {esPositivo ? '+' : ''}{fmt(cuenta.saldo_actual)}
         </span>
       </div>
-      <div className="space-y-1.5 pt-3 border-t border-slate-100 text-xs">
-        <div className="flex justify-between items-baseline gap-2 flex-wrap text-slate-500">
+      <div className="space-y-1.5 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
+        <div className="flex justify-between items-baseline gap-2 flex-wrap text-slate-500 dark:text-slate-400">
           <span className="shrink-0">Saldo inicial</span>
-          <span className="font-medium text-slate-700 text-right truncate max-w-[150px]" title={fmt(cuenta.saldo_inicial)}>{fmt(cuenta.saldo_inicial)}</span>
+          <span className="font-medium text-slate-700 dark:text-slate-300 text-right truncate max-w-[150px]" title={fmt(cuenta.saldo_inicial)}>{fmt(cuenta.saldo_inicial)}</span>
         </div>
-        <div className="flex justify-between items-baseline gap-2 flex-wrap text-blue-600">
+        <div className="flex justify-between items-baseline gap-2 flex-wrap text-blue-600 dark:text-blue-400">
           <span className="shrink-0">+ Ingresos cobrados</span>
           <span className="font-medium text-right truncate max-w-[150px]" title={fmt(cuenta.ingresos_ventas)}>{fmt(cuenta.ingresos_ventas)}</span>
         </div>
-        <div className="flex justify-between items-baseline gap-2 flex-wrap text-red-500">
+        <div className="flex justify-between items-baseline gap-2 flex-wrap text-red-500 dark:text-red-400">
           <span className="shrink-0">− Egresos pagados</span>
           <span className="font-medium text-right truncate max-w-[150px]" title={fmt(cuenta.egresos_gastos)}>{fmt(cuenta.egresos_gastos)}</span>
         </div>

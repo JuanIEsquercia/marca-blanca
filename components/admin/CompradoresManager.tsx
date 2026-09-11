@@ -105,10 +105,10 @@ export default function CompradoresManager({ compradores, constructoraId, readOn
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
             placeholder="Buscar por nombre o CUIT/DNI..."
-            className="w-full sm:w-64 px-3 py-2 border border-slate-300 rounded-lg text-sm
+            className="w-full sm:w-64 px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm
                        focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
-          <p className="text-slate-500 text-sm whitespace-nowrap">{filtrados.length} de {compradores.length} cliente(s)</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm whitespace-nowrap">{filtrados.length} de {compradores.length} cliente(s)</p>
         </div>
         {!readOnly && (
           <button onClick={openNew}
@@ -123,37 +123,37 @@ export default function CompradoresManager({ compradores, constructoraId, readOn
       </div>
 
       {compradores.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
+        <div className="text-center py-16 text-slate-400 dark:text-slate-500">
           <p className="mb-2">No hay clientes cargados aún.</p>
           {!readOnly && (
-            <button onClick={openNew} className="text-indigo-500 text-sm hover:text-indigo-700">
+            <button onClick={openNew} className="text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 text-sm">
               Crear el primero
             </button>
           )}
         </div>
       ) : filtrados.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
+        <div className="text-center py-16 text-slate-400 dark:text-slate-500">
           <p>Ningún cliente coincide con la búsqueda.</p>
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl divide-y divide-slate-100 dark:divide-slate-800 shadow-xs">
           {filtrados.map(c => (
             <div key={c.id} className="flex items-center gap-4 px-5 py-4">
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-slate-900">{c.nombre_completo}</p>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="font-semibold text-slate-900 dark:text-white">{c.nombre_completo}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   {[c.dni_cuit, c.email, c.telefono].filter(Boolean).join(' · ') || 'Sin datos de contacto'}
                 </p>
               </div>
               {!readOnly && (
                 <div className="flex items-center gap-2 shrink-0">
                   <button onClick={() => openEdit(c)}
-                    className="text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600
-                               hover:border-indigo-300 hover:text-indigo-600 transition-colors">
+                    className="text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300
+                               hover:border-indigo-300 dark:hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                     Editar
                   </button>
                   <button onClick={() => handleDelete(c)}
-                    className="text-xs text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>
+                    className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 px-1 transition-colors">✕</button>
                 </div>
               )}
             </div>
@@ -162,13 +162,13 @@ export default function CompradoresManager({ compradores, constructoraId, readOn
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 {editing ? 'Editar cliente' : 'Nuevo cliente'}
               </h2>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -177,39 +177,39 @@ export default function CompradoresManager({ compradores, constructoraId, readOn
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Nombre completo *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Nombre completo *</label>
                 <input required value={form.nombre_completo}
                   onChange={e => setForm(f => ({ ...f, nombre_completo: e.target.value }))}
                   placeholder="Nombre y apellido, o razón social..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">CUIT/DNI</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">CUIT/DNI</label>
                   <input value={form.dni_cuit} onChange={e => setForm(f => ({ ...f, dni_cuit: e.target.value }))}
                     placeholder="20-12345678-9"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Teléfono</label>
                   <input value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Email</label>
                 <input type="email" value={form.email}
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
 
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
+                <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded-lg text-red-700 dark:text-red-400 text-sm">{error}</div>
               )}
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowForm(false)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                   Cancelar
                 </button>
                 <button type="submit" disabled={loading}

@@ -46,10 +46,8 @@ export default async function UsuariosPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Usuarios</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Creá operadores, asignalos a un proyecto y controlá a qué módulos puede acceder cada uno
-        </p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Usuarios</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Gestión del equipo de trabajo y permisos de acceso</p>
       </div>
       <UsuariosManager
         perfiles={perfilesConEmail}

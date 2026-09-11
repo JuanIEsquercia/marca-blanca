@@ -124,17 +124,17 @@ export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-200">
+        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Registrar Reserva</h2>
-            <p className="text-slate-500 text-sm">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Registrar Reserva</h2>
+            <p className="text-slate-500 dark:text-slate-400 text-sm">
               Unidad P{unidad.piso} - {unidad.numero}{unidad.letra ?? ''} &bull; {unidad.tipologias.nombre}
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -144,7 +144,7 @@ export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {/* Datos del interesado */}
           <div>
-            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
+            <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-3">
               Datos del Interesado
             </h3>
             <ClienteSelect compradores={compradores} value={cliente} onChange={setCliente} />
@@ -152,33 +152,33 @@ export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId
 
           {/* Condiciones de la reserva */}
           <div>
-            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
+            <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-3">
               Condiciones de la Reserva
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
                   Vencimiento de la reserva *
                   {diasRestantes >= 0 && (
-                    <span className="ml-2 text-indigo-600 font-normal">({diasRestantes} días)</span>
+                    <span className="ml-2 text-indigo-600 dark:text-indigo-400 font-normal">({diasRestantes} días)</span>
                   )}
                 </label>
                 <input required type="date" value={fechaVencimiento}
                   min={new Date().toISOString().split('T')[0]}
                   onChange={e => setFechaVencimiento(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
                   Monto seña ({unidad.tipologias.nombre === 'Monoambiente' ? 'USD' : 'USD'})
                 </label>
                 <input type="number" min="0" step="0.01" value={montoSena}
                   onChange={e => setMontoSena(e.target.value)}
                   placeholder="Opcional"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta donde ingresa</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Cuenta donde ingresa</label>
                 <CuentaPropiaSelect
                   cuentas={[...cuentasPropias, ...cuentasNuevas]}
                   onCreated={c => setCuentasNuevas(prev => [...prev, c])}
@@ -190,39 +190,39 @@ export default function ReservaForm({ unidad, onClose, onSuccess, constructoraId
                   emptyLabel="Sin asignar" />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Notas</label>
                 <textarea rows={2} value={notas} onChange={e => setNotas(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               </div>
             </div>
           </div>
 
           {/* Resumen */}
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">Resumen</p>
+          <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl p-4">
+            <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide mb-2">Resumen</p>
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-600">Precio lista</span>
-                <span className="font-semibold text-slate-900">{formatCurrency(unidad.precio_lista)}</span>
+                <span className="text-slate-600 dark:text-slate-400">Precio lista</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(unidad.precio_lista)}</span>
               </div>
               {montoSena && (
                 <div className="flex justify-between">
-                  <span className="text-slate-600">Seña</span>
-                  <span className="font-semibold text-amber-700">{formatCurrency(parseFloat(montoSena))}</span>
+                  <span className="text-slate-600 dark:text-slate-400">Seña</span>
+                  <span className="font-semibold text-amber-700 dark:text-amber-300">{formatCurrency(parseFloat(montoSena))}</span>
                 </div>
               )}
             </div>
           </div>
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg text-sm">
               {error}
             </div>
           )}
 
           <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-1">
             <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+              className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
               Cancelar
             </button>
             <button type="submit" disabled={loading}

@@ -75,8 +75,8 @@ export default async function GastosPage({ searchParams }: Props) {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Gastos</h1>
-        <p className="text-slate-500 text-sm mt-1">Registro de egresos de la constructora — todos los proyectos</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Gastos</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Registro de egresos de la constructora — todos los proyectos</p>
       </div>
       <GastosManager
         gastos={gastos}

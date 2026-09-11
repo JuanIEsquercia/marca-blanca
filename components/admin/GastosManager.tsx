@@ -464,30 +464,30 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
     <div>
       {/* Resumen comprometido */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-          <p className="text-xs text-orange-600 font-medium mb-1">Comprometido ARS</p>
-          <p className="text-2xl font-bold text-orange-700">
+        <div className="bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-900/60 rounded-xl p-4">
+          <p className="text-xs text-orange-600 dark:text-orange-400 font-medium mb-1">Comprometido ARS</p>
+          <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
             {formatCurrency(totalPendienteARS, 'ARS')}
           </p>
-          <p className="text-xs text-orange-500 mt-0.5">
+          <p className="text-xs text-orange-500 dark:text-orange-400 mt-0.5">
             {gastos.filter(g => g.estado === 'Pendiente' && g.moneda === 'ARS').length} pago(s) pendiente(s)
           </p>
         </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <p className="text-xs text-blue-600 font-medium mb-1">Comprometido USD</p>
-          <p className="text-2xl font-bold text-blue-700">
+        <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded-xl p-4">
+          <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mb-1">Comprometido USD</p>
+          <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
             {formatCurrency(totalPendienteUSD, 'USD')}
           </p>
-          <p className="text-xs text-blue-500 mt-0.5">
+          <p className="text-xs text-blue-500 dark:text-blue-400 mt-0.5">
             {gastos.filter(g => g.estado === 'Pendiente' && g.moneda === 'USD').length} pago(s) pendiente(s)
           </p>
         </div>
       </div>
 
       {historialAcotado && (
-        <div className="mb-4 flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-xs text-slate-500">
+        <div className="mb-4 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">
           <span>Mostrando pagados de los últimos 12 meses (los pendientes se ven todos, sin importar la fecha).</span>
-          <Link href={`${pathname}?historial=todo`} className="shrink-0 font-medium text-indigo-600 hover:text-indigo-700">
+          <Link href={`${pathname}?historial=todo`} className="shrink-0 font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300">
             Ver historial completo
           </Link>
         </div>
@@ -499,17 +499,17 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
           placeholder="Buscar por descripción o proveedor..."
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
-          className="w-full md:flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm
+          className="w-full md:flex-1 px-3 py-2 border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm
                      focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
         <div className="flex flex-wrap gap-2 shrink-0">
-          <div className="flex rounded-lg border border-slate-300 overflow-x-auto max-w-full text-sm bg-white no-scrollbar">
+          <div className="flex rounded-lg border border-slate-300 dark:border-slate-800 overflow-x-auto max-w-full text-sm bg-white dark:bg-slate-900 no-scrollbar">
             {(['todos', 'Pendiente', 'Pagado'] as const).map(e => (
               <button key={e}
                 onClick={() => setFiltroEstado(e)}
                 className={cn(
                   'px-3 py-2 transition-colors',
-                  filtroEstado === e ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                  filtroEstado === e ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                 )}>
                 {e === 'todos' ? 'Todos' : e}
               </button>
@@ -519,8 +519,8 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
           {!readOnly && (
             <button onClick={() => scanFileRef.current?.click()}
               disabled={escaneando}
-              className="flex items-center gap-2 px-3 py-2 border border-indigo-300 bg-indigo-50 hover:bg-indigo-100
-                         text-indigo-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap disabled:opacity-60">
+              className="flex items-center gap-2 px-3 py-2 border border-indigo-300 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/50
+                         text-indigo-700 dark:text-indigo-300 rounded-lg text-sm font-medium transition-colors whitespace-nowrap disabled:opacity-60">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -547,13 +547,13 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       </div>
 
       {!readOnly && seleccionados.size > 0 && (
-        <div className="mb-4 flex items-center justify-between gap-3 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2.5">
-          <span className="text-sm text-indigo-800">
+        <div className="mb-4 flex items-center justify-between gap-3 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-900/60 rounded-lg px-4 py-2.5">
+          <span className="text-sm text-indigo-800 dark:text-indigo-200">
             {seleccionados.size} gasto{seleccionados.size > 1 ? 's' : ''} seleccionado{seleccionados.size > 1 ? 's' : ''}
             {!monedaLote && ' — mezclás ARS y USD, seleccioná gastos de una sola moneda para pagarlos juntos'}
           </span>
           <div className="flex items-center gap-3 shrink-0">
-            <button onClick={() => setSeleccionados(new Set())} className="text-xs text-indigo-600 hover:text-indigo-800">
+            <button onClick={() => setSeleccionados(new Set())} className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
               Deseleccionar
             </button>
             <button
@@ -567,76 +567,76 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
       )}
 
       {/* Tabla */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
+              <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
                 {!readOnly && (
                   <th className="px-4 py-3 w-8">
                     {pendientesVisibles.length > 0 && (
                       <input type="checkbox" checked={todosPendientesSeleccionados} onChange={toggleSeleccionarTodosPendientes}
-                        title="Seleccionar todos los pendientes visibles" className="rounded border-slate-300" />
+                        title="Seleccionar todos los pendientes visibles" className="rounded border-slate-300 dark:border-slate-700" />
                     )}
                   </th>
                 )}
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Descripción</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Proveedor</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Categoría</th>
-                <th className="text-right px-4 py-3 font-semibold text-slate-600">Monto</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Vencimiento</th>
-                <th className="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Descripción</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Proveedor</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Categoría</th>
+                <th className="text-right px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Monto</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Vencimiento</th>
+                <th className="text-center px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Estado</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             {gastosFiltrados.map(g => (
-              <tbody key={g.id} className="divide-y divide-slate-100">
-                <tr className="hover:bg-slate-50">
+              <tbody key={g.id} className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                   {!readOnly && (
                     <td className="px-4 py-3">
                       {g.estado === 'Pendiente' && !tieneCuotas(g) && (
                         <input type="checkbox" checked={seleccionados.has(g.id)} onChange={() => toggleSeleccionado(g.id)}
-                          className="rounded border-slate-300" />
+                          className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500" />
                       )}
                     </td>
                   )}
                   <td className="px-4 py-3">
-                    <p className="font-medium text-slate-900">{g.descripcion}</p>
-                    {g.notas && <p className="text-xs text-slate-400 truncate max-w-xs">{g.notas}</p>}
+                    <p className="font-medium text-slate-900 dark:text-white">{g.descripcion}</p>
+                    {g.notas && <p className="text-xs text-slate-400 dark:text-slate-500 truncate max-w-xs">{g.notas}</p>}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {g.proveedores?.razon_social ?? <span className="text-slate-400">—</span>}
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                    {g.proveedores?.razon_social ?? <span className="text-slate-400 dark:text-slate-600">—</span>}
                   </td>
                   <td className="px-4 py-3">
                     {rubros && (
-                      <p className={cn('text-xs mb-0.5', g.rubros?.nombre ? 'text-slate-700 font-medium' : 'text-amber-600')}
+                      <p className={cn('text-xs mb-0.5', g.rubros?.nombre ? 'text-slate-700 dark:text-slate-200 font-medium' : 'text-amber-600 dark:text-amber-400')}
                         title={g.rubros?.nombre ? 'Rubro de obra imputado' : 'Sin imputar — no entra en Control de obra'}>
                         {g.rubros?.nombre ?? 'Sin rubro'}
                       </p>
                     )}
                     {g.categorias_costo ? (
-                      <span className="inline-flex items-center gap-1.5 text-xs">
+                      <span className="inline-flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.categorias_costo.color }} />
                         {g.categorias_costo.nombre}
                       </span>
-                    ) : <span className="text-slate-400 text-xs">—</span>}
+                    ) : <span className="text-slate-400 dark:text-slate-600 text-xs">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                  <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
                     {formatCurrency(g.monto, g.moneda)}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{formatDate(g.fecha_vencimiento)}</td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatDate(g.fecha_vencimiento)}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={cn(
                       'inline-block text-xs font-medium px-2.5 py-0.5 rounded-full',
                       g.estado === 'Pagado'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-orange-100 text-orange-700'
+                        ? 'bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400'
+                        : 'bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-400'
                     )}>
                       {g.estado}
                     </span>
                     {tieneCuotas(g) && (
                       <button onClick={() => setExpandedGastoId(id => id === g.id ? null : g.id)}
-                        className="block mx-auto mt-1 text-[11px] text-indigo-600 hover:text-indigo-800">
+                        className="block mx-auto mt-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
                         {(g.gasto_pagos ?? []).filter(c => c.estado === 'Pagado').length}/{(g.gasto_pagos ?? []).length} pagadas {expandedGastoId === g.id ? '▲' : '▼'}
                       </button>
                     )}
@@ -649,37 +649,37 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                             setPagandoGasto(g)
                             setPagoForm({ cuenta_propia_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
                           }}
-                          className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
+                          className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
                           Registrar pago
                         </button>
                       )}
                       {!readOnly && g.estado === 'Pendiente' && (
                         <button onClick={() => setPlanDePagoTarget(g)}
-                          className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
+                          className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
                           {tieneCuotas(g) ? 'Editar plan' : 'Plan de pago'}
                         </button>
                       )}
                       {g.estado === 'Pagado' && g.fecha_pago && (
-                        <span className="text-xs text-slate-400">{formatDate(g.fecha_pago)}</span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500">{formatDate(g.fecha_pago)}</span>
                       )}
                       {!readOnly && (
                         <button onClick={() => duplicar(g)}
-                          className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Duplicar</button>
+                          className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">Duplicar</button>
                       )}
                       {!readOnly && (
                         <button onClick={() => openEdit(g)}
-                          className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Editar</button>
+                          className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">Editar</button>
                       )}
                       {!readOnly && (
                         <button onClick={() => handleDelete(g)}
-                          className="text-xs text-red-400 hover:text-red-600 transition-colors">✕</button>
+                          className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors">✕</button>
                       )}
                     </div>
                   </td>
                 </tr>
                 {expandedGastoId === g.id && (
                   <tr>
-                    <td colSpan={readOnly ? 7 : 8} className="px-4 py-3 bg-slate-50/50">
+                    <td colSpan={readOnly ? 7 : 8} className="px-4 py-3 bg-slate-50/50 dark:bg-slate-800/30">
                       <CuotasList entidad="gasto" cuotas={g.gasto_pagos ?? []} moneda={g.moneda}
                         cuentasPropias={cuentasPermitidasParaObra(g.obra_id)} constructoraId={constructoraId} obraId={g.obra_id}
                         puedeCrearCuenta={puedeCrearCuenta} readOnly={readOnly} onChanged={refresh} />
@@ -691,7 +691,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
           </table>
         </div>
         {gastosFiltrados.length === 0 && (
-          <div className="text-center py-12 text-slate-400">
+          <div className="text-center py-12 text-slate-400 dark:text-slate-500">
             <p className="text-sm">No hay gastos{filtroEstado !== 'todos' ? ` ${filtroEstado.toLowerCase()}s` : ''}.</p>
           </div>
         )}
@@ -699,18 +699,18 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
 
       {/* Modal Registrar Pago */}
       {pagandoGasto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="p-6 border-b border-slate-200">
-              <h2 className="font-bold text-slate-900">Registrar pago</h2>
-              <p className="text-sm text-slate-500 mt-0.5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="font-bold text-slate-900 dark:text-white">Registrar pago</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                 {pagandoGasto.descripcion} ·{' '}
-                <strong>{formatCurrency(pagandoGasto.monto, pagandoGasto.moneda)}</strong>
+                <strong className="text-slate-900 dark:text-white">{formatCurrency(pagandoGasto.monto, pagandoGasto.moneda)}</strong>
               </p>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta desde la que se pagó *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Cuenta desde la que se pagó *</label>
                 <CuentaPropiaSelect
                   cuentas={[...cuentasPermitidasParaObra(pagandoGasto.obra_id), ...cuentasNuevas]}
                   onCreated={c => setCuentasNuevas(prev => [...prev, c])}
@@ -723,17 +723,17 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   emptyLabel="Seleccionar cuenta..." />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de pago *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Fecha de pago *</label>
                 <input type="date" value={pagoForm.fecha_pago}
                   onChange={e => setPagoForm(f => ({ ...f, fecha_pago: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               {pagoError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{pagoError}</div>
+                <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-red-700 dark:text-red-400 text-sm">{pagoError}</div>
               )}
               <div className="flex gap-3 pt-2">
                 <button onClick={() => { setPagandoGasto(null); setPagoError(null) }}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                   Cancelar
                 </button>
                 <button onClick={confirmarPago}
@@ -749,25 +749,25 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
 
       {/* Modal Pago en lote */}
       {pagandoLote && monedaLote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="p-6 border-b border-slate-200">
-              <h2 className="font-bold text-slate-900">Pagar {gastosSeleccionados.length} gastos</h2>
-              <p className="text-sm text-slate-500 mt-0.5">
-                Total <strong>{formatCurrency(sumarMontos(gastosSeleccionados.map(g => g.monto)), monedaLote)}</strong> — se aplica la misma cuenta y fecha a todos.
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="font-bold text-slate-900 dark:text-white">Pagar {gastosSeleccionados.length} gastos</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                Total <strong className="text-slate-900 dark:text-white">{formatCurrency(sumarMontos(gastosSeleccionados.map(g => g.monto)), monedaLote)}</strong> — se aplica la misma cuenta y fecha a todos.
               </p>
             </div>
             <div className="p-6 space-y-4">
-              <div className="max-h-32 overflow-y-auto bg-slate-50 border border-slate-100 rounded-lg divide-y divide-slate-100">
+              <div className="max-h-32 overflow-y-auto bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-lg divide-y divide-slate-100 dark:divide-slate-800">
                 {gastosSeleccionados.map(g => (
                   <div key={g.id} className="px-3 py-1.5 flex items-center justify-between text-xs">
-                    <span className="text-slate-600 truncate">{g.descripcion}</span>
-                    <span className="text-slate-800 font-medium shrink-0 ml-2">{formatCurrency(g.monto, g.moneda)}</span>
+                    <span className="text-slate-600 dark:text-slate-300 truncate">{g.descripcion}</span>
+                    <span className="text-slate-800 dark:text-slate-200 font-medium shrink-0 ml-2">{formatCurrency(g.monto, g.moneda)}</span>
                   </div>
                 ))}
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta desde la que se pagó *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Cuenta desde la que se pagó *</label>
                 <CuentaPropiaSelect
                   cuentas={[...cuentasPermitidasParaLote(), ...cuentasNuevas]}
                   onCreated={c => setCuentasNuevas(prev => [...prev, c])}
@@ -780,17 +780,17 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   emptyLabel="Seleccionar cuenta..." />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de pago *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Fecha de pago *</label>
                 <input type="date" value={pagoLoteForm.fecha_pago}
                   onChange={e => setPagoLoteForm(f => ({ ...f, fecha_pago: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               {pagoLoteError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{pagoLoteError}</div>
+                <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-red-700 dark:text-red-400 text-sm">{pagoLoteError}</div>
               )}
               <div className="flex gap-3 pt-2">
                 <button onClick={() => { setPagandoLote(false); setPagoLoteError(null) }}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                   Cancelar
                 </button>
                 <button onClick={confirmarPagoLote}
@@ -806,13 +806,13 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
 
       {/* Modal Nuevo/Editar Gasto */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 {editingId ? 'Editar gasto' : 'Nuevo gasto'}
               </h2>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -824,26 +824,26 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                 <div className={cn(
                   'p-3 rounded-lg text-sm border',
                   avisoEscaneo.tipo === 'ok'
-                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                    : 'bg-orange-50 border-orange-200 text-orange-700'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-900/60 text-indigo-700 dark:text-indigo-300'
+                    : 'bg-orange-50 dark:bg-orange-950/50 border-orange-200 dark:border-orange-900/60 text-orange-700 dark:text-orange-300'
                 )}>
                   {avisoEscaneo.mensaje}
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Descripción *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Descripción *</label>
                 <input required value={form.descripcion}
                   onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
                   placeholder="Ej: Compra de hierro ø12, Honorarios arq. mayo..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Moneda</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Moneda</label>
                 <select value={form.moneda} onChange={e => setForm(f => ({ ...f, moneda: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option>ARS</option>
-                  <option>USD</option>
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">ARS</option>
+                  <option className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">USD</option>
                 </select>
               </div>
 
@@ -856,26 +856,26 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
               />
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Percepciones</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Percepciones</label>
                 <input type="number" min="0" step="0.01" value={form.percepciones}
                   onChange={e => setForm(f => ({ ...f, percepciones: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Vencimiento *</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Vencimiento *</label>
                   <input required type="date" value={form.fecha_vencimiento}
                     onChange={e => setForm(f => ({ ...f, fecha_vencimiento: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Categoría</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Categoría</label>
                   <select value={form.categoria_id}
                     onChange={e => setForm(f => ({ ...f, categoria_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">Sin categoría</option>
-                    {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Sin categoría</option>
+                    {categorias.map(c => <option key={c.id} value={c.id} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{c.nombre}</option>)}
                   </select>
                 </div>
               </div>
@@ -884,7 +884,7 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                   proyecto, es lo que alimenta Control de obra. */}
               {rubros && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Rubro de obra</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Rubro de obra</label>
                   <RubroSelect
                     rubros={[...rubros, ...rubrosNuevos]}
                     value={form.rubro_id}
@@ -892,14 +892,14 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
                     onCreated={r => setRubrosNuevos(prev => [...prev, { ...r, enContrato: false }])}
                     constructoraId={constructoraId}
                     emptyLabel="Sin imputar a un rubro" />
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
                     Con esto el gasto entra en Control de obra y se compara contra lo presupuestado. La categoría de arriba es otra cosa: dice qué clase de gasto es, no a qué parte de la obra.
                   </p>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Proveedor</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Proveedor</label>
                 <ProveedorSelect
                   proveedores={[...proveedores.filter(p => p.activo), ...proveedoresNuevos]}
                   onCreated={p => setProveedoresNuevos(prev => [...prev, p])}
@@ -912,21 +912,21 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
 
               {form.proveedor_id && certificadosDelProveedor.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
                     Certificado de subcontratista (opcional)
                   </label>
                   <select value={form.certificado_id}
                     onChange={e => setForm(f => ({ ...f, certificado_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">Sin imputar a un certificado</option>
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Sin imputar a un certificado</option>
                     {certificadosDelProveedor.map(c => (
-                      <option key={c.id} value={c.id}>
+                      <option key={c.id} value={c.id} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
                         {contratosDelProveedor.length > 1 && c.contratoDescripcion ? `${c.contratoDescripcion} — ` : ''}
                         N°{c.numero} — {c.periodo}
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                     Este proveedor tiene contrato de subcontratista en este proyecto — si este gasto corresponde a un certificado de avance suyo, elegilo acá.
                   </p>
                 </div>
@@ -934,13 +934,13 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
 
               {form.proveedor_id && ctasProveedor.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta de cobro del proveedor</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Cuenta de cobro del proveedor</label>
                   <select value={form.cuenta_proveedor_id}
                     onChange={e => setForm(f => ({ ...f, cuenta_proveedor_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">Sin especificar</option>
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Sin especificar</option>
                     {ctasProveedor.map(c => (
-                      <option key={c.id} value={c.id}>
+                      <option key={c.id} value={c.id} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
                         {c.tipo}{c.denominacion ? ` — ${c.denominacion}` : ''}{c.numero ? `: ${c.numero}` : ''}
                       </option>
                     ))}
@@ -949,28 +949,28 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
               )}
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Nº Comprobante</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Nº Comprobante</label>
                 <input value={form.numero_comprobante}
                   onChange={e => setForm(f => ({ ...f, numero_comprobante: e.target.value }))}
                   placeholder="Factura A 0001-00012345"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
 
               {/* Comprobante imagen */}
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Foto comprobante</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Foto comprobante</label>
                 {comprobanteUrl ? (
-                  <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg">
                     <LinkComprobante referencia={comprobanteUrl}
-                      className="text-xs text-indigo-600 hover:underline truncate flex-1 text-left" />
+                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline truncate flex-1 text-left" />
                     <button type="button" onClick={() => setComprobanteUrl('')}
-                      className="text-xs text-red-400 hover:text-red-600">Quitar</button>
+                      className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-300">Quitar</button>
                   </div>
                 ) : (
                   <button type="button" onClick={() => fileRef.current?.click()}
                     disabled={uploadingComp}
-                    className="w-full h-16 border-2 border-dashed border-slate-300 rounded-lg text-slate-400 text-xs
-                               hover:border-indigo-400 hover:text-indigo-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                    className="w-full h-16 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg text-slate-400 dark:text-slate-500 text-xs
+                               hover:border-indigo-400 hover:text-indigo-500 dark:hover:border-indigo-500 dark:hover:text-indigo-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                     {uploadingComp ? 'Subiendo...' : '+ Adjuntar foto de comprobante'}
                   </button>
                 )}
@@ -980,19 +980,19 @@ export default function GastosManager({ gastos, proveedores, categorias, cuentas
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Notas</label>
                 <textarea rows={2} value={form.notas}
                   onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               </div>
 
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
+                <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-red-700 dark:text-red-400 text-sm">{error}</div>
               )}
 
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowForm(false)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                   Cancelar
                 </button>
                 <button type="submit" disabled={loading}

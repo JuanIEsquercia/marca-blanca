@@ -363,7 +363,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
     supabase.from('contratos_venta').select('precio_final').eq('obra_id', obraId).eq('estado', 'vigente'),
     supabase
       .from('cuotas')
-      .select('monto_base, fecha_vencimiento, contratos_venta!inner(obra_id, estado)')
+      .select('monto_base, moneda, fecha_vencimiento, contratos_venta!inner(obra_id, estado)')
       .eq('estado_pago', 'Pendiente')
       .eq('contratos_venta.obra_id', obraId)
       .eq('contratos_venta.estado', 'vigente'),
@@ -381,7 +381,15 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
     reservadas: unidades.filter(u => u.estado_comercial === 'Reservado').length,
     vendidas: unidades.filter(u => u.estado_comercial === 'Vendido').length,
     ingresos_contratos: (precioFinalRes.data ?? []).reduce((acc, c) => acc + Number(c.precio_final), 0),
-    cuotas_pendientes: cuotasPendientes.reduce((acc, c) => acc + Number(c.monto_base), 0),
+    // Un total por moneda, nunca uno solo: desde migration_080 un plan de
+    // cuotas puede estar pactado en pesos, y sumarlo con los dólares daría
+    // un número que no significa nada.
+    cuotas_pendientes: cuotasPendientes
+      .filter(c => (c.moneda ?? 'USD') === 'USD')
+      .reduce((acc, c) => acc + Number(c.monto_base), 0),
+    cuotas_pendientes_ars: cuotasPendientes
+      .filter(c => c.moneda === 'ARS')
+      .reduce((acc, c) => acc + Number(c.monto_base), 0),
     cuotas_vencidas: cuotasVencidas.length,
     reservas_vigentes: reservasVigenteRes.count ?? 0,
     reservas_por_vencer: reservasPorVencerRes.count ?? 0,
@@ -500,7 +508,15 @@ export default async function DashboardPage({ params }: { params: Promise<{ obra
           <p className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-orange-600 dark:text-orange-400 truncate tabular-nums tracking-tight" title={formatCurrency(stats.cuotas_pendientes)}>
             {formatCurrency(stats.cuotas_pendientes)}
           </p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-medium">Total pendiente por cobrar en el plan de pago</p>
+          {stats.cuotas_pendientes_ars > 0 && (
+            <p className="text-lg sm:text-xl font-bold text-orange-600/80 dark:text-orange-400/80 truncate tabular-nums tracking-tight mt-1" title={formatCurrency(stats.cuotas_pendientes_ars, 'ARS')}>
+              + {formatCurrency(stats.cuotas_pendientes_ars, 'ARS')}
+            </p>
+          )}
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-medium">
+            Total pendiente por cobrar en el plan de pago
+            {stats.cuotas_pendientes_ars > 0 && ' · las cuotas en pesos van aparte, no se convierten'}
+          </p>
         </div>
       </div>
 

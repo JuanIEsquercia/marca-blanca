@@ -76,7 +76,7 @@ export default async function TesoreriaPage() {
     // cuotas) para poder proyectar ingresos futuros, no solo mostrar lo ya
     // cobrado.
     supabase.from('cuotas')
-      .select('monto_base, monto_cobrado, fecha_pago, fecha_vencimiento, estado_pago, contratos_venta!inner(obra_id, estado)')
+      .select('monto_base, monto_cobrado, moneda, fecha_pago, fecha_vencimiento, estado_pago, contratos_venta!inner(obra_id, estado)')
       .eq('constructora_id', ctx.constructoraId)
       .eq('contratos_venta.estado', 'vigente')
       .or(`estado_pago.neq.Pagado,fecha_pago.gte.${ventanaInicio}`),
@@ -151,7 +151,9 @@ export default async function TesoreriaPage() {
       const mov = expandirCuota(c)
       return {
         tipo: (mov.liquidado ? 'ingreso' : 'ingreso_comprometido') as 'ingreso' | 'ingreso_comprometido',
-        moneda: 'USD', monto: mov.monto, fecha: mov.fecha,
+        // migration_080: la cuota puede estar pactada en pesos aunque el
+        // precio del contrato sea en dólares.
+        moneda: c.moneda ?? 'USD', monto: mov.monto, fecha: mov.fecha,
         obraId: (c.contratos_venta as unknown as { obra_id: string } | null)?.obra_id ?? null,
       }
     }),
@@ -217,8 +219,10 @@ export default async function TesoreriaPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Caja</h1>
-        <p className="text-slate-500 text-sm mt-1">Saldos por cuenta y flujo de caja mensual — todos los proyectos</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Caja</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+          Consolidado financiero de la empresa — todas las cuentas, fondos por cobrar y pagos pendientes
+        </p>
       </div>
       <TesoreriaView
         cuentas={cuentasConSaldo}

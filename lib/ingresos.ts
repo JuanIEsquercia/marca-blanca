@@ -26,6 +26,10 @@ interface FilaCuota {
   numero_cuota: number
   monto_base: number
   monto_cobrado: number | null
+  // migration_080: una cuota puede estar pactada en pesos aunque el precio
+  // del contrato sea en dólares. Sin leer esto, un plan en pesos se
+  // mostraba como si fueran dólares.
+  moneda: string | null
   fecha_vencimiento: string
   fecha_pago: string | null
   estado_pago: string
@@ -72,9 +76,10 @@ function normalizarCuota(c: FilaCuota): IngresoConsolidado {
     clienteNombre: cv?.compradores?.nombre_completo ?? null,
     descripcion: `Cuota ${c.numero_cuota}${cv ? `/${cv.cantidad_cuotas}` : ''}`,
     monto: c.monto_cobrado ?? c.monto_base,
-    // La venta de unidades es siempre en USD por convención del negocio
-    // (mismo criterio que lib/tesoreria.ts) — cuotas no tiene columna moneda.
-    moneda: 'USD',
+    // El precio de la unidad es siempre en dólares, pero el plan de cuotas
+    // puede haberse pactado en pesos (migration_080). El ?? 'USD' cubre las
+    // filas anteriores a esa migración.
+    moneda: c.moneda ?? 'USD',
     fechaVencimiento: c.fecha_vencimiento,
     fechaPago: c.fecha_pago,
     pagado: c.estado_pago === 'Pagado',
@@ -127,7 +132,7 @@ function normalizarCobro(c: FilaCobro): IngresoConsolidado[] {
 // contratos_venta!inner (no un embed simple): así el .eq('contratos_venta.estado', ...)
 // de abajo excluye directamente las cuotas de un contrato rescindido, en vez
 // de solo anidar el dato — ver migration_058.
-const CUOTA_SELECT = 'id, numero_cuota, monto_base, monto_cobrado, fecha_vencimiento, fecha_pago, estado_pago, contratos_venta!inner(obra_id, cantidad_cuotas, estado, obras(nombre), compradores(nombre_completo))'
+const CUOTA_SELECT = 'id, numero_cuota, monto_base, monto_cobrado, moneda, fecha_vencimiento, fecha_pago, estado_pago, contratos_venta!inner(obra_id, cantidad_cuotas, estado, obras(nombre), compradores(nombre_completo))'
 const COBRO_SELECT = 'id, numero, monto, moneda, fecha_vencimiento, fecha_pago, estado, obra_id, obras(nombre), contratos_obra(compradores(nombre_completo)), cobro_pagos(estado, monto, fecha_pago)'
 
 // Igual criterio que /admin/gastos: los ya cobrados se acotan a los

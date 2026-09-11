@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn, estaVencido, formatCurrency, formatDate, redondear2, sumarMontos, ESTADO_COLORS } from '@/lib/utils'
@@ -8,9 +8,33 @@ import SaleForm from './SaleForm'
 import ConfirmModal from './ConfirmModal'
 import IvaCalculator from './IvaCalculator'
 import CuentaPropiaSelect from './CuentaPropiaSelect'
-import type { Unidad, Tipologia, Comprador, Cuota, CuentaPropia } from '@/types/database'
+import { emitirCuota, proyectarMonto } from '@/lib/cuotas-ajuste'
+import type { Unidad, Tipologia, Comprador, Cuota, CuentaPropia, MonedaPlan } from '@/types/database'
 
 type UnidadConTipologia = Unidad & { tipologias: Tipologia }
+
+// El precio de una unidad y la entrega efectiva son siempre en dólares. El
+// PLAN DE CUOTAS puede estar pactado en pesos (migration_080). Para poder
+// compararlos sin mezclar monedas en un mismo total, todo lo que se
+// contrasta contra las cuotas se expresa en la moneda del plan, usando la
+// cotización pactada al firmar — que es, precisamente, el tipo de cambio
+// que las partes acordaron para ese contrato.
+function monedaDelPlan(c: { cuotas_moneda: MonedaPlan | null }): MonedaPlan {
+  return c.cuotas_moneda ?? 'USD'
+}
+
+function aMonedaDelPlan(c: { cuotas_moneda: MonedaPlan | null; cotizacion_pactada: number | null }, montoUsd: number): number {
+  if (monedaDelPlan(c) !== 'ARS') return montoUsd
+  return redondear2(montoUsd * (c.cotizacion_pactada ?? 1))
+}
+
+// Etiqueta corta del ajuste, para no obligar a abrir el contrato para
+// saber si una cuota se mueve o no.
+function etiquetaIndice(tipo: string | null): string | null {
+  if (!tipo) return null
+  if (tipo.startsWith('USD')) return 'dólar'
+  return tipo
+}
 
 type ContratoRow = {
   id: string
@@ -21,6 +45,13 @@ type ContratoRow = {
   fecha_firma: string
   notas: string | null
   estado: 'vigente' | 'rescindido'
+  // Cómo se pactó el plan de cuotas (migration_079 + migration_080). El
+  // precio y la entrega son SIEMPRE en dólares; esto describe únicamente
+  // las cuotas.
+  cuotas_moneda: MonedaPlan | null
+  cotizacion_pactada: number | null
+  indice_tipo: string | null
+  tasa_mora_diaria: number | null
   compradores: Comprador | null
   unidades: (Unidad & { tipologias: { nombre: string } }) | null
   cuotas: Cuota[]
@@ -71,9 +102,16 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
   // Panel cuotas
   const [cuotaPanel, setCuotaPanel] = useState<ContratoRow | null>(null)
   const [confirmRecalcular, setConfirmRecalcular] = useState(false)
+  // Valor del índice del contrato al día de hoy. Se pide UNA vez al abrir
+  // el panel, no una por cuota: la proyección es multiplicar las unidades
+  // pactadas por este número, exactamente la misma cuenta que hace
+  // estado_cuota() en la base.
+  const [indiceHoy, setIndiceHoy] = useState<number | null>(null)
+  const [emitiendo, setEmitiendo] = useState<string | null>(null)
+  const [errorEmision, setErrorEmision] = useState<string | null>(null)
 
   // Modal pago
-  const [pagoModal, setPagoModal] = useState<{ cuotaId: string; monto: number } | null>(null)
+  const [pagoModal, setPagoModal] = useState<{ cuotaId: string; monto: number; moneda: MonedaPlan; capital: number; interes: number; dias: number } | null>(null)
   const [pagoCuenta, setPagoCuenta] = useState('')
   const [pagoFecha, setPagoFecha] = useState(today)
   const [cuentasNuevas, setCuentasNuevas] = useState<CuentaPropia[]>([])
@@ -106,6 +144,21 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
   const totalIngresos = sumarMontos(rows.map(c => Number(c.precio_final)))
   const totalVencidas = rows.reduce((acc, c) => acc + c.vencidas, 0)
 
+  // Sin índice cargado la proyección no se inventa: se muestra el monto
+  // pactado y se avisa que falta el índice (mismo criterio que valor_indice,
+  // que devuelve NULL en vez de 1).
+  useEffect(() => {
+    const tipo = cuotaPanel?.indice_tipo
+    let vigente = true
+    const pedido = tipo
+      ? createClient()
+          .rpc('valor_indice', { p_tipo: tipo, p_fecha: today })
+          .then(({ data }) => (data == null ? null : Number(data)))
+      : Promise.resolve(null)
+    pedido.then(valor => { if (vigente) setIndiceHoy(valor) })
+    return () => { vigente = false }
+  }, [cuotaPanel?.indice_tipo, today])
+
   function refresh() { startTransition(() => router.refresh()) }
 
   function openCuotaPanel(c: ContratoRow) {
@@ -127,8 +180,12 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     })
   }
 
-  function abrirPago(cuotaId: string, monto: number) {
-    setPagoModal({ cuotaId, monto })
+  // El interés por mora viene desglosado y NO se guarda en ningún lado: se
+  // calcula hasta el día del cobro y quien cobra puede decidir no cobrarlo
+  // (así se resuelven los días de gracia, que en la práctica se perdonan o
+  // se corren en la fecha de vencimiento).
+  function abrirPago(cuotaId: string, monto: number, moneda: MonedaPlan, capital: number, interes: number, dias: number) {
+    setPagoModal({ cuotaId, monto, moneda, capital, interes, dias })
     setPagoCuenta('')
     setPagoFecha(today)
     setPagoMonto(String(monto))
@@ -169,13 +226,25 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
   // acción en la UI para corregirlo.
   async function recalcularCuotasPendientes() {
     if (!cuotaPanel) return
+    // Un plan ajustable no se redistribuye acá: qué pasa con lo ya emitido
+    // y contra qué valor de índice se reparte el resto son decisiones del
+    // contrato, no un promedio. Repartir en partes iguales sobre montos que
+    // se mueven daría un número que no representa nada.
+    if (cuotaPanel.indice_tipo) {
+      throw new Error('Este contrato tiene cuotas ajustables por índice: el plan no se redistribuye en partes iguales. Ajustá las cuotas pendientes una por una.')
+    }
+
     const pendientes = cuotasPanel.filter(c => c.estado_pago === 'Pendiente')
     if (pendientes.length === 0) return
 
     const pagadoTotal = sumarMontos(
       cuotasPanel.filter(c => c.estado_pago === 'Pagado').map(c => c.monto_cobrado ?? c.monto_base)
     )
-    const nuevoSaldo = redondear2(cuotaPanel.precio_final - cuotaPanel.entrega_efectiva - pagadoTotal)
+    // El precio y la entrega están en dólares; las cuotas, en la moneda del
+    // plan. Se convierte el precio, nunca lo ya cobrado.
+    const nuevoSaldo = redondear2(
+      aMonedaDelPlan(cuotaPanel, cuotaPanel.precio_final - cuotaPanel.entrega_efectiva) - pagadoTotal
+    )
 
     if (nuevoSaldo < 0) {
       throw new Error('El precio actual es menor a la entrega + lo ya cobrado — revisá el precio del contrato antes de recalcular.')
@@ -202,7 +271,11 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     const comp = cuotaPanel.compradores!
     const unidad = cuotaPanel.unidades!
     const totalCuotas = cuotaPanel.cuotas.length
-    const fmt = (n: number) => formatCurrency(n, 'USD')
+    // El precio del contrato se imprime en dólares (es como se pactó); la
+    // cuota, en la moneda de su plan. Mezclarlos en un solo formato es
+    // justamente lo que hacía que un recibo en pesos dijera "US$".
+    const fmtUsd = (n: number) => formatCurrency(n, 'USD')
+    const fmt = (n: number) => formatCurrency(n, cuota.moneda ?? 'USD')
     const fmtDate = (s: string) =>
       new Date(s).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
@@ -233,7 +306,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     <div class="row"><span class="label">Comprador</span><span class="value">${comp.nombre_completo}</span></div>
     <div class="row"><span class="label">DNI / CUIT</span><span class="value">${comp.dni_cuit}</span></div>
     <div class="row"><span class="label">Unidad</span><span class="value">P${unidad.piso} · ${unidad.numero}${unidad.letra ?? ''} · ${unidad.tipologias.nombre}</span></div>
-    <div class="row"><span class="label">Precio total del contrato</span><span class="value">${fmt(cuotaPanel.precio_final)}</span></div>
+    <div class="row"><span class="label">Precio total del contrato</span><span class="value">${fmtUsd(cuotaPanel.precio_final)}</span></div>
   </div>
   <div class="highlight">
     <div class="monto-label">Monto cobrado</div>
@@ -241,6 +314,8 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
   </div>
   <div class="section">
     <div class="row"><span class="label">Monto base de cuota</span><span class="value">${fmt(cuota.monto_base)}</span></div>
+    ${cuotaPanel.indice_tipo ? `<div class="row"><span class="label">Ajuste pactado</span><span class="value">${etiquetaIndice(cuotaPanel.indice_tipo)}${cuota.monto_indice != null ? ` · ${cuota.monto_indice} unidades` : ''}</span></div>` : ''}
+    ${cuota.fecha_emision ? `<div class="row"><span class="label">Cuota emitida el</span><span class="value">${fmtDate(cuota.fecha_emision)}${cuota.indice_valor_emision != null ? ` · índice ${cuota.indice_valor_emision}` : ''}</span></div>` : ''}
     <div class="row"><span class="label">Fecha de vencimiento</span><span class="value">${fmtDate(cuota.fecha_vencimiento)}</span></div>
     <div class="row"><span class="label">Fecha de pago</span><span class="value">${fmtDate(cuota.fecha_pago!)}</span></div>
     ${cuota.numero_comprobante ? `<div class="row"><span class="label">N° comprobante</span><span class="value">${cuota.numero_comprobante}</span></div>` : ''}
@@ -263,11 +338,19 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     const comp = cuotaPanel.compradores!
     const unidad = cuotaPanel.unidades!
     const cuotasOrdenadas = [...cuotaPanel.cuotas].sort((a, b) => a.numero_cuota - b.numero_cuota)
-    const fmt = (n: number) => formatCurrency(n, 'USD')
+    // Toda la posición de pagos se expresa en la moneda del PLAN: si las
+    // cuotas se pactaron en pesos, el precio y la entrega se convierten a
+    // la cotización pactada al firmar. Es el único modo de que "total
+    // abonado" y "% abonado" signifiquen algo — sumar pesos con dólares no.
+    const moneda = monedaDelPlan(cuotaPanel)
+    const fmt = (n: number) => formatCurrency(n, moneda)
+    const fmtUsd = (n: number) => formatCurrency(n, 'USD')
+    const precioPlan = aMonedaDelPlan(cuotaPanel, cuotaPanel.precio_final)
+    const entregaPlan = aMonedaDelPlan(cuotaPanel, cuotaPanel.entrega_efectiva)
     const fmtDate = (s: string) =>
       new Date(s).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
-    const saldoFinanciado = redondear2(cuotaPanel.precio_final - cuotaPanel.entrega_efectiva)
+    const saldoFinanciado = redondear2(precioPlan - entregaPlan)
     const cuotasPagadasCount = cuotasOrdenadas.filter(c => c.estado_pago === 'Pagado').length
     const cuotasPendientesCount = cuotasOrdenadas.filter(c => c.estado_pago === 'Pendiente').length
     const totalCuotasPagado = sumarMontos(
@@ -276,8 +359,8 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     const totalPendiente = sumarMontos(
       cuotasOrdenadas.filter(c => c.estado_pago === 'Pendiente').map(c => Number(c.monto_base))
     )
-    const totalAbonado = redondear2(cuotaPanel.entrega_efectiva + totalCuotasPagado)
-    const pctAbonado = Math.round((totalAbonado / cuotaPanel.precio_final) * 100)
+    const totalAbonado = redondear2(entregaPlan + totalCuotasPagado)
+    const pctAbonado = precioPlan > 0 ? Math.round((totalAbonado / precioPlan) * 100) : 0
     const montoCuotaAprox = cuotasOrdenadas.length > 0
       ? redondear2(saldoFinanciado / cuotasOrdenadas.length)
       : 0
@@ -388,11 +471,11 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     <div class="finance-box">
       <div class="finance-box-header">Estructura financiera del contrato</div>
       <div class="finance-body">
-        <div class="finance-row"><div><div class="finance-row-label">Precio total</div></div><div class="finance-row-value" style="color:#0f172a;">${fmt(cuotaPanel.precio_final)}</div></div>
+        <div class="finance-row"><div><div class="finance-row-label">Precio total</div>${moneda === 'ARS' ? `<div class="finance-row-sub">${fmtUsd(cuotaPanel.precio_final)} a la cotización pactada de ${cuotaPanel.cotizacion_pactada} $/US$</div>` : ''}</div><div class="finance-row-value" style="color:#0f172a;">${fmt(precioPlan)}</div></div>
         <div class="finance-divider"></div>
-        <div class="finance-row"><div><div class="finance-row-label">Entrega efectiva</div><div class="finance-row-sub">Pagada al momento de la firma · ${fmtDate(cuotaPanel.fecha_firma)}</div></div><div class="finance-row-value" style="color:#15803d;">— ${fmt(cuotaPanel.entrega_efectiva)}</div></div>
+        <div class="finance-row"><div><div class="finance-row-label">Entrega efectiva</div><div class="finance-row-sub">Pagada al momento de la firma · ${fmtDate(cuotaPanel.fecha_firma)}${moneda === 'ARS' ? ` · ${fmtUsd(cuotaPanel.entrega_efectiva)}` : ''}</div></div><div class="finance-row-value" style="color:#15803d;">— ${fmt(entregaPlan)}</div></div>
         <div class="finance-total-row"><div class="finance-total-label">Saldo financiado en ${cuotasOrdenadas.length} cuotas</div><div class="finance-total-value">${fmt(saldoFinanciado)}</div></div>
-        <div style="font-size:10px;color:#94a3b8;margin-top:4px;">Valor de referencia por cuota: ${fmt(montoCuotaAprox)}</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:4px;">Valor de referencia por cuota: ${fmt(montoCuotaAprox)}${cuotaPanel.indice_tipo ? ` · ajustable por ${etiquetaIndice(cuotaPanel.indice_tipo)}, los montos no emitidos son estimados` : ''}</div>
       </div>
     </div>
     <div class="cards">
@@ -514,10 +597,54 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
     ? Math.max(0, redondear2(parseFloat(editState.precioFinal || '0') - parseFloat(editState.entregaEfectiva || '0')))
     : 0
 
+  // Cuánto vale HOY una cuota. Con ajuste por índice y sin emitir es una
+  // PROYECCIÓN, no un compromiso: por eso vuelve marcada como estimada y la
+  // pantalla lo dice. Emitida, el monto está congelado y no se recalcula
+  // nunca más (lo impone un trigger, no solo esta función).
+  function capitalCuota(cuota: Cuota): { monto: number; estimado: boolean } {
+    if (!cuotaPanel?.indice_tipo || cuota.fecha_emision || cuota.monto_indice == null) {
+      return { monto: Number(cuota.monto_base), estimado: false }
+    }
+    if (indiceHoy == null) return { monto: Number(cuota.monto_base), estimado: true }
+    return { monto: proyectarMonto(Number(cuota.monto_indice), indiceHoy), estimado: true }
+  }
+
+  // Interés por atraso: diario simple SOBRE EL CAPITAL YA AJUSTADO, nunca
+  // capitalizado, nunca guardado. Misma cuenta que estado_cuota() en la
+  // base. Se calcula hasta hoy, o hasta el día que se cobró.
+  function moraCuota(capital: number, cuota: Cuota): { dias: number; interes: number } {
+    const hasta = cuota.fecha_pago ?? today
+    const dias = Math.max(0, Math.round(
+      (Date.parse(hasta) - Date.parse(cuota.fecha_vencimiento)) / 86_400_000
+    ))
+    const tasa = cuotaPanel?.tasa_mora_diaria
+    if (!tasa || dias <= 0) return { dias, interes: 0 }
+    return { dias, interes: redondear2(capital * (tasa / 100) * dias) }
+  }
+
+  // Congela el monto de la cuota con el último índice publicado. Es
+  // explícito y no automático al vencer porque la cuota se le manda al
+  // comprador días antes y el número tiene que quedar fijo desde ese envío.
+  async function emitir(cuotaId: string) {
+    setEmitiendo(cuotaId)
+    setErrorEmision(null)
+    const res = await emitirCuota(createClient(), cuotaId, today)
+    setEmitiendo(null)
+    if (!res.ok) { setErrorEmision(res.error); return }
+    setCuotaPanel(prev => prev ? {
+      ...prev,
+      cuotas: prev.cuotas.map(q => q.id === cuotaId
+        ? { ...q, monto_base: res.resultado.montoCongelado, fecha_emision: today, indice_valor_emision: res.resultado.indiceUsado }
+        : q),
+    } : prev)
+    refresh()
+  }
+
   // Cuotas del panel activo
   const cuotasPanel = cuotaPanel
     ? [...cuotaPanel.cuotas].sort((a, b) => a.numero_cuota - b.numero_cuota)
     : []
+  const monedaPanel: MonedaPlan = cuotaPanel ? monedaDelPlan(cuotaPanel) : 'USD'
   const cuotasPagadas = cuotasPanel.filter(c => c.estado_pago === 'Pagado').length
   const cuotasPendientes = cuotasPanel.filter(c => c.estado_pago === 'Pendiente').length
   const cuotasVencidas = cuotasPanel.filter(c => estaVencido(c.fecha_vencimiento, c.estado_pago, 'Pendiente')).length
@@ -527,12 +654,12 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Ventas</h1>
-          <p className="text-slate-500 text-sm mt-1">Todos los contratos de venta del desarrollo</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Ventas</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Todos los contratos de venta del desarrollo</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
           <div className="relative w-full sm:w-64">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -540,8 +667,8 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
               placeholder="Buscar por nombre o DNI..."
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
-              className="pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm
-                         focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full bg-white"
+              className="pl-9 pr-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-sm
+                         focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
           </div>
           {!readOnly && (
@@ -564,80 +691,80 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
 
       {/* Resumen */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <p className="text-xs font-medium text-slate-500 mb-1">Ventas registradas</p>
-          <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate" title={String(rows.length)}>{rows.length}</p>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-4">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Ventas registradas</p>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate" title={String(rows.length)}>{rows.length}</p>
         </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <p className="text-xs font-medium text-slate-500 mb-1">Ingresos totales</p>
-          <p className="text-xl sm:text-2xl font-bold text-slate-900 truncate" title={formatCurrency(totalIngresos)}>{formatCurrency(totalIngresos)}</p>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-4">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Ingresos totales</p>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate" title={formatCurrency(totalIngresos)}>{formatCurrency(totalIngresos)}</p>
         </div>
-        <div className={`border rounded-xl p-4 ${totalVencidas > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
-          <p className={`text-xs font-medium mb-1 ${totalVencidas > 0 ? 'text-red-600' : 'text-slate-500'}`}>
+        <div className={`border rounded-xl p-4 ${totalVencidas > 0 ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/50' : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800'}`}>
+          <p className={`text-xs font-medium mb-1 ${totalVencidas > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
             Cuotas vencidas sin cobrar
           </p>
-          <p className={`text-xl sm:text-2xl font-bold ${totalVencidas > 0 ? 'text-red-700' : 'text-slate-900'} truncate`} title={String(totalVencidas)}>
+          <p className={`text-xl sm:text-2xl font-bold ${totalVencidas > 0 ? 'text-red-700 dark:text-red-300' : 'text-slate-900 dark:text-white'} truncate`} title={String(totalVencidas)}>
             {totalVencidas}
           </p>
         </div>
       </div>
 
       {/* Tabla */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Comprador</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Unidad</th>
-                <th className="text-right px-4 py-3 font-semibold text-slate-600">Precio final</th>
-                <th className="text-right px-4 py-3 font-semibold text-slate-600">Entrega</th>
-                <th className="text-center px-4 py-3 font-semibold text-slate-600">Cuotas</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Firma</th>
+              <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Comprador</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Unidad</th>
+                <th className="text-right px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Precio final</th>
+                <th className="text-right px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Entrega</th>
+                <th className="text-center px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Cuotas</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Firma</th>
                 <th className="px-4 py-3 w-44" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {rowsFiltrados.map((c) => {
                 const unidad = c.unidades
                 const comprador = c.compradores
                 return (
-                  <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <p className="font-medium text-slate-900">{comprador?.nombre_completo}</p>
+                        <p className="font-medium text-slate-900 dark:text-white">{comprador?.nombre_completo}</p>
                         {c.estado === 'rescindido' && (
-                          <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">Rescindido</span>
+                          <span className="text-[10px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/60 px-1.5 py-0.5 rounded-full">Rescindido</span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-400 font-mono">{comprador?.dni_cuit}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">{comprador?.dni_cuit}</p>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                       {unidad ? `P${unidad.piso} - ${unidad.numero}${unidad.letra ?? ''}` : '—'}
-                      <p className="text-xs text-slate-400">{unidad?.tipologias?.nombre}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{unidad?.tipologias?.nombre}</p>
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                    <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
                       {formatCurrency(c.precio_final)}
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-600">
+                    <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">
                       {formatCurrency(c.entrega_efectiva)}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex flex-col items-center gap-0.5">
-                        <span className="text-xs text-slate-500">{c.pagadas}/{c.cuotas.length} pagadas</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">{c.pagadas}/{c.cuotas.length} pagadas</span>
                         {c.vencidas > 0 && (
-                          <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+                          <span className="text-[10px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/60 px-1.5 py-0.5 rounded-full">
                             {c.vencidas} vencida{c.vencidas > 1 ? 's' : ''}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-500">{formatDate(c.fecha_firma)}</td>
+                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{formatDate(c.fecha_firma)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => openCuotaPanel(c)}
-                          className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors px-2 py-1"
+                          className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors px-2 py-1"
                         >
                           Ver cuotas →
                         </button>
@@ -645,7 +772,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                           <button
                             onClick={() => openEdit(c)}
                             title="Editar"
-                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                            className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -661,7 +788,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                               unidadId: c.unidad_id,
                             })}
                             title="Rescindir contrato — la venta cayó, pero conserva el historial de cuotas"
-                            className="text-xs font-medium text-slate-400 hover:text-amber-700 hover:bg-amber-50 rounded-lg px-2 py-1 transition-colors"
+                            className="text-xs font-medium text-slate-400 hover:text-amber-700 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg px-2 py-1 transition-colors"
                           >
                             Rescindir
                           </button>
@@ -674,7 +801,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                               unidadId: c.unidad_id,
                             })}
                             title="Eliminar"
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -719,26 +846,39 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
           {/* Overlay */}
           <div className="flex-1 bg-black/40" onClick={() => setCuotaPanel(null)} />
           {/* Panel */}
-          <div className="w-full max-w-2xl bg-slate-50 flex flex-col shadow-2xl overflow-hidden">
+          <div className="w-full max-w-2xl bg-slate-50 dark:bg-slate-950 flex flex-col shadow-2xl overflow-hidden">
             {/* Panel header */}
-            <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-start justify-between shrink-0">
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-start justify-between shrink-0">
               <div>
-                <p className="font-bold text-slate-900 text-lg">
+                <p className="font-bold text-slate-900 dark:text-white text-lg">
                   {cuotaPanel.compradores?.nombre_completo}
                 </p>
-                <p className="text-slate-500 text-sm mt-0.5">
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
                   DNI/CUIT: {cuotaPanel.compradores?.dni_cuit} ·{' '}
                   P{cuotaPanel.unidades?.piso} - {cuotaPanel.unidades?.numero}{cuotaPanel.unidades?.letra ?? ''} ·{' '}
                   Precio: {formatCurrency(cuotaPanel.precio_final)}
                 </p>
+                {(monedaPanel === 'ARS' || cuotaPanel.indice_tipo) && (
+                  <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1 font-medium">
+                    Cuotas en {monedaPanel === 'ARS' ? 'pesos' : 'dólares'}
+                    {cuotaPanel.cotizacion_pactada ? ` · cotización pactada ${cuotaPanel.cotizacion_pactada} $/US$` : ''}
+                    {cuotaPanel.indice_tipo ? ` · ajustables por ${etiquetaIndice(cuotaPanel.indice_tipo)}` : ''}
+                    {cuotaPanel.tasa_mora_diaria ? ` · mora ${cuotaPanel.tasa_mora_diaria}% diario` : ''}
+                  </p>
+                )}
+                {cuotaPanel.indice_tipo && indiceHoy == null && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    No hay ningún valor de {etiquetaIndice(cuotaPanel.indice_tipo)} cargado: los montos que se muestran son los pactados, sin ajustar.
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2 ml-4 shrink-0">
-                {!readOnly && cuotasPendientes > 0 && (
+                {!readOnly && cuotasPendientes > 0 && !cuotaPanel.indice_tipo && (
                   <button
                     onClick={() => setConfirmRecalcular(true)}
                     title="Redistribuye el saldo pendiente actual (precio - entrega - lo ya cobrado) entre las cuotas que siguen pendientes. Las cuotas ya pagadas no se tocan."
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600
-                               border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300
+                               border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -749,8 +889,8 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                 )}
                 <button
                   onClick={imprimirEstadoCuenta}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600
-                             border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300
+                             border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -760,7 +900,7 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                 </button>
                 <button
                   onClick={() => setCuotaPanel(null)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -770,55 +910,77 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
             </div>
 
             {/* Stats */}
-            <div className="px-6 py-3 bg-white border-b border-slate-100 flex gap-6 shrink-0">
+            <div className="px-6 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex gap-6 shrink-0">
               <div className="text-center">
-                <p className="text-xl font-bold text-slate-900">{cuotasPanel.length}</p>
-                <p className="text-xs text-slate-500">Total</p>
+                <p className="text-xl font-bold text-slate-900 dark:text-white">{cuotasPanel.length}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Total</p>
               </div>
               <div className="text-center">
-                <p className="text-xl font-bold text-green-600">{cuotasPagadas}</p>
-                <p className="text-xs text-slate-500">Pagadas</p>
+                <p className="text-xl font-bold text-green-600 dark:text-emerald-400">{cuotasPagadas}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Pagadas</p>
               </div>
               <div className="text-center">
-                <p className="text-xl font-bold text-orange-500">{cuotasPendientes}</p>
-                <p className="text-xs text-slate-500">Pendientes</p>
+                <p className="text-xl font-bold text-orange-500 dark:text-amber-400">{cuotasPendientes}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Pendientes</p>
               </div>
               {cuotasVencidas > 0 && (
                 <div className="text-center">
-                  <p className="text-xl font-bold text-red-600">{cuotasVencidas}</p>
-                  <p className="text-xs text-red-500">Vencidas</p>
+                  <p className="text-xl font-bold text-red-600 dark:text-red-400">{cuotasVencidas}</p>
+                  <p className="text-xs text-red-500 dark:text-red-400">Vencidas</p>
                 </div>
               )}
             </div>
 
             {/* Tabla cuotas */}
             <div className="flex-1 overflow-y-auto p-4">
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              {errorEmision && (
+                <div className="mb-3 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg text-sm">
+                  {errorEmision}
+                </div>
+              )}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="text-center px-3 py-2.5 font-semibold text-slate-600 w-12">Nº</th>
-                        <th className="text-right px-3 py-2.5 font-semibold text-slate-600">Monto</th>
-                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Vencimiento</th>
-                        <th className="text-center px-3 py-2.5 font-semibold text-slate-600">Estado</th>
-                        <th className="text-right px-3 py-2.5 font-semibold text-slate-600">Cobrado</th>
-                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Pago</th>
+                      <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                        <th className="text-center px-3 py-2.5 font-semibold text-slate-600 dark:text-slate-300 w-12">Nº</th>
+                        <th className="text-right px-3 py-2.5 font-semibold text-slate-600 dark:text-slate-300">Monto</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600 dark:text-slate-300">Vencimiento</th>
+                        <th className="text-center px-3 py-2.5 font-semibold text-slate-600 dark:text-slate-300">Estado</th>
+                        <th className="text-right px-3 py-2.5 font-semibold text-slate-600 dark:text-slate-300">Cobrado</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600 dark:text-slate-300">Pago</th>
                         <th className="px-3 py-2.5" />
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {cuotasPanel.map(cuota => {
                         const esVencida = estaVencido(cuota.fecha_vencimiento, cuota.estado_pago, 'Pendiente')
+                        const { monto: capital, estimado } = capitalCuota(cuota)
+                        const { dias, interes } = moraCuota(capital, cuota)
+                        const puedeEmitir = !readOnly && !!cuotaPanel.indice_tipo
+                          && !cuota.fecha_emision && cuota.estado_pago !== 'Pagado'
                         return (
                           <tr key={cuota.id}
-                            className={cn('hover:bg-slate-50 transition-colors', esVencida && 'bg-red-50/40')}>
-                            <td className="px-3 py-2.5 text-center text-slate-500 text-xs">{cuota.numero_cuota}</td>
-                            <td className="px-3 py-2.5 text-right font-medium text-slate-900">
-                              {formatCurrency(cuota.monto_base)}
+                            className={cn('hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors', esVencida && 'bg-red-50/40 dark:bg-red-950/20')}>
+                            <td className="px-3 py-2.5 text-center text-slate-500 dark:text-slate-400 text-xs">{cuota.numero_cuota}</td>
+                            <td className="px-3 py-2.5 text-right font-medium text-slate-900 dark:text-white">
+                              {formatCurrency(capital, cuota.moneda ?? 'USD')}
+                              {estimado && (
+                                <span className="block text-[10px] font-normal text-amber-600 dark:text-amber-400">estimado</span>
+                              )}
+                              {cuota.fecha_emision && (
+                                <span className="block text-[10px] font-normal text-slate-400 dark:text-slate-500">
+                                  emitida {formatDate(cuota.fecha_emision)}
+                                </span>
+                              )}
+                              {interes > 0 && cuota.estado_pago !== 'Pagado' && (
+                                <span className="block text-[10px] font-normal text-red-600 dark:text-red-400">
+                                  + {formatCurrency(interes, cuota.moneda ?? 'USD')} de mora ({dias} d)
+                                </span>
+                              )}
                             </td>
                             <td className="px-3 py-2.5">
-                              <span className={cn('text-xs', esVencida ? 'text-red-600 font-semibold' : 'text-slate-600')}>
+                              <span className={cn('text-xs', esVencida ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-slate-600 dark:text-slate-300')}>
                                 {formatDate(cuota.fecha_vencimiento)}
                               </span>
                             </td>
@@ -830,28 +992,38 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                                 {esVencida ? 'Vencida' : cuota.estado_pago}
                               </span>
                             </td>
-                            <td className="px-3 py-2.5 text-right text-slate-500 text-xs">
-                              {cuota.monto_cobrado ? formatCurrency(cuota.monto_cobrado) : '—'}
+                            <td className="px-3 py-2.5 text-right text-slate-500 dark:text-slate-400 text-xs">
+                              {cuota.monto_cobrado ? formatCurrency(cuota.monto_cobrado, cuota.moneda ?? 'USD') : '—'}
                             </td>
-                            <td className="px-3 py-2.5 text-slate-500 text-xs">
+                            <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400 text-xs">
                               {cuota.fecha_pago ? formatDate(cuota.fecha_pago) : '—'}
                             </td>
-                            <td className="px-3 py-2.5 text-right">
+                            <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                              {puedeEmitir && (
+                                <button
+                                  onClick={() => emitir(cuota.id)}
+                                  disabled={emitiendo === cuota.id}
+                                  title="Congela el monto de esta cuota con el último índice publicado. Una vez emitida ya no se ajusta: el ajuste corre siempre hacia adelante."
+                                  className="text-xs font-medium text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 disabled:opacity-50 mr-3 transition-colors"
+                                >
+                                  {emitiendo === cuota.id ? 'Emitiendo...' : 'Emitir'}
+                                </button>
+                              )}
                               {cuota.estado_pago === 'Pagado' ? (
                                 <button
                                   onClick={() => imprimirRecibo(cuota)}
-                                  className="text-xs text-slate-400 hover:text-slate-700 transition-colors"
+                                  className="text-xs text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                                 >
                                   Recibo
                                 </button>
                               ) : !readOnly ? (
                                 <button
-                                  onClick={() => abrirPago(cuota.id, cuota.monto_base)}
+                                  onClick={() => abrirPago(cuota.id, redondear2(capital + interes), (cuota.moneda ?? 'USD'), capital, interes, dias)}
                                   className={cn(
                                     'text-xs font-medium transition-colors',
                                     esVencida
-                                      ? 'text-red-600 hover:text-red-800'
-                                      : 'text-indigo-600 hover:text-indigo-800'
+                                      ? 'text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300'
+                                      : 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300'
                                   )}
                                 >
                                   Cobrar
@@ -872,36 +1044,45 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
 
       {/* ── Modal pago de cuota ──────────────────────────────── */}
       {pagoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="p-6 border-b border-slate-200">
-              <h2 className="font-bold text-slate-900">Registrar cobro de cuota</h2>
-              <p className="text-sm text-slate-500 mt-0.5">
-                Monto base: <strong>{formatCurrency(pagoModal.monto)}</strong>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="font-bold text-slate-900 dark:text-white">Registrar cobro de cuota</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                Monto base: <strong>{formatCurrency(pagoModal.capital, pagoModal.moneda)}</strong>
               </p>
+              {pagoModal.interes > 0 && (
+                <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                  + {formatCurrency(pagoModal.interes, pagoModal.moneda)} de interés por {pagoModal.dias} día{pagoModal.dias === 1 ? '' : 's'} de atraso ·{' '}
+                  <strong>total {formatCurrency(pagoModal.monto, pagoModal.moneda)}</strong>
+                  <span className="block text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                    Si perdonás la mora, bajá el total al monto base.
+                  </span>
+                </p>
+              )}
             </div>
             <div className="p-6 space-y-4">
               <IvaCalculator
                 montoNeto={pagoNeto} iva={pagoIva} monto={pagoMonto}
                 onChangeMontoNeto={setPagoNeto} onChangeIva={setPagoIva} onChangeMonto={setPagoMonto}
               />
-              <p className="text-[10px] text-slate-400 -mt-2">El total es el &quot;Monto cobrado&quot; — modificalo si se cobró un monto diferente al base.</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 -mt-2">El total es el &quot;Monto cobrado&quot; — modificalo si se cobró un monto diferente al base.</p>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Percepciones</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Percepciones</label>
                 <input type="number" min="0" step="0.01" value={pagoPercepciones}
                   onChange={e => setPagoPercepciones(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm
                              focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">N° comprobante</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">N° comprobante</label>
                 <input value={pagoComprobante}
                   onChange={e => setPagoComprobante(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg text-sm
                              focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Cuenta donde se recibió</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Cuenta donde se recibió</label>
                 <CuentaPropiaSelect
                   cuentas={[...cuentasPropias.filter(c => c.activa), ...cuentasNuevas]}
                   onCreated={c => setCuentasNuevas(prev => [...prev, c])}
@@ -910,20 +1091,20 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                   constructoraId={constructoraId}
                   obraId={obraId}
                   puedeCrear={puedeCrearCuenta}
-                  moneda="USD"
+                  moneda={pagoModal.moneda}
                   emptyLabel="Sin asignar" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de cobro *</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Fecha de cobro *</label>
                 <input type="date" value={pagoFecha}
                   onChange={e => setPagoFecha(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm
                              focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setPagoModal(null)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                   Cancelar
                 </button>
                 <button onClick={confirmarPago}
@@ -940,16 +1121,16 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
 
       {/* ── Modal: selector de unidad ────────────────────────── */}
       {showUnitPicker && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
               <div>
-                <h2 className="font-bold text-slate-900">Nueva venta</h2>
-                <p className="text-sm text-slate-500 mt-0.5">
+                <h2 className="font-bold text-slate-900 dark:text-white">Nueva venta</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                   {unidadesDisponibles.length} unidad{unidadesDisponibles.length !== 1 ? 'es' : ''} disponible{unidadesDisponibles.length !== 1 ? 's' : ''}
                 </p>
               </div>
-              <button onClick={() => setShowUnitPicker(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowUnitPicker(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -960,12 +1141,12 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
                 <button
                   key={u.id}
                   onClick={() => { setShowUnitPicker(false); setUnidadSeleccionada(u) }}
-                  className="text-left p-4 border border-slate-200 rounded-xl
-                             hover:border-indigo-400 hover:bg-indigo-50 transition-colors"
+                  className="text-left p-4 border border-slate-200 dark:border-slate-800 rounded-xl
+                             hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
                 >
-                  <p className="font-semibold text-slate-900">P{u.piso} · {u.numero}{u.letra ?? ''}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{u.tipologias.nombre}</p>
-                  <p className="text-sm font-medium text-indigo-600 mt-2">{formatCurrency(u.precio_lista)}</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">P{u.piso} · {u.numero}{u.letra ?? ''}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{u.tipologias.nombre}</p>
+                  <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400 mt-2">{formatCurrency(u.precio_lista)}</p>
                 </button>
               ))}
             </div>
@@ -975,11 +1156,11 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
 
       {/* ── Modal: editar venta ──────────────────────────────── */}
       {editState && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="font-bold text-slate-900">Editar venta</h2>
-              <button onClick={() => setEditState(null)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="font-bold text-slate-900 dark:text-white">Editar venta</h2>
+              <button onClick={() => setEditState(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -988,63 +1169,63 @@ export default function ContratosManager({ contratos, unidadesDisponibles, cuent
             <form onSubmit={handleEdit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Precio final (USD) *</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Precio final (USD) *</label>
                   <input
                     required type="number" min="0" step="0.01"
                     value={editState.precioFinal}
                     onChange={e => setEditState(s => s && { ...s, precioFinal: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm
                                focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Entrega efectiva (USD) *</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Entrega efectiva (USD) *</label>
                   <input
                     required type="number" min="0" step="0.01"
                     value={editState.entregaEfectiva}
                     onChange={e => setEditState(s => s && { ...s, entregaEfectiva: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm
                                focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Fecha de firma *</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Fecha de firma *</label>
                   <input
                     required type="date"
                     value={editState.fechaFirma}
                     onChange={e => setEditState(s => s && { ...s, fechaFirma: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm
                                focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
-                <div className="bg-slate-50 rounded-lg p-3 flex flex-col justify-center">
-                  <p className="text-xs text-slate-500">Saldo financiado</p>
-                  <p className="font-bold text-slate-900 mt-0.5">{formatCurrency(saldoEdicion)}</p>
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 flex flex-col justify-center">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Saldo financiado</p>
+                  <p className="font-bold text-slate-900 dark:text-white mt-0.5">{formatCurrency(saldoEdicion)}</p>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Notas</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Notas</label>
                 <textarea
                   rows={2}
                   value={editState.notas}
                   onChange={e => setEditState(s => s && { ...s, notas: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm
                              focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                 />
               </div>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">
                 Los cambios de precio no actualizan solos el plan de cuotas — después de guardar, usá &quot;Recalcular cuotas pendientes&quot; en el panel de cuotas de este contrato si hace falta.
               </p>
               {editError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded-lg text-red-700 dark:text-red-400 text-sm">
                   {editError}
                 </div>
               )}
               <div className="flex gap-3 pt-1">
                 <button
                   type="button" onClick={() => setEditState(null)}
-                  className="flex-1 py-2.5 border border-slate-300 rounded-xl text-sm font-medium
-                             text-slate-700 hover:bg-slate-50 transition-colors"
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium
+                             text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                 >
                   Cancelar
                 </button>

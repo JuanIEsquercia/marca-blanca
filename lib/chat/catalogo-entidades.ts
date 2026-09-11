@@ -255,8 +255,11 @@ export const CATALOGO_ENTIDADES: Record<EntidadKey, DefinicionEntidad> = {
       { nombre: 'cantidad_cuotas', label: 'Cantidad de cuotas', requerido: false, descripcion: 'Si se omite, el máximo permitido para esa unidad. Las cuotas se generan solas, no hace falta cargarlas.' },
       { nombre: 'fecha_firma', label: 'Fecha de firma', requerido: false, descripcion: 'Formato YYYY-MM-DD — si se omite, hoy' },
       { nombre: 'cuenta_propia_id', label: 'Cuenta', requerido: false, descripcion: 'Id real de la cuenta (siempre USD), obtenida de listar_cuentas_desarrollo — si se omite y viene de una reserva, se usa la misma cuenta de la reserva' },
+      { nombre: 'forma_pago', label: 'Forma de pago de las cuotas', requerido: false, descripcion: 'Cómo se pactan las CUOTAS (el precio siempre es en dólares). Uno de: "usd" (cuotas fijas en dólares, es el valor por defecto), "ars_dolar" (pesos al dólar del día), "ars_cac" (pesos ajustables por CAC), "ars_uva" (pesos ajustables por UVA), "ars_fijo" (pesos fijos sin ajuste). No lo asumas: si el usuario no dijo nada, omitilo.' },
+      { nombre: 'cotizacion_pactada', label: 'Cotización pactada ($ por US$)', requerido: false, descripcion: 'Solo con cuotas en pesos. Si se omite, se toma el dólar minorista publicado a la fecha de firma.' },
+      { nombre: 'tasa_mora_diaria', label: 'Interés por mora (% diario)', requerido: false, descripcion: 'Porcentaje diario sobre el capital, desde el vencimiento. Ej. 1 = 1% por día. Si se omite, no se cobra mora.' },
       { nombre: 'notas', label: 'Notas', requerido: false },
-      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible con qué unidad, para quién y en cuántas cuotas, ej. "Piso 3 depto B — venta a Juan Pérez, USD 120.000 en 24 cuotas". Es lo único que el usuario lee para verificar antes de confirmar, los ids no se muestran.' },
+      { nombre: 'resumen', label: 'Resumen', requerido: true, descripcion: 'Frase corta y legible con qué unidad, para quién y en cuántas cuotas, ej. "Piso 3 depto B — venta a Juan Pérez, USD 120.000 en 24 cuotas". Si las cuotas no son en dólares fijos, decilo acá también. Es lo único que el usuario lee para verificar antes de confirmar, los ids no se muestran.' },
     ],
   },
   tipologia: {

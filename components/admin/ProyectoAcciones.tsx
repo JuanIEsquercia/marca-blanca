@@ -173,7 +173,8 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cuotas = (contratos ?? []).flatMap((c: any) => (c.cuotas ?? []).map((q: any) => ({
         Comprador: c.compradores?.nombre_completo ?? '', Unidad: labelUnidad(c.unidades),
-        'N° cuota': q.numero_cuota, 'Monto base': q.monto_base, 'Monto cobrado': q.monto_cobrado ?? '',
+        'N° cuota': q.numero_cuota, Moneda: q.moneda ?? 'USD', 'Monto base': q.monto_base, 'Monto cobrado': q.monto_cobrado ?? '',
+        'Unidades de índice': q.monto_indice ?? '', 'Emitida el': q.fecha_emision ?? '',
         'Cobrado en': q.cuentas_propias?.nombre ?? '',
         'Fecha vencimiento': q.fecha_vencimiento, Estado: q.estado_pago, 'Fecha pago': q.fecha_pago ?? '',
         'N° comprobante': q.numero_comprobante ?? '', Neto: q.monto_neto ?? '', IVA: q.iva ?? '', Percepciones: q.percepciones ?? '',
@@ -274,7 +275,7 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
       <div ref={ref} className="relative" onClick={e => e.preventDefault()}>
         <button
           onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(v => !v) }}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
           title="Acciones del proyecto">
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
             <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
@@ -282,70 +283,64 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
         </button>
 
         {open && (
-          <div className="absolute right-0 top-8 z-30 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-44 text-sm">
+          <div className="absolute right-0 top-8 z-30 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg py-1 w-44 text-sm">
             <button
               onClick={exportarDatos}
               disabled={exporting}
-              className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 disabled:opacity-60">
+              className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-60 transition-colors">
               {exporting ? 'Exportando...' : 'Exportar datos (Excel)'}
             </button>
             {esAdmin && (
               <>
-                <div className="border-t border-slate-100 my-1" />
+                <div className="border-t border-slate-100 dark:border-slate-800 my-1" />
                 {estadoActual === 'activa' && (
                   <button
                     onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(false); setConfirmCierre(true) }}
-                    className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700">
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors">
                     Cerrar proyecto
                   </button>
                 )}
                 {PUEDE_REACTIVAR.includes(estadoActual) && (
                   <button
                     onClick={e => { e.preventDefault(); e.stopPropagation(); cambiarEstado('activa') }}
-                    className="w-full text-left px-4 py-2 hover:bg-emerald-50 text-emerald-700">
+                    className="w-full text-left px-4 py-2 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 transition-colors">
                     Reactivar
                   </button>
                 )}
-                <div className="border-t border-slate-100 my-1" />
+                <div className="border-t border-slate-100 dark:border-slate-800 my-1" />
                 <button
                   onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(false); setConfirmDelete(true) }}
-                  className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600">
+                  className="w-full text-left px-4 py-2 hover:bg-red-50 dark:hover:bg-red-950/50 text-red-600 dark:text-red-400 transition-colors">
                   Eliminar
                 </button>
               </>
             )}
             {accionError && (
-              <p className="px-4 py-2 text-xs text-red-600 border-t border-slate-100">{accionError}</p>
+              <p className="px-4 py-2 text-xs text-red-600 dark:text-red-400 border-t border-slate-100 dark:border-slate-800">{accionError}</p>
             )}
           </div>
         )}
       </div>
 
-      {/* Modal: confirmar cierre — en portal, fuera del <Link> de la tarjeta.
-          Aunque sea position:fixed, en el DOM seguía siendo descendiente del
-          <a> de la tarjeta; confiar en stopPropagation() para que un click
-          acá adentro no dispare la navegación del Link resultó frágil en
-          producción (el usuario terminaba "entrando" al proyecto en vez de
-          eliminarlo). El portal saca el modal del árbol del Link del todo. */}
       {confirmCierre && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
           onClick={e => { e.preventDefault(); e.stopPropagation() }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-slate-900 mb-2">Cerrar proyecto</h2>
-            <p className="text-sm text-slate-600 mb-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Cerrar proyecto</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">
               ¿Marcar <strong>{nombre}</strong> como finalizado? El proyecto quedará de solo lectura.
               Podés reactivarlo en cualquier momento.
             </p>
             {accionError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs">{accionError}</div>
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg text-xs">{accionError}</div>
             )}
             <div className="flex gap-3">
               <button onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmCierre(false) }}
-                className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                 Cancelar
               </button>
               <button onClick={e => { e.preventDefault(); e.stopPropagation(); cambiarEstado('finalizada') }} disabled={loading}
-                className="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
+                className="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-60 text-white rounded-lg text-sm font-semibold transition-colors">
                 {loading ? 'Cerrando...' : 'Cerrar proyecto'}
               </button>
             </div>
@@ -354,41 +349,40 @@ export default function ProyectoAcciones({ obraId, nombre, tipo, estadoActual, e
         document.body
       )}
 
-      {/* Modal: confirmar eliminación — mismo motivo, en portal */}
       {confirmDelete && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
           onClick={e => { e.preventDefault(); e.stopPropagation() }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-slate-900 mb-2">Eliminar proyecto</h2>
-            <p className="text-sm text-slate-600 mb-1">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Eliminar proyecto</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">
               ¿Eliminar <strong>{nombre}</strong>? Esta acción eliminará todos sus datos:
             </p>
-            <ul className="text-xs text-slate-500 mb-6 list-disc list-inside space-y-0.5">
+            <ul className="text-xs text-slate-500 dark:text-slate-400 mb-6 list-disc list-inside space-y-0.5">
               <li>Contratos, certificados y cobros</li>
               <li>Unidades, tipologías y ventas</li>
               <li>Gastos, presupuestos y órdenes de compra vinculados</li>
               <li>Personal y equipos asignados, y el stock repartido acá</li>
             </ul>
-            <p className="text-xs text-slate-400 mb-4 -mt-4">
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-4 -mt-4">
               Las cuentas propias específicas del proyecto no se eliminan: pasan a ser cuentas de empresa.
             </p>
             <button onClick={e => { e.preventDefault(); e.stopPropagation(); exportarDatos(e) }} disabled={exporting}
-              className="w-full mb-4 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 flex items-center justify-center gap-2">
+              className="w-full mb-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60 flex items-center justify-center gap-2 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
               </svg>
               {exporting ? 'Descargando...' : 'Descargar Excel antes de eliminar'}
             </button>
             {accionError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs">{accionError}</div>
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg text-xs">{accionError}</div>
             )}
             <div className="flex gap-3">
               <button onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmDelete(false) }}
-                className="flex-1 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                 Cancelar
               </button>
               <button onClick={e => { e.preventDefault(); e.stopPropagation(); eliminar() }} disabled={loading}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold">
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white rounded-lg text-sm font-semibold transition-colors">
                 {loading ? 'Eliminando...' : 'Eliminar definitivamente'}
               </button>
             </div>

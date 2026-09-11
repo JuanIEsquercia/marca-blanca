@@ -22,7 +22,7 @@ export default async function ContratosPage({ params }: { params: Promise<{ obra
         *,
         compradores(*),
         unidades(piso, numero, letra, tipologias(nombre)),
-        cuotas(id, numero_cuota, monto_base, monto_cobrado, fecha_vencimiento, estado_pago, fecha_pago, cuenta_propia_id, monto_neto, iva, percepciones, numero_comprobante, comprobante_url)
+        cuotas(id, numero_cuota, monto_base, monto_cobrado, moneda, monto_indice, fecha_emision, indice_valor_emision, fecha_vencimiento, estado_pago, fecha_pago, cuenta_propia_id, monto_neto, iva, percepciones, numero_comprobante, comprobante_url)
       `)
       .eq('obra_id', obraId)
       .order('fecha_firma', { ascending: false }),

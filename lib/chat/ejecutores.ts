@@ -1548,6 +1548,17 @@ async function ejecutarCrearReserva(ctx: ContextoChat, supabase: SupabaseClient,
   }
 }
 
+// Las cinco formas en que se pacta un plan de cuotas en este mercado. Las
+// mismas que ofrece SaleForm — el chat no puede tener menos opciones que el
+// formulario, ni distintas. El precio del contrato es siempre en dólares.
+const FORMAS_PAGO_VENTA: Record<string, { moneda: 'ARS' | 'USD'; indice: string | null }> = {
+  usd:       { moneda: 'USD', indice: null },
+  ars_dolar: { moneda: 'ARS', indice: 'USD_MINORISTA' },
+  ars_cac:   { moneda: 'ARS', indice: 'CAC' },
+  ars_uva:   { moneda: 'ARS', indice: 'UVA' },
+  ars_fijo:  { moneda: 'ARS', indice: null },
+}
+
 async function ejecutarCrearContratoVenta(ctx: ContextoChat, supabase: SupabaseClient, input: Record<string, unknown>) {
   const unidadId = texto(input.unidad_id)
   if (!unidadId) return { error: 'Falta indicar la unidad.' }
@@ -1610,6 +1621,22 @@ async function ejecutarCrearContratoVenta(ctx: ContextoChat, supabase: SupabaseC
 
   const fechaFirma = texto(input.fecha_firma) ?? new Date().toISOString().slice(0, 10)
 
+  // Cómo se pactan las CUOTAS. El precio sigue siendo en dólares siempre —
+  // esto no lo cambia (ver migration_080). Por defecto, cuotas en dólares:
+  // exactamente lo que pasaba antes de que esto existiera.
+  const forma = FORMAS_PAGO_VENTA[texto(input.forma_pago) ?? 'usd']
+  if (!forma) {
+    return { error: 'La forma de pago tiene que ser una de: usd, ars_dolar, ars_cac, ars_uva, ars_fijo.' }
+  }
+  const cotizacionPactada = input.cotizacion_pactada === undefined ? undefined : numero(input.cotizacion_pactada)
+  if (forma.moneda === 'ARS' && cotizacionPactada !== undefined && (cotizacionPactada === undefined || cotizacionPactada <= 0)) {
+    return { error: 'La cotización pactada tiene que ser un monto mayor a 0.' }
+  }
+  const tasaMora = input.tasa_mora_diaria === undefined ? undefined : numero(input.tasa_mora_diaria)
+  if (tasaMora !== undefined && (tasaMora === undefined || tasaMora < 0)) {
+    return { error: 'El interés por mora tiene que ser un porcentaje mayor o igual a 0.' }
+  }
+
   const { data: contrato, error } = await supabase
     .from('contratos_venta')
     .insert({
@@ -1621,6 +1648,13 @@ async function ejecutarCrearContratoVenta(ctx: ContextoChat, supabase: SupabaseC
       fecha_firma: fechaFirma,
       cuenta_propia_id: cuentaPropiaId,
       notas: texto(input.notas) ?? null,
+      cuotas_moneda: forma.moneda,
+      indice_tipo: forma.indice,
+      // Sin cotización explícita, el trigger de la base toma el dólar
+      // minorista publicado a la fecha de firma — y falla con un mensaje
+      // claro si no hay ninguno cargado.
+      cotizacion_pactada: forma.moneda === 'ARS' ? (cotizacionPactada ?? null) : null,
+      tasa_mora_diaria: tasaMora ?? null,
     })
     .select('id')
     .single()
@@ -1644,6 +1678,8 @@ async function ejecutarCrearContratoVenta(ctx: ContextoChat, supabase: SupabaseC
     precio_final: precioFinal,
     entrega_efectiva: entregaEfectiva,
     cantidad_cuotas: cantidadCuotas,
+    cuotas_moneda: forma.moneda,
+    ajuste: forma.indice ?? 'sin ajuste',
     avisos: avisos.length ? avisos : undefined,
   }
 }

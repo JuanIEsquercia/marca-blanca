@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import NuevaConstructoraModal from './NuevaConstructoraModal'
+import IndicesPanel from './IndicesPanel'
 
 interface Usuario {
   id: string
@@ -691,6 +692,8 @@ export default function ConstructorasManager({ initialData }: Props) {
           ))}
         </div>
       )}
+
+      <IndicesPanel />
 
       {/* Modal: confirmar eliminar constructora */}
       {confirmDeleteId && (

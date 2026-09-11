@@ -442,7 +442,7 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'crear_contrato_venta',
-    description: 'Registra la venta de una unidad, con su plan de cuotas generado solo (no hace falta cargarlas a mano). Si la venta viene de una reserva ya cargada, pasá reserva_id y el cliente/seña se toman de ahí — no hace falta repetirlos. Si no hay reserva previa, el cliente se resuelve igual que en crear_reserva (comprador_id existente, o cliente_nombre para crear uno nuevo). Nunca inventes precio_final/entrega_efectiva/cantidad_cuotas si el usuario no los dio — dejalos vacíos para que se usen los valores por defecto de la unidad. Requiere confirmación explícita antes de ejecutarse de verdad.',
+    description: 'Registra la venta de una unidad, con su plan de cuotas generado solo (no hace falta cargarlas a mano). Si la venta viene de una reserva ya cargada, pasá reserva_id y el cliente/seña se toman de ahí — no hace falta repetirlos. Si no hay reserva previa, el cliente se resuelve igual que en crear_reserva (comprador_id existente, o cliente_nombre para crear uno nuevo). Nunca inventes precio_final/entrega_efectiva/cantidad_cuotas si el usuario no los dio — dejalos vacíos para que se usen los valores por defecto de la unidad. El precio SIEMPRE se pacta en dólares; lo que puede variar es el plan de cuotas (forma_pago), que por defecto también es en dólares fijos — no lo cambies salvo que el usuario diga explícitamente que las cuotas van en pesos o ajustadas por un índice. Requiere confirmación explícita antes de ejecutarse de verdad.',
     input_schema: schemaDesdeEntidad('contrato_venta'),
   },
   {

@@ -32,14 +32,15 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
     .order('nombre')
   const cuentasQueryScoped = ctx.obraModo === 'especificas' ? cuentasQuery.eq('obra_id', obraId) : cuentasQuery.is('obra_id', null)
 
-  // Ventas de unidades son siempre USD (precio_lista/cuotas no tienen
-  // columna moneda propia — convención del negocio, ver lib/tesoreria.ts).
+  // Precio, entrega y seña son siempre en dólares (convención del negocio).
+  // Las cuotas no: desde migration_080 pueden pactarse en pesos, así que
+  // cada una declara la suya.
   const obtenerIngresos = async (): Promise<IngresoDisplay[]> => {
     if (ctx.obraTipo === 'desarrollo') {
       const [{ data: cuotas }, { data: contratos }, { data: reservasVigentes }] = await Promise.all([
         supabase
           .from('cuotas')
-          .select('monto_base, monto_cobrado, fecha_pago, cuenta_propia_id, contratos_venta!inner(estado, unidades!inner(obra_id))')
+          .select('monto_base, monto_cobrado, moneda, fecha_pago, cuenta_propia_id, contratos_venta!inner(estado, unidades!inner(obra_id))')
           .eq('estado_pago', 'Pagado')
           .eq('contratos_venta.unidades.obra_id', obraId)
           .eq('contratos_venta.estado', 'vigente'),
@@ -62,7 +63,7 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
           fecha: c.fecha_pago ?? '',
           descripcion: 'Cuota cobrada',
           monto: c.monto_cobrado ?? c.monto_base ?? 0,
-          moneda: 'USD',
+          moneda: c.moneda ?? 'USD',
           tipo: 'cuota',
           cuenta_propia_id: c.cuenta_propia_id ?? null,
         })),
@@ -135,8 +136,8 @@ export default async function CajaProyectoPage({ params }: { params: Promise<{ o
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Caja del proyecto</h1>
-        <p className="text-slate-500 text-sm mt-1">{ctx.obraNombre} — flujo de caja imputado a este proyecto</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Caja del proyecto</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{ctx.obraNombre} — saldos por cuenta y flujo financiero</p>
       </div>
 
       {/* Resumen — una fila de tarjetas por moneda, nunca se mezclan ARS/USD en un mismo total */}

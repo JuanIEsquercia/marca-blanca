@@ -7,9 +7,11 @@ import { formatCurrency, redondear2, sumarMontos } from '@/lib/utils'
 // que diverjan dos implementaciones del mismo cálculo (ya pasó antes con el
 // bug de cobros_proyecto sin impactar tesorería).
 //
-// Reglas de moneda: cuotas/entregas de contrato (contratos_venta) y señas de
-// reserva no tienen columna `moneda` propia — la venta de unidades es
-// siempre en USD por convención del negocio (precio_lista, cuotas, etc.).
+// Reglas de moneda: el precio de una unidad, la entrega efectiva del
+// contrato y la seña de una reserva son SIEMPRE en dólares (convención del
+// negocio: precio_lista, entrega_efectiva, monto_sena). Las CUOTAS son la
+// excepción desde migration_080: pueden pactarse en pesos, ajustables o no,
+// y por eso traen su propia columna `moneda`.
 // gastos y cobros_proyecto sí declaran su propia moneda (ARS o USD). Un
 // movimiento solo se imputa al saldo de una cuenta si su moneda coincide con
 // la de la cuenta — así un dato mal cargado (cobro en USD asignado por error
@@ -107,7 +109,7 @@ export async function calcularSaldosDeCuentas(
     // contratos_venta!inner(estado) + el filtro de abajo: una cuota de un
     // contrato rescindido deja de contar como ingreso real (el contrato
     // cayó, no hubo tal cobro a nivel de negocio) — ver migration_058.
-    supabase.from('cuotas').select('monto_base, monto_cobrado, estado_pago, cuenta_propia_id, contratos_venta!inner(estado)').eq('constructora_id', constructoraId).eq('estado_pago', 'Pagado').eq('contratos_venta.estado', 'vigente'),
+    supabase.from('cuotas').select('monto_base, monto_cobrado, moneda, estado_pago, cuenta_propia_id, contratos_venta!inner(estado)').eq('constructora_id', constructoraId).eq('estado_pago', 'Pagado').eq('contratos_venta.estado', 'vigente'),
     supabase.from('contratos_venta').select('entrega_efectiva, cuenta_propia_id').eq('constructora_id', constructoraId).eq('estado', 'vigente'),
     // Sin filtro de estado acá a propósito: un gasto con plan de pago
     // parcialmente cumplido sigue Pendiente pero puede tener cuotas ya
@@ -121,7 +123,7 @@ export async function calcularSaldosDeCuentas(
   // Cuotas: el monto real cobrado puede diferir del nominal (descuentos,
   // recargos) — monto_cobrado es lo que efectivamente entró a la cuenta.
   const ingresos: MovimientoConCuenta[] = [
-    ...(cuotas ?? []).map(c => ({ monto: c.monto_cobrado ?? c.monto_base ?? 0, cuenta_propia_id: c.cuenta_propia_id, moneda: null })),
+    ...(cuotas ?? []).map(c => ({ monto: c.monto_cobrado ?? c.monto_base ?? 0, cuenta_propia_id: c.cuenta_propia_id, moneda: c.moneda ?? 'USD' })),
     ...(contratos ?? []).map(c => ({ monto: c.entrega_efectiva ?? 0, cuenta_propia_id: c.cuenta_propia_id, moneda: null })),
     ...(reservas ?? []).map(r => ({ monto: r.monto_sena ?? 0, cuenta_propia_id: r.cuenta_propia_id, moneda: null })),
     ...movimientosLiquidados((cobrosProyecto ?? []) as MovimientoConPagos[], 'Cobrado'),
@@ -231,7 +233,7 @@ async function obtenerIngresosProyecto(
     const [{ data: cuotas }, { data: contratos }, { data: reservas }] = await Promise.all([
       supabase
         .from('cuotas')
-        .select('monto_base, monto_cobrado, cuenta_propia_id, contratos_venta!inner(estado, unidades!inner(obra_id))')
+        .select('monto_base, monto_cobrado, moneda, cuenta_propia_id, contratos_venta!inner(estado, unidades!inner(obra_id))')
         .eq('estado_pago', 'Pagado')
         .eq('contratos_venta.unidades.obra_id', ctx.obraId)
         .eq('contratos_venta.estado', 'vigente'),
@@ -250,7 +252,7 @@ async function obtenerIngresosProyecto(
     ])
 
     return [
-      ...(cuotas ?? []).map(c => ({ monto: c.monto_cobrado ?? c.monto_base ?? 0, cuenta_propia_id: c.cuenta_propia_id ?? null, moneda: null })),
+      ...(cuotas ?? []).map(c => ({ monto: c.monto_cobrado ?? c.monto_base ?? 0, cuenta_propia_id: c.cuenta_propia_id ?? null, moneda: c.moneda ?? 'USD' })),
       ...(contratos ?? []).filter(c => (c.entrega_efectiva ?? 0) > 0).map(c => ({ monto: c.entrega_efectiva ?? 0, cuenta_propia_id: c.cuenta_propia_id ?? null, moneda: null })),
       ...(reservas ?? []).map(r => ({ monto: r.monto_sena ?? 0, cuenta_propia_id: r.cuenta_propia_id ?? null, moneda: null })),
     ]

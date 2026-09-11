@@ -110,6 +110,10 @@ export interface Comprador {
   created_at: string
 }
 
+// Las ventas se pactan en dólares o en pesos; no hay una tercera opción y
+// mezclarlas en un mismo total es siempre un error.
+export type MonedaPlan = 'ARS' | 'USD'
+
 export interface ContratoVenta {
   id: string
   constructora_id: string
@@ -123,6 +127,13 @@ export interface ContratoVenta {
   notas: string | null
   cuenta_propia_id: string | null
   estado: 'vigente' | 'rescindido'
+  // Plan de cuotas (migration_079 + migration_080). El precio del contrato
+  // es SIEMPRE en dólares; esto describe únicamente cómo se pactaron las
+  // cuotas: en qué moneda, contra qué índice y con qué mora.
+  cuotas_moneda: MonedaPlan
+  cotizacion_pactada: number | null
+  indice_tipo: string | null
+  tasa_mora_diaria: number | null
   created_at: string
   unidades?: Unidad
   compradores?: Comprador
@@ -144,6 +155,15 @@ export interface Cuota {
   percepciones: number | null
   numero_comprobante: string | null
   comprobante_url: string | null
+  // migration_080: la cuota lleva su propia moneda porque viaja sola a
+  // caja, ingresos, tesorería y al recibo — ir a buscarla al contrato es
+  // justamente lo que hace que alguien se la olvide.
+  moneda: MonedaPlan
+  // migration_079: lo pactado en unidades de índice (el dato estable) y el
+  // congelamiento al emitir.
+  monto_indice: number | null
+  fecha_emision: string | null
+  indice_valor_emision: number | null
   created_at: string
   contratos_venta?: ContratoVenta
 }

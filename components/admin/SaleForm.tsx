@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, redondear2 } from '@/lib/utils'
 import CuentaPropiaSelect from './CuentaPropiaSelect'
@@ -102,6 +102,14 @@ export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compra
   const [cotizacion, setCotizacion] = useState('')
   const [tasaMora, setTasaMora] = useState('')
   const [cotizacionHoy, setCotizacionHoy] = useState<number | null>(null)
+  // Valor del índice elegido (CAC/UVA) a la fecha de firma. Se muestra para
+  // que no se firme a ciegas y para avisar ANTES de guardar si falta
+  // cargarlo — si no, el error recién aparecía al intentar crear el contrato.
+  const [valorIndiceFirma, setValorIndiceFirma] = useState<number | null>(null)
+  // ¿La cotización la escribió una persona? En ese caso no se pisa nunca.
+  // Es un ref y no un estado porque solo lo lee el efecto de abajo: como
+  // estado, marcarlo dispararía una consulta de más sin cambiar nada.
+  const cotizacionEditada = useRef(false)
   const forma = FORMAS_DE_PAGO.find(f => f.id === formaPago)!
   const cuotasEnPesos = forma.moneda === 'ARS'
   const [cuentaPropiaId, setCuentaPropiaId] = useState('')
@@ -142,21 +150,40 @@ export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compra
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reservaId])
 
-  // Cotización publicada a la fecha de firma. Es solo una sugerencia: lo
-  // que vale es lo que las partes pactaron, y por eso el campo es editable.
+  // Cotización e índice publicados A LA FECHA DE FIRMA. Se vuelven a pedir
+  // cada vez que cambia esa fecha: son el valor de un día puntual, no un
+  // valor "de hoy".
+  //
+  // La cotización sugerida SE PISA al cambiar la fecha, salvo que la haya
+  // escrito una persona. Antes no se pisaba nunca, y eso dejaba el campo con
+  // el valor de la fecha vieja mientras el texto de ayuda mostraba el nuevo:
+  // el contrato terminaba firmado a una cotización que no era la del día
+  // elegido, y todas las cuotas en pesos salían mal.
   useEffect(() => {
     if (!cuotasEnPesos) return
     let vigente = true
-    createClient()
-      .rpc('valor_indice', { p_tipo: 'USD_MINORISTA', p_fecha: fechaFirma })
-      .then(({ data }) => {
-        if (!vigente) return
-        const v = data == null ? null : Number(data)
-        setCotizacionHoy(v)
-        setCotizacion(prev => prev || (v == null ? '' : String(v)))
-      })
+    const supabase = createClient()
+    const indice = forma.indice
+
+    Promise.all([
+      supabase.rpc('valor_indice', { p_tipo: 'USD_MINORISTA', p_fecha: fechaFirma }),
+      indice && !indice.startsWith('USD')
+        ? supabase.rpc('valor_indice', { p_tipo: indice, p_fecha: fechaFirma })
+        : Promise.resolve({ data: null }),
+    ]).then(([dolar, propio]) => {
+      if (!vigente) return
+      const v = dolar.data == null ? null : Number(dolar.data)
+      setCotizacionHoy(v)
+      setValorIndiceFirma(propio.data == null ? null : Number(propio.data))
+      if (!cotizacionEditada.current) {
+        setCotizacion(v == null ? '' : String(v))
+      }
+    })
     return () => { vigente = false }
-  }, [cuotasEnPesos, fechaFirma])
+  }, [cuotasEnPesos, fechaFirma, forma.indice])
+
+  // Nombre legible del índice para los avisos ('UVA', 'CAC').
+  const etiquetaIndiceForma = forma.indice ?? ''
 
   const saldoRestante = parseFloat(precioFinal || '0') - parseFloat(entregaEfectiva || '0')
   const cotizacionNum = parseFloat(cotizacion || '0')
@@ -370,13 +397,24 @@ export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compra
                     Cotización pactada ($ por US$) *
                   </label>
                   <input required type="number" min="0" step="0.01" value={cotizacion}
-                    onChange={e => setCotizacion(e.target.value)}
+                    onChange={e => { cotizacionEditada.current = true; setCotizacion(e.target.value) }}
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                    {cotizacionHoy != null
-                      ? `Dólar minorista publicado al ${fechaFirma}: ${cotizacionHoy}. Cambialo si pactaron otro.`
-                      : 'No hay cotización publicada para esa fecha. Cargá la que pactaron.'}
-                  </p>
+                  {cotizacionHoy != null ? (
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      Dólar minorista publicado al {fechaFirma}: {cotizacionHoy}.
+                      {String(cotizacionHoy) !== cotizacion ? (
+                        <button type="button"
+                          onClick={() => { cotizacionEditada.current = false; setCotizacion(String(cotizacionHoy)) }}
+                          className="ml-1 text-indigo-600 dark:text-indigo-400 underline underline-offset-2">
+                          usar ese
+                        </button>
+                      ) : ' Cambialo si pactaron otro.'}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                      No hay cotización publicada para esa fecha. Cargá la que pactaron.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
@@ -390,6 +428,25 @@ export default function SaleForm({ unidad, onClose, onSuccess, reservaId, compra
                   </p>
                 </div>
               </div>
+            )}
+
+            {/* Estado del índice elegido, ANTES de guardar: sin un valor
+                publicado a la fecha de firma la base rechaza el contrato, y
+                sin este aviso eso recién se descubría al apretar Confirmar. */}
+            {forma.indice && !forma.indice.startsWith('USD') && (
+              valorIndiceFirma != null ? (
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
+                  {etiquetaIndiceForma} al {fechaFirma}: <strong>{valorIndiceFirma}</strong>
+                  {montoCuota > 0 && ` · cada cuota son ${(montoCuota / valorIndiceFirma).toFixed(2)} unidades`}
+                </p>
+              ) : (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-3">
+                  No hay ningún valor de {etiquetaIndiceForma} publicado hasta el {fechaFirma}, así que esta venta no se va a poder guardar.
+                  {forma.indice === 'CAC'
+                    ? ' El CAC se carga a mano desde el panel de superadmin.'
+                    : ' Actualizá la serie desde el panel de superadmin.'}
+                </p>
+              )
             )}
           </div>
 

@@ -36,7 +36,18 @@ export async function proxy(request: NextRequest) {
       }
     )
 
-    const { data: { user } } = await supabase.auth.getUser()
+    // getClaims() y no getUser(): esto corre en CADA navegación (el matcher
+    // de abajo no excluye los pedidos de RSC), y getUser() pega a Supabase
+    // Auth por red — 613 ms de mediana, hasta 1340. getClaims() verifica la
+    // firma del token localmente contra el JWKS del proyecto, cuya clave
+    // actual es asimétrica (ECC P-256). Los tokens viejos con el secreto
+    // HS256 caen solos a getUser() hasta que vencen.
+    //
+    // El refresh del token sigue ocurriendo: getClaims() pasa por
+    // getSession(), que renueva la sesión cuando está vencida y deja las
+    // cookies nuevas en supabaseResponse.
+    const { data: claims } = await supabase.auth.getClaims()
+    const user = claims?.claims?.sub ? { id: claims.claims.sub } : null
     const pathname = request.nextUrl.pathname
 
     // El proxy hace AUTENTICACIÓN (¿hay sesión?), no AUTORIZACIÓN (¿quién

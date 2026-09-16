@@ -33,6 +33,22 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
+  experimental: {
+    // Caché de cliente para las rutas dinámicas. Por defecto Next 15+ la deja
+    // en 0 s, así que volver a una sección ya visitada la recarga entera
+    // contra el servidor — con todas las páginas del panel en force-dynamic,
+    // eso significaba que NADA se reusaba nunca.
+    //
+    // Que esto no muestre datos viejos depende de algo que el panel ya hace:
+    // después de crear o editar, los componentes llaman a router.refresh(),
+    // que invalida esta caché (20 de los 21 managers del panel lo hacen). El
+    // riesgo real que queda es acotado: ver hasta 30 s tarde el cambio que
+    // hizo OTRA persona, y solo si volvés a una pantalla recién visitada.
+    staleTimes: {
+      dynamic: 30,
+      static: 180,
+    },
+  },
   async headers() {
     return [{ source: '/(.*)', headers: SECURITY_HEADERS }];
   },

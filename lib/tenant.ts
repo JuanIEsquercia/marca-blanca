@@ -14,13 +14,29 @@ export interface ConstructoraContext {
 }
 
 // Cacheado por request con React cache(): sin esto, cada layout/página que
-// necesita el usuario autenticado dispara su propio round-trip a Supabase
-// Auth. Con esto, todos los llamados dentro del mismo render comparten 1 sola
-// llamada real a getUser().
-export const getAuthUser = cache(async () => {
+// necesita el usuario autenticado dispara su propia verificación. Con esto,
+// todos los llamados dentro del mismo render comparten una sola.
+//
+// getClaims() y no getUser(): getUser() SIEMPRE pega a Supabase Auth por red
+// — medido en 613 ms de mediana, y se pagaba dos veces por navegación (acá y
+// en proxy.ts). getClaims() verifica la FIRMA del token localmente contra el
+// JWKS del proyecto, sin red, porque la clave que firma es asimétrica
+// (ECC P-256 / ES256).
+//
+// Sigue siendo una verificación criptográfica real, no un decode a ciegas:
+// un token manipulado no pasa la firma. Para los tokens viejos firmados con
+// el secreto HS256 compartido, getClaims() cae solo a getUser() — o sea que
+// durante la rotación nadie queda afuera, solo pagan la red hasta vencer.
+//
+// Y la barrera de verdad sigue estando abajo: la RLS de Postgres valida el
+// JWT por su cuenta en cada query. Esto decide a quién le mostramos el
+// panel, no a qué datos puede llegar.
+export const getAuthUser = cache(async (): Promise<{ id: string; email: string | null } | null> => {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  return user
+  const { data, error } = await supabase.auth.getClaims()
+  const sub = data?.claims?.sub
+  if (error || !sub) return null
+  return { id: sub, email: typeof data.claims.email === 'string' ? data.claims.email : null }
 })
 
 export interface ProyectoContext extends ConstructoraContext {

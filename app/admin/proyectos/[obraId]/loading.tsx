@@ -1,23 +1,21 @@
+import { SkeletonTarjetas, SkeletonTabla, SkeletonTitulo } from '@/components/admin/Skeleton'
+
+// Loading propio del proyecto: tiene una fila de tarjetas más que el del
+// panel general, porque los tableros de obra y de desarrollo muestran más
+// indicadores arriba.
 export default function ProyectoLoading() {
   return (
     <div className="space-y-6 animate-pulse">
-      <div className="space-y-2">
-        <div className="h-7 bg-slate-200 rounded-lg w-40" />
-        <div className="h-4 bg-slate-100 rounded w-64" />
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-24 bg-white border border-slate-200 rounded-xl" />
-        ))}
-      </div>
+      <SkeletonTitulo />
+      <SkeletonTarjetas />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="h-48 bg-white border border-slate-200 rounded-xl" />
+        <div className="h-48 rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" />
         <div className="space-y-3">
-          <div className="h-20 bg-white border border-slate-200 rounded-xl" />
-          <div className="h-20 bg-white border border-slate-200 rounded-xl" />
+          <div className="h-20 rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" />
+          <div className="h-20 rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" />
         </div>
       </div>
-      <div className="h-64 bg-white border border-slate-200 rounded-xl" />
+      <SkeletonTabla filas={4} />
     </div>
   )
 }
